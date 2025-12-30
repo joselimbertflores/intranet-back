@@ -33,7 +33,10 @@ export class EnvironmentVariables {
   CLIENT_KEY: string;
 
   @IsString()
-  CLIENT_REDIRECT: string;
+  OAUTH_REDIRECT_URI: string;
+
+  @IsString()
+  LOGIN_SUCCESS_REDIRECT: string;
 }
 
 export function validate(config: Record<string, unknown>) {

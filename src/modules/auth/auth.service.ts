@@ -1,18 +1,17 @@
 import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
+import { JwtService } from '@nestjs/jwt';
 
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
+import { Repository } from 'typeorm';
+import { AxiosError } from 'axios';
+
 import { lastValueFrom } from 'rxjs';
 import { LoginDto } from './dtos';
-import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/entities';
-import { Repository } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
 import { EnvironmentVariables } from 'src/config';
-import { RefreshTokenResult, DirectLoginResult, RefreshTokenPayload } from './interfaces';
-import { AxiosError } from 'axios';
-import { JwtService } from '@nestjs/jwt';
+import { RefreshTokenResult, DirectLoginResult, RefreshTokenPayload, TokenRequestResponse } from './interfaces';
 
 @Injectable()
 export class AuthService {
@@ -23,18 +22,20 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async handleOAuthCallback(code: string): Promise<{ access_token: string; refresh_token: string }> {
-    //  const tokenEndpoint = `${this.configService.get('IDENTITY_HUB_URL')}/auth/token`;
-    // TODO replace for env url
-    const response = await lastValueFrom(
-      this.http.post('http://localhost:8000/auth/token', {
-        code,
-        client_id: this.configService.getOrThrow<string>('CLIENT_KEY'),
-        redirect_uri: 'http://localhost:3000/auth/callback',
-      }),
-    );
+  async handleOAuthCallback(code: string) {
+    const tokenEndpoint = `${this.configService.get('IDENTITY_HUB_URL')}/auth/token`;
+    const redirect_uri = this.configService.getOrThrow<string>('CLIENT_REDIRECT');
+    const client_id = this.configService.getOrThrow<string>('CLIENT_KEY');
 
-    return response.data;
+    try {
+      const response = await lastValueFrom(
+        this.http.post<TokenRequestResponse>(tokenEndpoint, { code, client_id, redirect_uri }),
+      );
+
+      return response.data;
+    } catch (error) {
+      throw new UnauthorizedException('Invalid authorization code');
+    }
   }
 
   async refreshTokens(refreshToken: string) {
@@ -64,16 +65,15 @@ export class AuthService {
   }
 
   buildAuthorizeUrl(): string {
-    const idpUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL'); // http://localhost:8000
-    const clientId = this.configService.getOrThrow<string>('CLIENT_KEY'); // intranet
-    const redirectUri = this.configService.getOrThrow<string>('CLIENT_REDIRECT'); // http://localhost:3000/auth/callback
+    const idpUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
+    const clientId = this.configService.getOrThrow<string>('CLIENT_KEY');
+    const redirectUri = this.configService.getOrThrow<string>('CLIENT_REDIRECT');
 
     const authorizeUrl = new URL(`${idpUrl}/auth/authorize`);
     authorizeUrl.searchParams.set('client_id', clientId);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
     authorizeUrl.searchParams.set('response_type', 'code');
-    authorizeUrl.searchParams.set('scope', 'openid profile email');
-    authorizeUrl.searchParams.set('state', redirectUri); // opcional pero recomendado
+    authorizeUrl.searchParams.set('state', redirectUri);
     return authorizeUrl.toString();
   }
 
