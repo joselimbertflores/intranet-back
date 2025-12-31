@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { AxiosError } from 'axios';
 
 import { lastValueFrom } from 'rxjs';
+
 import { LoginDto } from './dtos';
 import { User } from '../users/entities';
 import { EnvironmentVariables } from 'src/config';
@@ -68,7 +69,7 @@ export class AuthService {
     const clientId = this.configService.getOrThrow<string>('CLIENT_KEY');
     const redirectUri = this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI');
 
-    const authorizeUrl = new URL(`${idpUrl}/auth/authorize`);
+    const authorizeUrl = new URL(`${idpUrl}/oauth/authorize`);
     authorizeUrl.searchParams.set('client_id', clientId);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
     authorizeUrl.searchParams.set('response_type', 'code');
