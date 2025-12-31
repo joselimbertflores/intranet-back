@@ -17,7 +17,7 @@ export class AuthController {
 
   @Get('callback')
   async callback(@Query() queryParams: AuthCallbackParamsDto, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.authService.handleOAuthCallback(queryParams.code);
+    const { tokens, url } = await this.authService.exchangeAuthorizationCode(queryParams.code);
 
     res.cookie('intranet_access', tokens.access_token, {
       httpOnly: true,
@@ -33,7 +33,7 @@ export class AuthController {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
     // const redirectTo = state || 'http://localhost:4200/admin';
-    return res.redirect('http://localhost:5000/admin');
+    return res.redirect(url);
   }
 
   @Get('status')

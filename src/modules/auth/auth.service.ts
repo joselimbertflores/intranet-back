@@ -22,17 +22,16 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async handleOAuthCallback(code: string) {
-    const tokenEndpoint = `${this.configService.get('IDENTITY_HUB_URL')}/auth/token`;
-    const redirect_uri = this.configService.getOrThrow<string>('CLIENT_REDIRECT');
-    const client_id = this.configService.getOrThrow<string>('CLIENT_KEY');
-
+  async exchangeAuthorizationCode(code: string) {
     try {
-      const response = await lastValueFrom(
-        this.http.post<TokenRequestResponse>(tokenEndpoint, { code, client_id, redirect_uri }),
-      );
+      const request = this.http.post<TokenRequestResponse>(`${this.configService.get('IDENTITY_HUB_URL')}/auth/token`, {
+        code,
+        client_id: this.configService.getOrThrow<string>('CLIENT_KEY'),
+        redirect_uri: this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI'),
+      });
+      const response = await lastValueFrom(request);
 
-      return response.data;
+      return { tokens: response.data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
     } catch (error) {
       throw new UnauthorizedException('Invalid authorization code');
     }
@@ -67,13 +66,13 @@ export class AuthService {
   buildAuthorizeUrl(): string {
     const idpUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
     const clientId = this.configService.getOrThrow<string>('CLIENT_KEY');
-    const redirectUri = this.configService.getOrThrow<string>('CLIENT_REDIRECT');
+    const redirectUri = this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI');
 
     const authorizeUrl = new URL(`${idpUrl}/auth/authorize`);
     authorizeUrl.searchParams.set('client_id', clientId);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
     authorizeUrl.searchParams.set('response_type', 'code');
-    authorizeUrl.searchParams.set('state', redirectUri);
+    // authorizeUrl.searchParams.set('state', redirectUri);
     return authorizeUrl.toString();
   }
 
