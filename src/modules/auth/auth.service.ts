@@ -12,7 +12,7 @@ import { lastValueFrom } from 'rxjs';
 import { LoginDto } from './dtos';
 import { User } from '../users/entities';
 import { EnvironmentVariables } from 'src/config';
-import { RefreshTokenResult, DirectLoginResult, RefreshTokenPayload, TokenRequestResponse } from './interfaces';
+import { RefreshTokenResult, TokenRequestResponse } from './interfaces';
 
 @Injectable()
 export class AuthService {
@@ -25,16 +25,12 @@ export class AuthService {
 
   async exchangeAuthorizationCode(code: string) {
     try {
-      const request = this.http.post<TokenRequestResponse>(`${this.configService.get('IDENTITY_HUB_URL')}/auth/token`, {
-        code,
-        client_id: this.configService.getOrThrow<string>('CLIENT_KEY'),
-        redirect_uri: this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI'),
-      });
-      const response = await lastValueFrom(request);
-
-      return { tokens: response.data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
+      return { result: response.data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
     } catch (error) {
-      throw new UnauthorizedException('Invalid authorization code');
+      if (error instanceof AxiosError && error.response?.status === 401) {
+        throw new UnauthorizedException(error.response.data);
+      }
+      throw new InternalServerErrorException("Code exchange can't be completed at the moment");
     }
   }
 
@@ -46,22 +42,21 @@ export class AuthService {
   }
 
   async login({ login, password }: LoginDto) {
-    try {
-      const authUrl = `${this.configService.get('IDENTITY_HUB_URL')}/auth/direct-login`;
-
-      const result = await lastValueFrom(
-        this.http.post<DirectLoginResult>(authUrl, { login, password, clientKey: 'intranet' }),
-      );
-      const { accessToken, refreshToken } = result.data;
-      console.log(result.data);
-      return { accessToken, refreshToken, ok: true, message: 'Logged in successfully' };
-    } catch (error: unknown) {
-      if (error instanceof AxiosError && error.response?.status === 401) {
-        const message = (error.response.data['message'] as string) ?? 'Invalid credentials';
-        throw new UnauthorizedException(message);
-      }
-      throw new InternalServerErrorException('Login can"t be completed at the moment');
-    }
+    // try {
+    //   const authUrl = `${this.configService.get('IDENTITY_HUB_URL')}/auth/direct-login`;
+    //   const result = await lastValueFrom(
+    //     this.http.post<DirectLoginResult>(authUrl, { login, password, clientKey: 'intranet' }),
+    //   );
+    //   const { accessToken, refreshToken } = result.data;
+    //   console.log(result.data);
+    //   return { accessToken, refreshToken, ok: true, message: 'Logged in successfully' };
+    // } catch (error: unknown) {
+    //   if (error instanceof AxiosError && error.response?.status === 401) {
+    //     const message = (error.response.data['message'] as string) ?? 'Invalid credentials';
+    //     throw new UnauthorizedException(message);
+    //   }
+    //   throw new InternalServerErrorException('Login can"t be completed at the moment');
+    // }
   }
 
   buildAuthorizeUrl(): string {
@@ -90,5 +85,21 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException();
     }
+  }
+
+  private async buildExchangeTokenRequest(code: string) {
+    const url = `${this.configService.get('IDENTITY_HUB_URL')}/oauth/token`;
+    const client_id = this.configService.getOrThrow<string>('CLIENT_KEY');
+    const client_secret = this.configService.getOrThrow<string>('CLIENT_SECRET');
+    const redirect_uri = this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI');
+    const request = this.http.post<TokenRequestResponse>(url, {
+      grant_type: 'authorization_code',
+      client_secret,
+      redirect_uri,
+      client_id,
+      code,
+      // code_verifier: 'abc',
+    });
+    return await lastValueFrom(request);
   }
 }

@@ -37,6 +37,9 @@ export class EnvironmentVariables {
 
   @IsString()
   LOGIN_SUCCESS_REDIRECT: string;
+
+  @IsString()
+  CLIENT_SECRET: string;
 }
 
 export function validate(config: Record<string, unknown>) {

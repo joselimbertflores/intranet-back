@@ -17,22 +17,21 @@ export class AuthController {
 
   @Get('callback')
   async callback(@Query() queryParams: AuthCallbackParamsDto, @Res({ passthrough: true }) res: Response) {
-    const { tokens, url } = await this.authService.exchangeAuthorizationCode(queryParams.code);
+    const { result, url } = await this.authService.exchangeAuthorizationCode(queryParams.code);
 
-    res.cookie('intranet_access', tokens.access_token, {
+    res.cookie('intranet_access', result.accessToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
       maxAge: 15 * 60 * 1000,
     });
 
-    res.cookie('intranet_refresh', tokens.refresh_token, {
+    res.cookie('intranet_refresh', result.refreshToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-    // const redirectTo = state || 'http://localhost:4200/admin';
     return res.redirect(url);
   }
 

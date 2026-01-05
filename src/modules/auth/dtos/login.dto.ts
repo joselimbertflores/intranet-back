@@ -16,5 +16,5 @@ export class AuthCallbackParamsDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  state: string;
+  state?: string;
 }

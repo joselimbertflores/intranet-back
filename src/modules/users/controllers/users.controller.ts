@@ -12,16 +12,6 @@ export class UsersController {
     return this.userService.findAll(queryParams);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.userService.findOne(+id);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
-  }
-
   @Get('seed/permissions')
   executePermissionsSeed() {
     return this.userService.executePermissionsSeed();

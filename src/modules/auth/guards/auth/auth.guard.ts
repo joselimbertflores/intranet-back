@@ -14,7 +14,7 @@ import type { Request, Response } from 'express';
 import { UsersService } from 'src/modules/users/services';
 import { EnvironmentVariables } from 'src/config';
 
-import { AccessTokenPayload, RefreshTokenPayload } from '../../interfaces';
+import { AccessTokenPayload } from '../../interfaces';
 import { AuthService } from '../../auth.service';
 
 @Injectable()
@@ -40,7 +40,7 @@ export class AuthGuard implements CanActivate {
     try {
       payload = await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
     } catch {
-      console.log("xpirado");
+      console.log('xpirado');
       // token expirado, inválido, manipulado → 401 limpio
       throw new UnauthorizedException();
     }

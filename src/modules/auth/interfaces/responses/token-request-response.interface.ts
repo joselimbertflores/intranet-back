@@ -1,4 +1,16 @@
 export interface TokenRequestResponse {
-  access_token: string;
-  refresh_token: string;
+  accessToken: string;
+  refreshToken: string;
+  token_type: string;
+  expires_in: string;
+  context?: {
+    defaultRole: string;
+  };
+}
+
+export class AccessTokenPayload {
+  sub: string;
+  name: string;
+  externalKey: string;
+  clientId: string;
 }

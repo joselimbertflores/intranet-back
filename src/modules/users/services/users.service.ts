@@ -4,24 +4,18 @@ import { ILike, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { PaginationDto } from 'src/modules/common';
-import { Permission, User } from '../entities';
+import { Permission, Role, User } from '../entities';
 import { PERMISSIONS_SEED } from '../constants';
 import { CreateUserDto, UpdateUserDto } from '../dtos';
+import { AccessTokenPayload } from 'src/modules/auth/interfaces';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(Permission) private permissionRepository: Repository<Permission>,
+    @InjectRepository(Role) private roleRepository: Repository<Role>,
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
-
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} user`;
-  }
 
   async executePermissionsSeed() {
     const permissions = PERMISSIONS_SEED.map(({ resource, actions }) =>
@@ -42,15 +36,14 @@ export class UsersService {
         createdAt: 'DESC',
       },
     });
-    return { users: users.map((user) => this._removePasswordField(user)), length };
+    return { users, length };
   }
 
   async create({ password, ...props }: CreateUserDto) {
-    await this.checkDuplicateLogin(props.login);
-    const encryptedPassword = await this.encryptPassword(password);
-    const newUser = this.userRepository.create({ ...props, password: encryptedPassword });
-    const createdUser = await this.userRepository.save(newUser);
-    return this._removePasswordField(createdUser);
+    // await this.checkDuplicateLogin(props.login);
+    // const encryptedPassword = await this.encryptPassword(password);
+    const newUser = this.userRepository.create({ ...props });
+    return await this.userRepository.save(newUser);
   }
 
   async update(id: string, user: UpdateUserDto) {
@@ -58,12 +51,27 @@ export class UsersService {
     if (!userDB) throw new NotFoundException(`El usuario editado no existe`);
     if (user.login !== userDB.login && user.login) await this.checkDuplicateLogin(user.login);
     if (user.password) user['password'] = await this.encryptPassword(user.password);
-    const updatedUser = await this.userRepository.save({ id, ...user });
-    return this._removePasswordField(updatedUser);
+    return await this.userRepository.save({ id, ...user });
   }
 
   async findUserByExternalKey(externalKey: string) {
     return this.userRepository.findOneBy({ externalKey, roles: true });
+  }
+
+  async syncUserFromIdentity(payload: AccessTokenPayload, defaultRole?: string) {
+    const role = defaultRole ? await this.roleRepository.findOneBy({ name: defaultRole }) : null;
+    const externalKey = payload.externalKey;
+    let user = await this.userRepository.findOne({ where: { externalKey } });
+
+    if (!user) {
+      user = this.userRepository.create({
+        fullName: payload.name,
+        ...(role && { roles: [role] }),
+        externalKey,
+      });
+    }
+
+    return this.userRepository.save(user);
   }
 
   private async encryptPassword(password: string): Promise<string> {
@@ -75,10 +83,5 @@ export class UsersService {
   private async checkDuplicateLogin(login: string) {
     const duplicate = await this.userRepository.findOneBy({ login });
     if (duplicate) throw new BadRequestException(`El login ${login} ya existe`);
-  }
-
-  private _removePasswordField(user: User) {
-    const { password, ...toReturn } = user;
-    return toReturn;
   }
 }

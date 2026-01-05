@@ -7,11 +7,11 @@ export class CreateUserDto {
   fullName: string;
 
   @IsNotEmpty()
-  @IsString()
-  login: string;
+  @IsOptional()
+  login?: string;
 
-  @IsNotEmpty()
-  password: string;
+  @IsOptional()
+  password?: string;
 
   @IsArray()
   @ArrayMinSize(1)
