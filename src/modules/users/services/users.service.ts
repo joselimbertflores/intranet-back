@@ -49,7 +49,7 @@ export class UsersService {
   async update(id: string, user: UpdateUserDto) {
     const userDB = await this.userRepository.findOneBy({ id });
     if (!userDB) throw new NotFoundException(`El usuario editado no existe`);
-    if (user.login !== userDB.login && user.login) await this.checkDuplicateLogin(user.login);
+    // if (user.login !== userDB.login && user.login) await this.checkDuplicateLogin(user.login);
     if (user.password) user['password'] = await this.encryptPassword(user.password);
     return await this.userRepository.save({ id, ...user });
   }
@@ -62,16 +62,16 @@ export class UsersService {
     const role = defaultRole ? await this.roleRepository.findOneBy({ name: defaultRole }) : null;
     const externalKey = payload.externalKey;
     let user = await this.userRepository.findOne({ where: { externalKey } });
-
+    console.log(user);
     if (!user) {
       user = this.userRepository.create({
         fullName: payload.name,
         ...(role && { roles: [role] }),
         externalKey,
       });
+      return await this.userRepository.save(user);
     }
-
-    return this.userRepository.save(user);
+    return user;
   }
 
   private async encryptPassword(password: string): Promise<string> {
@@ -81,7 +81,7 @@ export class UsersService {
   }
 
   private async checkDuplicateLogin(login: string) {
-    const duplicate = await this.userRepository.findOneBy({ login });
-    if (duplicate) throw new BadRequestException(`El login ${login} ya existe`);
+    // const duplicate = await this.userRepository.findOneBy({ login });
+    // if (duplicate) throw new BadRequestException(`El login ${login} ya existe`);
   }
 }

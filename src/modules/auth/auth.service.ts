@@ -1,4 +1,10 @@
-import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
@@ -12,7 +18,8 @@ import { lastValueFrom } from 'rxjs';
 import { LoginDto } from './dtos';
 import { User } from '../users/entities';
 import { EnvironmentVariables } from 'src/config';
-import { RefreshTokenResult, TokenRequestResponse } from './interfaces';
+import { AccessTokenPayload, RefreshTokenResult, TokenRequestResponse } from './interfaces';
+import { UsersService } from '../users/services';
 
 @Injectable()
 export class AuthService {
@@ -21,11 +28,15 @@ export class AuthService {
     @InjectRepository(User) private userRepository: Repository<User>,
     private configService: ConfigService<EnvironmentVariables>,
     private jwtService: JwtService,
+    private userService: UsersService,
   ) {}
 
   async exchangeAuthorizationCode(code: string) {
     try {
-      return { result: response.data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
+      const { data } = await this.buildExchangeTokenRequest(code);
+      const decoded = this.jwtService.decode<AccessTokenPayload>(data.accessToken);
+      await this.userService.syncUserFromIdentity(decoded);
+      return { result: data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
     } catch (error) {
       if (error instanceof AxiosError && error.response?.status === 401) {
         throw new UnauthorizedException(error.response.data);
@@ -101,5 +112,22 @@ export class AuthService {
       // code_verifier: 'abc',
     });
     return await lastValueFrom(request);
+  }
+
+  async tryAccessToken(accessToken: string): Promise<User | null> {
+    try {
+      const payload = await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
+      console.log(payload);
+      return this.loadUserByExternalKey(payload.externalKey);
+    } catch (error: unknown) {
+      if (error instanceof HttpException) throw error;
+      return null;
+    }
+  }
+
+  async loadUserByExternalKey(externalKey: string) {
+    const user = await this.userService.findUserByExternalKey(externalKey);
+    if (!user) throw new ForbiddenException('Not user fount.');
+    return user;
   }
 }

@@ -16,6 +16,7 @@ import { EnvironmentVariables } from 'src/config';
 
 import { AccessTokenPayload } from '../../interfaces';
 import { AuthService } from '../../auth.service';
+import { IdentityService } from '../../services/identity.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -24,18 +25,20 @@ export class AuthGuard implements CanActivate {
     private authService: AuthService,
     private userService: UsersService,
     private configServce: ConfigService<EnvironmentVariables>,
+    private identityService: IdentityService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<Request>();
 
-    const accessToken = request.cookies?.['intranet_access'] as string | undefined;
-    console.log(accessToken);
-    if (!accessToken) {
-      throw new UnauthorizedException();
-    }
+    const accessToken = request.cookies['intranet_access'] as string | undefined;
+    const refreshToken = request.cookies['intranet_refresh'] as string | undefined;
+
+    if (!accessToken) throw new UnauthorizedException();
 
     let payload: AccessTokenPayload;
+
+    const user = await this.authService.tryAccessToken(accessToken);
 
     try {
       payload = await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
@@ -45,7 +48,6 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException();
     }
 
-    const user = await this.loadUser(payload.externalKey);
     request['user'] = user;
     return true;
   }

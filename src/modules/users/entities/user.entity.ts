@@ -25,11 +25,11 @@ export class User {
   @JoinTable({ name: 'user_roles' })
   roles: Role[];
 
-  @Column({ unique: true })
-  login: string;
+  // @Column({ unique: true })
+  // login: string;
 
-  @Column()
-  password: string;
+  // @Column()
+  // password: string;
 
   @Column({ nullable: true })
   externalKey: string;

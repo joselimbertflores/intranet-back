@@ -24,7 +24,7 @@ export class EnvironmentVariables {
   DATABASE_PASSWORD: StreamPipeOptions;
 
   @IsString()
-  JWT_KEY: string;
+  JWT_PUBLIC_KEY: string;
 
   @IsString()
   IDENTITY_HUB_URL: string;
