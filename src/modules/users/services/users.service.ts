@@ -54,10 +54,6 @@ export class UsersService {
     return await this.userRepository.save({ id, ...user });
   }
 
-  async findUserByExternalKey(externalKey: string) {
-    return this.userRepository.findOneBy({ externalKey, roles: true });
-  }
-
   async syncUserFromIdentity(payload: AccessTokenPayload, defaultRole?: string) {
     const role = defaultRole ? await this.roleRepository.findOneBy({ name: defaultRole }) : null;
     const externalKey = payload.externalKey;
@@ -78,10 +74,5 @@ export class UsersService {
     const saltRounds = 10;
     const salt = await bcrypt.genSalt(saltRounds);
     return bcrypt.hash(password, salt);
-  }
-
-  private async checkDuplicateLogin(login: string) {
-    // const duplicate = await this.userRepository.findOneBy({ login });
-    // if (duplicate) throw new BadRequestException(`El login ${login} ya existe`);
   }
 }

@@ -45,13 +45,6 @@ export class AuthService {
     }
   }
 
-  async refreshTokens(refreshToken: string) {
-    const authRefreshUrl = `${this.configService.get('IDENTITY_HUB_URL')}/auth/refresh`;
-    const request = this.http.post<RefreshTokenResult>(authRefreshUrl, { refreshToken }, { timeout: 5000 });
-    const result = await lastValueFrom(request);
-    return result.data;
-  }
-
   async login({ login, password }: LoginDto) {
     // try {
     //   const authUrl = `${this.configService.get('IDENTITY_HUB_URL')}/auth/direct-login`;
@@ -83,21 +76,6 @@ export class AuthService {
     return authorizeUrl.toString();
   }
 
-  async refreshToken(refreshToken: string) {
-    try {
-      const result = await lastValueFrom(
-        this.http.post<RefreshTokenResult>(`${this.configService.getOrThrow<string>('IDENTITY_HUB_URL')}/auth/token`, {
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-          client_id: this.configService.getOrThrow<string>('CLIENT_KEY'),
-        }),
-      );
-      return result.data;
-    } catch (error) {
-      throw new UnauthorizedException();
-    }
-  }
-
   private async buildExchangeTokenRequest(code: string) {
     const url = `${this.configService.get('IDENTITY_HUB_URL')}/oauth/token`;
     const client_id = this.configService.getOrThrow<string>('CLIENT_KEY');
@@ -112,22 +90,5 @@ export class AuthService {
       // code_verifier: 'abc',
     });
     return await lastValueFrom(request);
-  }
-
-  async tryAccessToken(accessToken: string): Promise<User | null> {
-    try {
-      const payload = await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
-      console.log(payload);
-      return this.loadUserByExternalKey(payload.externalKey);
-    } catch (error: unknown) {
-      if (error instanceof HttpException) throw error;
-      return null;
-    }
-  }
-
-  async loadUserByExternalKey(externalKey: string) {
-    const user = await this.userService.findUserByExternalKey(externalKey);
-    if (!user) throw new ForbiddenException('Not user fount.');
-    return user;
   }
 }
