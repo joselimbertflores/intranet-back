@@ -2,20 +2,20 @@ import { HttpModule } from '@nestjs/axios';
 import { APP_GUARD } from '@nestjs/core';
 import { Module } from '@nestjs/common';
 
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
-import { AuthGuard } from './guards/auth/auth.guard';
+import { OAuthGuard } from './guards/auth.guard';
 
-import { IdentityService, JwksService, TokenVerifierService } from './services';
+import { OAuthuthService, IdentityService, JwksService, TokenVerifierService } from './services';
+import { OAuthController } from './controllers';
+import { AuthController } from './controllers/auth.controller';
 @Module({
-  controllers: [AuthController],
+  controllers: [OAuthController, AuthController],
   providers: [
-    AuthService,
+    OAuthuthService,
     IdentityService,
     {
       provide: APP_GUARD,
-      useClass: AuthGuard,
+      useClass: OAuthGuard,
     },
     JwksService,
     TokenVerifierService,

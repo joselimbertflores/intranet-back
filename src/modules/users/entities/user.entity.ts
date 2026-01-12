@@ -1,11 +1,11 @@
 import {
   Column,
-  CreateDateColumn,
   Entity,
   JoinTable,
   ManyToMany,
-  PrimaryGeneratedColumn,
+  CreateDateColumn,
   UpdateDateColumn,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Role } from './role.entity';
 
@@ -17,26 +17,19 @@ export class User {
   @Column({ type: 'text' })
   fullName: string;
 
+  @Column()
+  externalKey: string;
+
   @Column({ default: true })
   isActive: boolean;
-
-  // Relación N:N → usuarios pueden tener varios roles
-  @ManyToMany(() => Role, (role) => role.users, { eager: true })
-  @JoinTable({ name: 'user_roles' })
-  roles: Role[];
-
-  // @Column({ unique: true })
-  // login: string;
-
-  // @Column()
-  // password: string;
-
-  @Column({ nullable: true })
-  externalKey: string;
 
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @ManyToMany(() => Role, (role) => role.users, { eager: true })
+  @JoinTable({ name: 'user_roles' })
+  roles: Role[];
 }

@@ -86,4 +86,8 @@ export class RoleService {
     });
     return { roles, total };
   }
+
+  async getRolesToUser() {
+    return this.roleRepository.find({ select: { name: true, id: true, description: true } });
+  }
 }

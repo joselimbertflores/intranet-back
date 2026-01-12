@@ -15,7 +15,7 @@ export class Role {
   description: string;
 
   // N:N → un rol tiene muchos permisos
-  @ManyToMany(() => Permission, (perm) => perm.roles, { eager: true })
+  @ManyToMany(() => Permission, (perm) => perm.roles)
   @JoinTable({ name: 'role_permissions' })
   permissions: Permission[];
 

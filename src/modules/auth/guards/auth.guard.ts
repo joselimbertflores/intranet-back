@@ -1,18 +1,17 @@
 import { Injectable, CanActivate, HttpException, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { JwtService } from '@nestjs/jwt';
 
 import type { Request, Response } from 'express';
 
-import { AccessTokenPayload, TokenRequestResponse } from '../../interfaces';
-import { IdentityService, TokenVerifierService } from '../../services';
-import { IS_PUBLIC_KEY } from '../../decorators';
+import { AccessTokenPayload, TokenRequestResponse } from '../interfaces';
+import { IdentityService, TokenVerifierService } from '../services';
+import { IS_PUBLIC_KEY } from '../decorators';
 
 @Injectable()
-export class AuthGuard implements CanActivate {
+export class OAuthGuard implements CanActivate {
   constructor(
-    private identityService: IdentityService,
     private reflector: Reflector,
+    private identityService: IdentityService,
     private tokenVerifierService: TokenVerifierService,
   ) {}
 
@@ -43,7 +42,6 @@ export class AuthGuard implements CanActivate {
       const user = await this.tryRefresh(refreshToken, res);
       return user;
     }
-    console.log("lauch error");
     throw new UnauthorizedException('Authentication required. Please login.');
   }
 
@@ -69,19 +67,19 @@ export class AuthGuard implements CanActivate {
     }
   }
 
-  private setCookies(res: Response, tokens: TokenRequestResponse) {
-    res.cookie('intranet_access', tokens.accessToken, {
+  private setCookies(res: Response, result: TokenRequestResponse) {
+    res.cookie('intranet_access', result.accessToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
-      maxAge: 15 * 60 * 1000,
+      maxAge: result.accessTokenExpiresIn * 1000,
     });
 
-    res.cookie('intranet_refresh', tokens.refreshToken, {
+    res.cookie('intranet_refresh', result.refreshToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: result.refreshTokenExpiresIn * 1000,
     });
   }
 

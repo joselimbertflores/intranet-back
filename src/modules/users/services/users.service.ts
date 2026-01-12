@@ -58,7 +58,6 @@ export class UsersService {
     const role = defaultRole ? await this.roleRepository.findOneBy({ name: defaultRole }) : null;
     const externalKey = payload.externalKey;
     let user = await this.userRepository.findOne({ where: { externalKey } });
-    console.log(user);
     if (!user) {
       user = this.userRepository.create({
         fullName: payload.name,

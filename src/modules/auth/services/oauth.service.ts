@@ -1,34 +1,22 @@
-import {
-  ForbiddenException,
-  HttpException,
-  Injectable,
-  InternalServerErrorException,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
-import { JwtService } from '@nestjs/jwt';
-
-import { Repository } from 'typeorm';
-import { AxiosError } from 'axios';
 
 import { lastValueFrom } from 'rxjs';
+import { AxiosError } from 'axios';
 
-import { LoginDto } from './dtos';
-import { User } from '../users/entities';
 import { EnvironmentVariables } from 'src/config';
-import { AccessTokenPayload, RefreshTokenResult, TokenRequestResponse } from './interfaces';
-import { UsersService } from '../users/services';
-import { TokenVerifierService } from './services';
+import { UsersService } from '../../users/services';
+import { AccessTokenPayload, TokenRequestResponse } from '../interfaces';
+import { TokenVerifierService } from './token-verifier.service';
 
 @Injectable()
-export class AuthService {
+export class OAuthuthService {
   constructor(
     private readonly http: HttpService,
-    private configService: ConfigService<EnvironmentVariables>,
-    private userService: UsersService,
-    private tokenVerifierService: TokenVerifierService,
+    private readonly userService: UsersService,
+    private readonly tokenVerifierService: TokenVerifierService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
   async exchangeAuthorizationCode(code: string) {
@@ -38,30 +26,11 @@ export class AuthService {
       await this.userService.syncUserFromIdentity(decoded);
       return { result: data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
     } catch (error) {
-      console.log(error);
       if (error instanceof AxiosError && error.response?.status === 401) {
         throw new UnauthorizedException(error.response.data);
       }
       throw new InternalServerErrorException("Code exchange can't be completed at the moment");
     }
-  }
-
-  async login({ login, password }: LoginDto) {
-    // try {
-    //   const authUrl = `${this.configService.get('IDENTITY_HUB_URL')}/auth/direct-login`;
-    //   const result = await lastValueFrom(
-    //     this.http.post<DirectLoginResult>(authUrl, { login, password, clientKey: 'intranet' }),
-    //   );
-    //   const { accessToken, refreshToken } = result.data;
-    //   console.log(result.data);
-    //   return { accessToken, refreshToken, ok: true, message: 'Logged in successfully' };
-    // } catch (error: unknown) {
-    //   if (error instanceof AxiosError && error.response?.status === 401) {
-    //     const message = (error.response.data['message'] as string) ?? 'Invalid credentials';
-    //     throw new UnauthorizedException(message);
-    //   }
-    //   throw new InternalServerErrorException('Login can"t be completed at the moment');
-    // }
   }
 
   buildAuthorizeUrl(): string {

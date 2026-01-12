@@ -9,15 +9,13 @@ export class TokenVerifierService {
   constructor(private jwksService: JwksService) {}
 
   async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
-    const decoded = jwt.decode(token, { complete: true })
+    const decoded = jwt.decode(token, { complete: true });
 
     if (!decoded?.header?.kid) {
       throw new UnauthorizedException('Invalid token header');
     }
 
-
     const publicKey = await this.jwksService.getPublicKey(decoded.header.kid);
-    console.log(publicKey);
 
     return jwt.verify(token, publicKey, {
       algorithms: ['RS256'],

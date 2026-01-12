@@ -32,7 +32,7 @@ export class IdentityService {
   }
 
   async loadUser(externalKey: string) {
-    const user = await this.userRepository.findOne({ where: { externalKey } });
+    const user = await this.userRepository.findOne({ where: { externalKey }, relations: { roles: true } });
     if (!user) throw new ForbiddenException('Not user fount.');
     return user;
   }
