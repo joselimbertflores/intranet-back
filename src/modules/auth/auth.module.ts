@@ -1,16 +1,13 @@
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { APP_GUARD } from '@nestjs/core';
-import { JwtModule } from '@nestjs/jwt';
 import { Module } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { EnvironmentVariables } from 'src/config';
 import { UsersModule } from '../users/users.module';
-import { IdentityService } from './services/identity.service';
 import { AuthGuard } from './guards/auth/auth.guard';
 
+import { IdentityService, JwksService, TokenVerifierService } from './services';
 @Module({
   controllers: [AuthController],
   providers: [
@@ -20,22 +17,9 @@ import { AuthGuard } from './guards/auth/auth.guard';
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
+    JwksService,
+    TokenVerifierService,
   ],
-  imports: [
-    HttpModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (config: ConfigService<EnvironmentVariables>) => ({
-        publicKey: config.getOrThrow('JWT_PUBLIC_KEY'),
-        verifyOptions: {
-          algorithms: ['RS256'],
-          issuer: 'identity-hub',
-          audience: 'sso-clients',
-        },
-      }),
-      inject: [ConfigService],
-    }),
-    UsersModule,
-  ],
+  imports: [HttpModule, UsersModule],
 })
 export class AuthModule {}

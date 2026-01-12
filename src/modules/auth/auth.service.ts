@@ -20,24 +20,25 @@ import { User } from '../users/entities';
 import { EnvironmentVariables } from 'src/config';
 import { AccessTokenPayload, RefreshTokenResult, TokenRequestResponse } from './interfaces';
 import { UsersService } from '../users/services';
+import { TokenVerifierService } from './services';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly http: HttpService,
-    @InjectRepository(User) private userRepository: Repository<User>,
     private configService: ConfigService<EnvironmentVariables>,
-    private jwtService: JwtService,
     private userService: UsersService,
+    private tokenVerifierService: TokenVerifierService,
   ) {}
 
   async exchangeAuthorizationCode(code: string) {
     try {
       const { data } = await this.buildExchangeTokenRequest(code);
-      const decoded = this.jwtService.decode<AccessTokenPayload>(data.accessToken);
+      const decoded: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(data.accessToken);
       await this.userService.syncUserFromIdentity(decoded);
       return { result: data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
     } catch (error) {
+      console.log(error);
       if (error instanceof AxiosError && error.response?.status === 401) {
         throw new UnauthorizedException(error.response.data);
       }

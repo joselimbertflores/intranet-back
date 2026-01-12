@@ -5,15 +5,15 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request, Response } from 'express';
 
 import { AccessTokenPayload, TokenRequestResponse } from '../../interfaces';
-import { IdentityService } from '../../services';
+import { IdentityService, TokenVerifierService } from '../../services';
 import { IS_PUBLIC_KEY } from '../../decorators';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
-    private jwtService: JwtService,
     private identityService: IdentityService,
     private reflector: Reflector,
+    private tokenVerifierService: TokenVerifierService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -43,13 +43,13 @@ export class AuthGuard implements CanActivate {
       const user = await this.tryRefresh(refreshToken, res);
       return user;
     }
-    console.log('UNATOIRZ');
+    console.log("lauch error");
     throw new UnauthorizedException('Authentication required. Please login.');
   }
 
   private async tryAccess(accessToken: string) {
     try {
-      const payload = await this.jwtService.verifyAsync<AccessTokenPayload>(accessToken);
+      const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(accessToken);
       return this.identityService.loadUser(payload.externalKey);
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
@@ -61,7 +61,7 @@ export class AuthGuard implements CanActivate {
     try {
       const result = await this.identityService.refreshTokens(refreshToken);
       this.setCookies(response, result);
-      const payload = this.jwtService.decode<AccessTokenPayload>(result.accessToken);
+      const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(result.accessToken);
       return await this.identityService.loadUser(payload.externalKey);
     } catch (error: unknown) {
       this.clearCookies(response);
