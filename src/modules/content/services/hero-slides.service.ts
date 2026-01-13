@@ -1,10 +1,10 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
 import { FileGroup } from 'src/modules/files/file-group.enum';
-import { CreateHeroSlideDto } from '../dtos';
+import { CreateHeroSlideDto, HeroSlideDto } from '../dtos';
 import { HeroSlides } from '../entities';
 
 @Injectable()
@@ -19,41 +19,31 @@ export class HeroSlidesService {
     const slides = await this.heroSlidesRepository.find({ order: { order: 'ASC' } });
     return slides.map(({ image, ...props }) => ({
       ...props,
-      image: this.fileService.buildFileUrl(image, FileGroup.HERO_SLIDES),
+      imageUrl: this.fileService.buildFileUrl(image, FileGroup.HERO_SLIDES),
     }));
   }
 
-  async syncSlides({ slides }: CreateHeroSlideDto) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  async replaceSlides({ slides }: CreateHeroSlideDto) {
+    const existingSlides = await this.heroSlidesRepository.find({ select: ['image'] });
 
-    try {
-      const existing = await queryRunner.manager.find(HeroSlides);
+    const newSlides = await this.dataSource.transaction(async (manager) => {
+      await manager.delete(HeroSlides, {});
+      const newSlideEntities = slides.map((s, i) => manager.create(HeroSlides, { ...s, order:i }));
+      return manager.save(newSlideEntities);
+    });
 
-      const incomingIds = slides.filter(({ id }) => id).map(({ id }) => id);
+    await this.removeOrphanSlideImages(existingSlides, slides);
 
-      const toDelete = existing.filter(({ id }) => !incomingIds.includes(id));
+    return newSlides;
+  }
 
-      if (toDelete.length > 0) {
-        await queryRunner.manager.remove(toDelete);
-      }
+  private async removeOrphanSlideImages(existingSlides: Pick<HeroSlides, 'image'>[], newSlides: HeroSlideDto[]) {
+    const usedImages = new Set(newSlides.map((s) => s.image));
 
-      const toSave = slides.map((slide) =>
-        queryRunner.manager.create(HeroSlides, {
-          id: slide.id,
-          ...slide,
-        }),
-      );
-      const result = await queryRunner.manager.save(toSave);
-      await queryRunner.commitTransaction();
+    const orphanImages = existingSlides.map((s) => s.image).filter((img) => !usedImages.has(img));
 
-      return result;
-    } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
-      throw new InternalServerErrorException(`Failed to create hero slides`);
-    } finally {
-      await queryRunner.release();
+    if (orphanImages.length > 0) {
+      await this.fileService.deleteMany(orphanImages, FileGroup.HERO_SLIDES);
     }
   }
 }

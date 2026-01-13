@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, unlink, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
 import { v4 as uuid } from 'uuid';
 import { existsSync } from 'fs';
@@ -114,6 +114,21 @@ export class FilesService {
   buildFileUrl(filename: string, group: FileGroup): string {
     const host = this.configService.get('HOST', { infer: true });
     return `${host}/files/${group}/${filename}`;
+  }
+
+  async deleteFile(fileName: string, group: FileGroup): Promise<void> {
+    const extension = extname(fileName).replace('.', '');
+    const subfolder = this.getFolderByExtension(extension);
+
+    const filePath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
+
+    if (existsSync(filePath)) {
+      await unlink(filePath);
+    }
+  }
+
+  async deleteMany(fileNames: string[], group: FileGroup): Promise<void> {
+    await Promise.all(fileNames.map((file) => this.deleteFile(file, group)));
   }
 
   private getFolderByExtension(ext: string): string {

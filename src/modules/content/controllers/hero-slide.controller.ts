@@ -8,7 +8,7 @@ export class HeroSlideController {
 
   @Put()
   syncSlides(@Body() heroSlideDto: CreateHeroSlideDto) {
-    return this.heroSlideService.syncSlides(heroSlideDto);
+    return this.heroSlideService.replaceSlides(heroSlideDto);
   }
 
   @Get()

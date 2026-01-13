@@ -1,13 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import { ILike, In, Repository } from 'typeorm';
 
-import { PaginationDto } from 'src/modules/common';
-import { Permission, Role, User } from '../entities';
-import { PERMISSIONS_SEED } from '../constants';
-import { CreateUserDto, UpdateUserDto } from '../dtos';
 import { AccessTokenPayload } from 'src/modules/auth/interfaces';
+import { Permission, Role, User } from '../entities';
+import { PaginationDto } from 'src/modules/common';
+import { PERMISSIONS_SEED } from '../constants';
+import { UpdateUserDto } from '../dtos';
 
 @Injectable()
 export class UsersService {
@@ -26,32 +25,34 @@ export class UsersService {
   }
 
   async findAll({ limit, offset, term }: PaginationDto) {
-    const [users, length] = await this.userRepository.findAndCount({
+    const [users, total] = await this.userRepository.findAndCount({
       take: limit,
       skip: offset,
       ...(term && {
         where: { fullName: ILike(`%${term}%`) },
       }),
+      relations: { roles: true },
       order: {
         createdAt: 'DESC',
       },
     });
-    return { users, length };
+    return { users, total };
   }
 
-  async create({ password, ...props }: CreateUserDto) {
-    // await this.checkDuplicateLogin(props.login);
-    // const encryptedPassword = await this.encryptPassword(password);
-    const newUser = this.userRepository.create({ ...props });
-    return await this.userRepository.save(newUser);
-  }
-
-  async update(id: string, user: UpdateUserDto) {
+  async update(id: string, dto: UpdateUserDto) {
+    const { roleIds } = dto;
     const userDB = await this.userRepository.findOneBy({ id });
+
     if (!userDB) throw new NotFoundException(`El usuario editado no existe`);
-    // if (user.login !== userDB.login && user.login) await this.checkDuplicateLogin(user.login);
-    if (user.password) user['password'] = await this.encryptPassword(user.password);
-    return await this.userRepository.save({ id, ...user });
+
+    const newRoles = await this.roleRepository.findBy({ id: In(roleIds) });
+
+    if (newRoles.length !== roleIds.length) {
+      const invalid = roleIds.filter((id) => !newRoles.some((role) => role.id === id));
+      throw new BadRequestException(`Invalid roles: ${invalid.join(', ')}`);
+    }
+
+    return await this.userRepository.save({ ...userDB, roles: newRoles });
   }
 
   async syncUserFromIdentity(payload: AccessTokenPayload, defaultRole?: string) {
@@ -67,11 +68,5 @@ export class UsersService {
       return await this.userRepository.save(user);
     }
     return user;
-  }
-
-  private async encryptPassword(password: string): Promise<string> {
-    const saltRounds = 10;
-    const salt = await bcrypt.genSalt(saltRounds);
-    return bcrypt.hash(password, salt);
   }
 }

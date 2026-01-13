@@ -2,9 +2,6 @@ import { Type } from 'class-transformer';
 import { ValidateNested, ArrayMinSize, IsNotEmpty, IsArray, IsString, IsNumber, IsOptional } from 'class-validator';
 
 export class HeroSlideDto {
-  @IsNumber()
-  @IsOptional()
-  id?: number;
 
   @IsString()
   @IsNotEmpty()
@@ -15,15 +12,15 @@ export class HeroSlideDto {
 
   @IsString()
   @IsOptional()
-  title: string;
+  title?: string;
 
   @IsString()
   @IsOptional()
-  description: string;
+  description?: string;
 
   @IsString()
   @IsOptional()
-  redirectUrl: string;
+  redirectUrl?: string;
 }
 
 export class CreateHeroSlideDto {

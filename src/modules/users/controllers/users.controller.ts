@@ -11,6 +11,11 @@ export class UsersController {
     private readonly roleService: RoleService,
   ) {}
 
+  @Get('seed/permissions')
+  executePermissionsSeed() {
+    return this.userService.executePermissionsSeed();
+  }
+
   @Get('roles')
   getRoles() {
     return this.roleService.getRolesToUser();
@@ -19,16 +24,6 @@ export class UsersController {
   @Get()
   findAll(@Query() queryParams: PaginationDto) {
     return this.userService.findAll(queryParams);
-  }
-
-  @Get('seed/permissions')
-  executePermissionsSeed() {
-    return this.userService.executePermissionsSeed();
-  }
-
-  @Post()
-  create(@Body() userDto: CreateUserDto) {
-    return this.userService.create(userDto);
   }
 
   @Patch(':id')

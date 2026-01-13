@@ -17,7 +17,7 @@ export class User {
   @Column({ type: 'text' })
   fullName: string;
 
-  @Column()
+  @Column({ unique: true })
   externalKey: string;
 
   @Column({ default: true })
@@ -29,7 +29,7 @@ export class User {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToMany(() => Role, (role) => role.users, { eager: true })
+  @ManyToMany(() => Role, (role) => role.users)
   @JoinTable({ name: 'user_roles' })
   roles: Role[];
 }
