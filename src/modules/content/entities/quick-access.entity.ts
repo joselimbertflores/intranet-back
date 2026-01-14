@@ -9,10 +9,10 @@ export class QuickAccess {
   name: string;
 
   @Column()
-  url: string;
+  redirectUrl: string;
 
-  @Column({ nullable: true })
-  icon?: string;
+  @Column()
+  icon: string;
 
   @Column({ default: 0 })
   order: number;

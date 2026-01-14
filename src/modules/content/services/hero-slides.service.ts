@@ -4,7 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
 import { FileGroup } from 'src/modules/files/file-group.enum';
-import { CreateHeroSlideDto, HeroSlideDto } from '../dtos';
+import { ReplaceHeroSlideDto, HeroSlideDto } from '../dtos';
 import { HeroSlides } from '../entities';
 
 @Injectable()
@@ -23,12 +23,12 @@ export class HeroSlidesService {
     }));
   }
 
-  async replaceSlides({ slides }: CreateHeroSlideDto) {
+  async replaceSlides({ slides }: ReplaceHeroSlideDto) {
     const existingSlides = await this.heroSlidesRepository.find({ select: ['image'] });
 
     const newSlides = await this.dataSource.transaction(async (manager) => {
-      await manager.delete(HeroSlides, {});
-      const newSlideEntities = slides.map((s, i) => manager.create(HeroSlides, { ...s, order:i }));
+      await manager.clear(HeroSlides);
+      const newSlideEntities = slides.map((s, i) => manager.create(HeroSlides, { ...s, order: i }));
       return manager.save(newSlideEntities);
     });
 

@@ -1,13 +1,13 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { HeroSlidesService } from '../services';
-import { CreateHeroSlideDto } from '../dtos';
+import { ReplaceHeroSlideDto } from '../dtos';
 
 @Controller('hero-slide')
 export class HeroSlideController {
   constructor(private readonly heroSlideService: HeroSlidesService) {}
 
   @Put()
-  syncSlides(@Body() heroSlideDto: CreateHeroSlideDto) {
+  replaceSlides(@Body() heroSlideDto: ReplaceHeroSlideDto) {
     return this.heroSlideService.replaceSlides(heroSlideDto);
   }
 
