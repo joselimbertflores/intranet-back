@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { DocumentCategoryService } from '../services';
+import { DocumentTypeService } from '../services';
 import { CreateDocumentCategoryDto, UpdateDocumentCategoryDto } from '../dtos';
 
 @Controller('document-category')
 export class DocumentCategoryController {
-  constructor(private categoryService: DocumentCategoryService) {}
+  constructor(private categoryService: DocumentTypeService) {}
 
   @Get('categories')
   getCategories() {

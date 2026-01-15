@@ -18,6 +18,10 @@ export const generatePdfThumbnail = async (pdfPath: string, outputDir: string): 
       outputFolder: outputDir,
     });
 
+    if (!images[0]?.content) {
+      return null;
+    }
+
     await fs.writeFile(outputPath, images[0].content);
     return previewName;
   } catch (err) {

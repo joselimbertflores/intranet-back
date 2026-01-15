@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Put, Query } from '@nestjs/common';
-import { DocumentCategoryService, DocumentSectionService, DocumentService } from '../services';
+import { DocumentTypeService, DocumentSectionService, DocumentService } from '../services';
 import { CreateDocumentsDto } from '../dtos';
 import { PaginationDto } from 'src/modules/common';
 
 @Controller('documents')
 export class DocumentController {
   constructor(
-    private documentCategoryService: DocumentCategoryService,
+    private documentCategoryService: DocumentTypeService,
     private documentSectionService: DocumentSectionService,
     private documentService: DocumentService,
   ) {}

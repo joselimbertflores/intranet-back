@@ -1,15 +1,18 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { Document, DocumentCategory, DocumentSection, SectionCategory } from './entities';
-import { DocumentCategoryService, DocumentSectionService, DocumentService } from './services';
+import { InstitutionalDocument, DocumentSection, DocumentSubType, InstitutionalDocumentType, SectionDocumentType } from './entities';
+import { DocumentTypeService, DocumentSectionService, DocumentService } from './services';
 import { DocumentCategoryController, DocumentController, DocumentSectionController } from './controllers';
 import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([DocumentSection, DocumentCategory, SectionCategory, Document]), FilesModule],
-  providers: [DocumentCategoryService, DocumentSectionService, DocumentService],
+  imports: [
+    TypeOrmModule.forFeature([DocumentSection, InstitutionalDocumentType, DocumentSubType, InstitutionalDocument, SectionDocumentType]),
+    FilesModule,
+  ],
+  providers: [DocumentTypeService, DocumentSectionService, DocumentService],
   controllers: [DocumentController, DocumentSectionController, DocumentCategoryController],
-  exports: [DocumentService, DocumentCategoryService],
+  exports: [DocumentService, DocumentTypeService],
 })
 export class DocumentModule {}

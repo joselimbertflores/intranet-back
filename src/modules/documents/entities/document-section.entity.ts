@@ -1,14 +1,14 @@
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { SectionCategory } from './section-category.entity';
+import { SectionDocumentType } from './section-document-type';
 
 @Entity('document_sections')
 export class DocumentSection {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ unique: true })
   name: string;
 
-  @OneToMany(() => SectionCategory, (sc) => sc.section)
-  sectionCategories: SectionCategory[];
+  @OneToMany(() => SectionDocumentType, (sdt) => sdt.section)
+  allowedTypes: SectionDocumentType[];
 }

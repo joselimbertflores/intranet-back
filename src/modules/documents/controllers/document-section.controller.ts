@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { DocumentCategoryService, DocumentSectionService } from '../services';
+import { DocumentTypeService, DocumentSectionService } from '../services';
 import { CreateSectionWithCategoriesDto } from '../dtos';
 import { PaginationDto } from 'src/modules/common';
 
@@ -7,7 +7,7 @@ import { PaginationDto } from 'src/modules/common';
 export class DocumentSectionController {
   constructor(
     private sectionService: DocumentSectionService,
-    private categoryService: DocumentCategoryService,
+    private categoryService: DocumentTypeService,
   ) {}
 
   @Get('categories')

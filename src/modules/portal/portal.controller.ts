@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Ip, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 
-import { DocumentCategoryService, DocumentService } from '../documents/services';
+import { DocumentTypeService, DocumentService } from '../documents/services';
 import { HeroSlidesService, QuickAccessService } from '../content/services';
 import { CommunicationService } from '../communications/communication.service';
 import { FilterDocumentsDto } from '../documents/dtos';
@@ -9,7 +9,7 @@ import { PaginationDto } from '../common';
 @Controller('portal')
 export class PortalController {
   constructor(
-    private documentCategoryService: DocumentCategoryService,
+    private documentCategoryService: DocumentTypeService,
     private quickAccessService: QuickAccessService,
     private documentService: DocumentService,
     private heroSlideService: HeroSlidesService,
