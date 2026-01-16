@@ -11,4 +11,7 @@ export class InstitutionalDocumentType {
 
   @OneToMany(() => DocumentSubType, (st) => st.type, { cascade: true })
   subtypes: DocumentSubType[];
+
+  @Column({ default: true })
+  isActive: boolean;
 }

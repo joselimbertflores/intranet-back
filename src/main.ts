@@ -12,7 +12,11 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  app.enableCors({ origin: ['http://localhost:8000', "http://localhost:5000"], methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', credentials: true });
+  app.enableCors({
+    origin: ['http://localhost:8000', 'http://localhost:5000'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+  });
   app.use(cookieParser());
   await app.listen(process.env.PORT ?? 3000);
 }

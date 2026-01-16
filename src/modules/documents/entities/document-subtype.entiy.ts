@@ -2,7 +2,7 @@ import { Entity, Unique, PrimaryGeneratedColumn, ManyToOne, Column } from 'typeo
 import { InstitutionalDocumentType } from './document-type.entity';
 
 @Entity('document_subtypes')
-@Unique(['type', 'name'])
+// @Unique(['type', 'name'])
 export class DocumentSubType {
   @PrimaryGeneratedColumn()
   id: number;
@@ -12,4 +12,7 @@ export class DocumentSubType {
 
   @Column()
   name: string; // FUNCIONES, PROCEDIMIENTOS
+
+  @Column({ default: true })
+  isActive: boolean;
 }
