@@ -1,54 +1,58 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  HttpException,
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike, In, QueryRunner, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 
-import {  DocumentSection,  } from '../entities';
-import { CreateSectionWithCategoriesDto, UpdateSectionWithCategoriesDto } from '../dtos';
-import { PaginationDto } from 'src/modules/common';
+import { DocumentSection, InstitutionalDocument, InstitutionalDocumentType, SectionDocumentType } from '../entities';
+import { CreateSectionDto, UpdateSectionDto } from '../dtos';
 
 @Injectable()
 export class DocumentSectionService {
   constructor(
     @InjectRepository(DocumentSection) private sectionRepository: Repository<DocumentSection>,
-    // @InjectRepository(DocumentCategory) private categoryRepository: Repository<DocumentCategory>,
-    // @InjectRepository(SectionCategory) private sectionCategoryRepository: Repository<SectionCategory>,
+    @InjectRepository(InstitutionalDocumentType) private documentTypeRepository: Repository<InstitutionalDocumentType>,
     private dataSource: DataSource,
   ) {}
 
-  async findSectionsWithCategories(paginationParas: PaginationDto) {
-    const { term, limit, offset } = paginationParas;
-    const [sections, total] = await this.sectionRepository.findAndCount({
-      ...(term && {
-        where: { name: ILike(`%${term}%`) },
-      }),
-      skip: offset,
-      take: limit,
-      // relations: {
-      //   sectionCategories: {
-      //     category: true,
-      //   },
-      // },
+  async findAll() {
+    return await this.sectionRepository.find({
+      relations: {
+        sectionDocumentTypes: {
+          type: true,
+        },
+      },
+      order: { id: 'DESC' },
     });
-    return { sections: sections.map((section) => this.plainSection(section)), total };
   }
 
-  async create(data: CreateSectionWithCategoriesDto) {
-    const { categoriesIds, name } = data;
+  async create(dto: CreateSectionDto) {
+    const { documentTypesIds, ...props } = dto;
 
-    // const categories = await this.getValidCategories(categoriesIds);
+    const documentTypes = await this.getValidDocumentTypes(documentTypesIds);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const sectionModel = queryRunner.manager.create(DocumentSection, { name });
-
+      const sectionModel = queryRunner.manager.create(DocumentSection, { ...props });
       const createdSection = await queryRunner.manager.save(sectionModel);
 
-      // await this.syncCategories(createdSection, categories, queryRunner);
+      const relations = documentTypes.map((docType) =>
+        queryRunner.manager.create(SectionDocumentType, {
+          section: createdSection,
+          type: docType,
+        }),
+      );
 
+      await queryRunner.manager.insert(SectionDocumentType, relations);
       await queryRunner.commitTransaction();
+      return this.getOne(createdSection.id);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
       throw new InternalServerErrorException(`Failed create documents`);
@@ -57,14 +61,14 @@ export class DocumentSectionService {
     }
   }
 
-  async update(sectionId: number, data: UpdateSectionWithCategoriesDto) {
-    const { categoriesIds, name } = data;
+  async update(sectionId: number, dto: UpdateSectionDto) {
+    const { documentTypesIds, ...props } = dto;
 
-    const section = await this.sectionRepository.preload({ id: sectionId, name });
+    const section = await this.sectionRepository.preload({ id: sectionId, ...props });
 
     if (!section) throw new NotFoundException(`Section ${sectionId} not found`);
 
-    // const categories = await this.getValidCategories(categoriesIds ?? []);
+    const validDocumentTypes = documentTypesIds ? await this.getValidDocumentTypes(documentTypesIds) : [];
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -73,74 +77,70 @@ export class DocumentSectionService {
     try {
       await queryRunner.manager.save(section);
 
-      if (categoriesIds) {
-        // await this.syncCategories(section, categories, queryRunner);
+      const currentRelations = await queryRunner.manager.find(SectionDocumentType, {
+        where: { section: { id: sectionId } },
+        relations: { type: true },
+      });
+      const currentTypeIds = currentRelations.map(({ type }) => type.id);
+
+      if (validDocumentTypes.length > 0) {
+        const incomingTypeIds = validDocumentTypes.map(({ id }) => id);
+        const toRemove = currentTypeIds.filter((id) => !incomingTypeIds.includes(id));
+        if (toRemove.length > 0) {
+          const used = await queryRunner.manager.count(InstitutionalDocument, {
+            where: {
+              section: { id: sectionId },
+              type: { id: In(toRemove) },
+            },
+          });
+          if (used > 0) {
+            throw new BadRequestException('Cannot remove some document types because they are in use.');
+          }
+          await queryRunner.manager.delete(SectionDocumentType, {
+            section: { id: sectionId },
+            type: { id: In(toRemove) },
+          });
+        }
+      }
+
+      const toAdd = validDocumentTypes.filter(({ id }) => !currentTypeIds.includes(id));
+      if (toAdd.length > 0) {
+        await queryRunner.manager.insert(
+          SectionDocumentType,
+          toAdd.map((type) =>
+            queryRunner.manager.create(SectionDocumentType, {
+              section: { id: sectionId },
+              type: { id: type.id },
+            }),
+          ),
+        );
       }
 
       await queryRunner.commitTransaction();
+      return this.getOne(sectionId);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(`Failed update documents`);
     } finally {
       await queryRunner.release();
     }
   }
 
-  // private async syncCategories(section: DocumentSection, categories: DocumentCategory[], queryRunner: QueryRunner) {
-  //   const categoriesIds = categories.map((c) => c.id);
-
-  //   const existingRelations = await queryRunner.manager.find(SectionCategory, {
-  //     where: { section: { id: section.id } },
-  //     relations: ['documents', 'category'],
-  //   });
-
-  //   for (const { category, documents = [] } of existingRelations) {
-  //     const shouldRemove = !categoriesIds.includes(category.id);
-  //     if (shouldRemove && documents.length > 0) {
-  //       throw new BadRequestException(
-  //         `Cannot remove category "${category.name}" because it has ${documents.length} document(s).`,
-  //       );
-  //     }
-  //   }
-
-  //   const removableIds = existingRelations
-  //     .filter((rel) => !categoriesIds.includes(rel.category.id))
-  //     .map((rel) => rel.id);
-
-  //   if (removableIds.length > 0) {
-  //     await queryRunner.manager.delete(SectionCategory, removableIds);
-  //   }
-
-  //   const newCategories = categories.filter((cat) => !existingRelations.some((rel) => rel.category.id === cat.id));
-
-  //   if (newCategories.length === 0) return [];
-
-  //   const models = newCategories.map((category) => queryRunner.manager.create(SectionCategory, { section, category }));
-
-  //   return await queryRunner.manager.save(models);
-  // }
-
-  private plainSection(section: DocumentSection) {
-    return {
-      id: section.id,
-      name: section.name,
-      // categories: section.sectionCategories.map((sc) => ({
-      //   id: sc.category.id,
-      //   name: sc.category.name,
-      // })),
-    };
+  private async getOne(id: number) {
+    return await this.sectionRepository.findOne({
+      where: { id },
+      relations: { sectionDocumentTypes: { type: true } },
+    });
   }
 
-  // private async getValidCategories(categoriesIds: number[]) {
-  //   const categories = await this.categoryRepository.find({ where: { id: In(categoriesIds) } });
-
-  //   if (categories.length !== categoriesIds.length) {
-  //     const foundIds = categories.map((c) => c.id);
-
-  //     const missing = categoriesIds.filter((id) => !foundIds.includes(id));
-
-  //     throw new NotFoundException(`Categories not found: ${missing.join(', ')}`);
-  //   }
-  //   return categories;
-  // }
+  private async getValidDocumentTypes(documentTypesIds: number[]) {
+    const documentTypes = await this.documentTypeRepository.find({
+      where: { id: In(documentTypesIds) },
+    });
+    if (documentTypes.length !== documentTypesIds.length) {
+      throw new BadRequestException("Some document types don't exist");
+    }
+    return documentTypes;
+  }
 }

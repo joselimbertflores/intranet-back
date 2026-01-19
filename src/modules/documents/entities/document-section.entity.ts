@@ -9,6 +9,9 @@ export class DocumentSection {
   @Column({ unique: true })
   name: string;
 
+  @Column({ default: true })
+  isActive: boolean;
+
   @OneToMany(() => SectionDocumentType, (sdt) => sdt.section)
-  allowedTypes: SectionDocumentType[];
+  sectionDocumentTypes: SectionDocumentType[];
 }

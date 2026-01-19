@@ -1,21 +1,20 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsInt, IsNotEmpty, IsString } from 'class-validator';
-
-export class CreateDocumentSectionDto {
+import { Transform } from 'class-transformer';
+import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+export class CreateSectionDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
-}
-
-export class UpdateDocumentSectionDto extends PartialType(CreateDocumentSectionDto) {}
-
-export class CreateSectionWithCategoriesDto {
-  @IsString()
-  @IsNotEmpty()
+  @Transform(({ value }) => (value as string).trim().toUpperCase())
   name: string;
 
   @IsInt({ each: true })
-  categoriesIds: number[];
+  @IsArray()
+  @ArrayMinSize(1)
+  documentTypesIds: number[];
+
+  @IsOptional()
+  @IsBoolean()
+  isActive: boolean;
 }
 
-export class UpdateSectionWithCategoriesDto extends PartialType(CreateSectionWithCategoriesDto) {}
+export class UpdateSectionDto extends PartialType(CreateSectionDto) {}

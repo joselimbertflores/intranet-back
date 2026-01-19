@@ -3,13 +3,14 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { CreateDocumentTypeDto, DocumentSubTypeDto, UpdateDocumentTypeDto } from '../dtos';
-import { InstitutionalDocumentType, DocumentSubType } from '../entities';
+import { InstitutionalDocumentType, DocumentSubType, InstitutionalDocument } from '../entities';
 
 @Injectable()
 export class DocumentTypeService {
   constructor(
     @InjectRepository(InstitutionalDocumentType) private documentTypeRepository: Repository<InstitutionalDocumentType>,
     @InjectRepository(DocumentSubType) private documentSubTypeRepository: Repository<DocumentSubType>,
+    @InjectRepository(InstitutionalDocument) private documentRepository: Repository<InstitutionalDocument>,
   ) {}
 
   async getCategoriesWithSections() {
@@ -18,12 +19,19 @@ export class DocumentTypeService {
     // });
   }
 
+  async findAll() {
+    return this.documentTypeRepository.find({
+      order: { id: 'DESC', subtypes: { id: 'ASC' } },
+      relations: { subtypes: true },
+    });
+  }
+
   async create(dto: CreateDocumentTypeDto) {
     try {
-      const { subtypes: subTypes, name } = dto;
+      const { subtypes, ...props } = dto;
       const model = this.documentTypeRepository.create({
-        name,
-        ...(subTypes.length > 0 && { subtypes: subTypes.map((st) => this.documentSubTypeRepository.create(st)) }),
+        ...props,
+        subtypes: subtypes.length > 0 ? subtypes.map((st) => this.documentSubTypeRepository.create(st)) : [],
       });
       return await this.documentTypeRepository.save(model);
     } catch (error: unknown) {
@@ -36,24 +44,38 @@ export class DocumentTypeService {
     const type = await this.documentTypeRepository.findOne({
       where: { id },
       relations: { subtypes: true },
+      order: { subtypes: { id: 'ASC' } },
     });
-    if (!type) throw new NotFoundException(`Sub type ${id} not found.`);
-    this.assignDefined(type, toUpdate);
+    if (!type) throw new NotFoundException(`Document type ${id} not found.`);
     if (subtypes && subtypes.length > 0) {
-      type.subtypes = this.updateSubTypes(type.subtypes, subtypes);
+      type.subtypes = this.updateSubtypes(type.subtypes, subtypes);
     }
-    const resuñt = await this.documentTypeRepository.save({ ...type, ...toUpdate });
-    return resuñt;
+    return await this.documentTypeRepository.save({ ...type, ...toUpdate });
   }
 
-  private updateSubTypes(existingSubtypes: DocumentSubType[], subtypes: DocumentSubTypeDto[]) {
+  async removeSubtype(id: number) {
+    const documentsCountUsingSubtype = await this.documentRepository.count({ where: { subtype: { id } } });
+    if (documentsCountUsingSubtype > 0) {
+      throw new BadRequestException(`Cannot delete document subtype ${id} because it is in use.`);
+    }
+    const result = await this.documentSubTypeRepository.delete({ id });
+    return (result.affected ?? 0) > 0
+      ? { ok: true, message: `Document subtype ${id} deleted successfully.` }
+      : { ok: false, message: `Document subtype ${id} not found.` };
+  }
+
+  async getActiveTypes() {
+    return this.documentTypeRepository.find({ where: { isActive: true } });
+  }
+
+  private updateSubtypes(existingSubtypes: DocumentSubType[], subtypes: DocumentSubTypeDto[]) {
     for (const subtype of subtypes) {
       if (subtype.id) {
         const index = existingSubtypes.findIndex((e) => e.id === subtype.id);
         if (index === -1) {
-          throw new NotFoundException(`Subtype ${subtype.id} not found.`);
+          throw new NotFoundException(`Document subtype ${subtype.id} not found.`);
         }
-        
+
         existingSubtypes[index] = {
           ...existingSubtypes[index],
           ...subtype,
@@ -63,10 +85,6 @@ export class DocumentTypeService {
       }
     }
     return existingSubtypes;
-  }
-
-  async findAll() {
-    return this.documentTypeRepository.find({ order: { id: 'DESC' }, relations: { subtypes: true } });
   }
 
   private handleModifyException(error: unknown): void {
