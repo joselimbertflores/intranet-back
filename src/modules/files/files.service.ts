@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { extname, join } from 'path';
+import { mkdir, rename, unlink, writeFile } from 'fs/promises';
+import { dirname, extname, join } from 'path';
 import { v4 as uuid } from 'uuid';
 import { existsSync } from 'fs';
 
@@ -47,6 +47,58 @@ export class FilesService {
       };
     } catch (error) {
       throw new InternalServerErrorException('Error saving file');
+    }
+  }
+
+  async newSaveFile(file: Express.Multer.File): Promise<savedFile> {
+    try {
+      const { filePath, savedFileName } = await this.buildTempSavePath(file);
+
+      await writeFile(filePath, file.buffer);
+
+      return {
+        fileName: savedFileName,
+        originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+        type: this.getFileType(file.mimetype),
+        sizeBytes: file.size,
+      };
+    } catch {
+      throw new InternalServerErrorException('Error saving temp file');
+    }
+  }
+
+  async confirmFile(fileName: string, group: FileGroup): Promise<void> {
+    const extension = extname(fileName).replace('.', '');
+    const subfolder = this.getFolderByExtension(extension);
+
+    const tempPath = join(this.BASE_UPLOAD_PATH, 'temp', fileName);
+
+    const finalPath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
+
+    if (!existsSync(tempPath)) {
+      throw new InternalServerErrorException('Temp file missing during confirmation');
+    }
+
+    await this.ensureFolderExists(dirname(finalPath));
+    await rename(tempPath, finalPath);
+  }
+
+  async deleteTempFile(fileName: string): Promise<void> {
+    const tempPath = join(this.BASE_UPLOAD_PATH, 'temp', fileName);
+
+    if (existsSync(tempPath)) {
+      await unlink(tempPath);
+    }
+  }
+
+  async deleteFinalFile(fileName: string, group: FileGroup): Promise<void> {
+    const extension = extname(fileName).replace('.', '');
+    const subfolder = this.getFolderByExtension(extension);
+
+    const finalPath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
+
+    if (existsSync(finalPath)) {
+      await unlink(finalPath);
     }
   }
 
@@ -168,5 +220,17 @@ export class FilesService {
     if (mimetype.startsWith('video/')) return 'video';
     if (mimetype.startsWith('audio/')) return 'audio';
     return 'document';
+  }
+
+  private async buildTempSavePath(file: Express.Multer.File) {
+    const extension = extname(file.originalname).toLowerCase().replace('.', '');
+    if (!extension) throw new BadRequestException('File must have an extension');
+    const savedFileName = `${uuid()}.${extension}`;
+    const tempFolder = join(this.BASE_UPLOAD_PATH, 'temp');
+    await this.ensureFolderExists(tempFolder);
+
+    const filePath = join(tempFolder, savedFileName);
+
+    return { filePath, savedFileName };
   }
 }
