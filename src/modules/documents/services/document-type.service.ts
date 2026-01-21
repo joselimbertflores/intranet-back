@@ -9,15 +9,9 @@ import { InstitutionalDocumentType, DocumentSubType, InstitutionalDocument } fro
 export class DocumentTypeService {
   constructor(
     @InjectRepository(InstitutionalDocumentType) private documentTypeRepository: Repository<InstitutionalDocumentType>,
-    @InjectRepository(DocumentSubType) private documentSubTypeRepository: Repository<DocumentSubType>,
     @InjectRepository(InstitutionalDocument) private documentRepository: Repository<InstitutionalDocument>,
+    @InjectRepository(DocumentSubType) private documentSubTypeRepository: Repository<DocumentSubType>,
   ) {}
-
-  async getCategoriesWithSections() {
-    // return await this.documentTypeRepository.find({
-    //   relations: { sectionCategories: { section: true } },
-    // });
-  }
 
   async findAll() {
     return this.documentTypeRepository.find({
@@ -66,6 +60,22 @@ export class DocumentTypeService {
 
   async getActiveTypes() {
     return this.documentTypeRepository.find({ where: { isActive: true } });
+  }
+
+  async getTypesBySection(sectionId: number) {
+    const result = await this.documentTypeRepository.find({
+      where: { isActive: true, sections: { id: sectionId } },
+    });
+    console.log(result);
+    return result;
+  }
+
+  async getSubTypesByType(typeId: number) {
+    const result = await this.documentSubTypeRepository.find({
+      where: { isActive: true, type: { id: typeId } },
+    });
+    console.log(result);
+    return result;
   }
 
   private updateSubtypes(existingSubtypes: DocumentSubType[], subtypes: DocumentSubTypeDto[]) {

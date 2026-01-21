@@ -18,7 +18,7 @@ export class PortalController {
 
   @Get('categories-sections')
   getCategoriesWithSections() {
-    return this.documentCategoryService.getCategoriesWithSections();
+    // return this.documentCategoryService.getCategoriesWithSections();
   }
 
   @Post('documents')

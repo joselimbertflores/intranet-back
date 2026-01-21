@@ -1,13 +1,13 @@
 import {
+  Index,
   Column,
   Entity,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  Index,
   Unique,
-  CreateDateColumn,
+  ManyToOne,
   BeforeInsert,
   BeforeUpdate,
+  CreateDateColumn,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
 import { TypeCommunication } from './type-communication.entity';
 

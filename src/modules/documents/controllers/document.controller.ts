@@ -6,19 +6,24 @@ import { PaginationDto } from 'src/modules/common';
 @Controller('documents')
 export class DocumentController {
   constructor(
-    private documentCategoryService: DocumentTypeService,
     private documentSectionService: DocumentSectionService,
+    private documentTypeService: DocumentTypeService,
     private documentService: DocumentService,
   ) {}
 
-  @Get('categories-sections')
+  @Get('sections')
   getCategories() {
-    return this.documentCategoryService.getCategoriesWithSections();
+    return this.documentSectionService.getActiveSections();
   }
 
-  @Get('sections')
-  getSections() {
-    // return this.documentSectionService.getSections();
+  @Get('types/:sectionId')
+  getTypesBySection(@Param('sectionId', ParseIntPipe) sectionId: number) {
+    return this.documentTypeService.getTypesBySection(sectionId);
+  }
+
+  @Get('subtypes/:typeId')
+  getSubTypesByType(@Param('typeId', ParseIntPipe) typeId: number) {
+    return this.documentTypeService.getSubTypesByType(typeId);
   }
 
   @Get()

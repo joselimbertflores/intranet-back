@@ -8,7 +8,7 @@ import { FilesModule } from '../files/files.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([DocumentSection, InstitutionalDocumentType, DocumentSubType, InstitutionalDocument, SectionDocumentType]),
+    TypeOrmModule.forFeature([DocumentSection, InstitutionalDocumentType, DocumentSubType, InstitutionalDocument]),
     FilesModule,
   ],
   providers: [DocumentTypeService, DocumentSectionService, DocumentService],

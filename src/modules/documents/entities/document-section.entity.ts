@@ -1,5 +1,6 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { SectionDocumentType } from './section-document-type';
+import { InstitutionalDocumentType } from './document-type.entity';
 
 @Entity('document_sections')
 export class DocumentSection {
@@ -12,6 +13,12 @@ export class DocumentSection {
   @Column({ default: true })
   isActive: boolean;
 
-  @OneToMany(() => SectionDocumentType, (sdt) => sdt.section)
-  sectionDocumentTypes: SectionDocumentType[];
+  // @OneToMany(() => SectionDocumentType, (sdt) => sdt.section)
+  // sectionDocumentTypes: SectionDocumentType[];
+
+  @ManyToMany(() => InstitutionalDocumentType, (docType) => docType.sections)
+  @JoinTable({
+    name: 'section_document_types',
+  })
+  documentTypes: InstitutionalDocumentType[];
 }
