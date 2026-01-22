@@ -6,7 +6,7 @@ import { CreateCommunicationDto, GetPublicCommunicationsDto, UpdateCommunication
 import { Communication, TypeCommunication } from './entities';
 import { FilesService } from '../files/files.service';
 import { FileGroup } from '../files/file-group.enum';
-import { PaginationDto } from '../common';
+import { PaginationParamsDto } from '../common';
 
 @Injectable()
 export class CommunicationService {
@@ -20,7 +20,7 @@ export class CommunicationService {
     return await this.typeCommunicationRespository.find();
   }
 
-  async findAll({ limit, offset, term }: PaginationDto) {
+  async findAll({ limit, offset, term }: PaginationParamsDto) {
     const [communications, total] = await this.communicationRepository.findAndCount({
       ...(term && { where: [{ reference: ILike(`%${term}%`) }, { code: ILike(`%${term}%`) }] }),
       take: limit,

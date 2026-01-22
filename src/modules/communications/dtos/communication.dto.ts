@@ -1,7 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { Transform, Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 
 export class CreateCommunicationDto {
   @IsString()
@@ -43,7 +43,7 @@ export class CreateTypeCommunicationDto {
   name: string;
 }
 
-export class GetPublicCommunicationsDto extends PaginationDto {
+export class GetPublicCommunicationsDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsInt()
   @IsOptional()

@@ -4,7 +4,7 @@ import { DocumentTypeService, DocumentService } from '../documents/services';
 import { HeroSlidesService, QuickAccessService } from '../content/services';
 import { CommunicationService } from '../communications/communication.service';
 import { FilterDocumentsDto } from '../documents/dtos';
-import { PaginationDto } from '../common';
+import { PaginationParamsDto } from '../common';
 
 @Controller('portal')
 export class PortalController {

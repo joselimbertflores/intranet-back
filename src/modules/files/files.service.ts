@@ -50,7 +50,7 @@ export class FilesService {
     }
   }
 
-  async newSaveFile(file: Express.Multer.File): Promise<savedFile> {
+  async newSaveFile(file: Express.Multer.File) {
     try {
       const { filePath, savedFileName } = await this.buildTempSavePath(file);
 
@@ -59,12 +59,16 @@ export class FilesService {
       return {
         fileName: savedFileName,
         originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
-        type: this.getFileType(file.mimetype),
+        mimeType: file.mimetype,
         sizeBytes: file.size,
       };
     } catch {
       throw new InternalServerErrorException('Error saving temp file');
     }
+  }
+
+  async confirmFiles(fileNames: string[], group: FileGroup): Promise<void> {
+    await Promise.all(fileNames.map((file) => this.confirmFile(file, group)));
   }
 
   async confirmFile(fileName: string, group: FileGroup): Promise<void> {
@@ -227,10 +231,10 @@ export class FilesService {
     if (!extension) throw new BadRequestException('File must have an extension');
     const savedFileName = `${uuid()}.${extension}`;
     const tempFolder = join(this.BASE_UPLOAD_PATH, 'temp');
-    await this.ensureFolderExists(tempFolder);
-
+    if (!existsSync(tempFolder)) {
+      await mkdir(tempFolder, { recursive: true });
+    }
     const filePath = join(tempFolder, savedFileName);
-
     return { filePath, savedFileName };
   }
 }

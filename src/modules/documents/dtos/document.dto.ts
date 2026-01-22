@@ -1,22 +1,15 @@
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsInt,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  Min,
-  ValidateNested,
-} from 'class-validator';
-import { PaginationDto } from 'src/modules/common';
+import { IsArray, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { PaginationParamsDto } from 'src/modules/common';
 
 export class DocumentDto {
-  @IsUUID()
-  @IsOptional()
-  id?: string;
+  @IsString()
+  @IsNotEmpty()
+  displayName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  mimeType: string;
 
   @IsString()
   @IsNotEmpty()
@@ -29,6 +22,21 @@ export class DocumentDto {
   @IsNumber()
   @Type(() => Number)
   sizeBytes: number;
+}
+
+export class CreateDocumentsDto {
+  @IsInt()
+  @Type(() => Number)
+  sectionId: number;
+
+  @IsInt()
+  @Type(() => Number)
+  typeId: number;
+
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  subtypeId?: number;
 
   @IsInt()
   @Min(2000)
@@ -36,9 +44,7 @@ export class DocumentDto {
   @Type(() => Number)
   @IsOptional()
   fiscalYear?: number;
-}
 
-export class CreateDocumentsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DocumentDto)
@@ -47,7 +53,7 @@ export class CreateDocumentsDto {
 
 type OrderDirection = 'ASC' | 'DESC';
 
-export class FilterDocumentsDto extends PaginationDto {
+export class FilterDocumentsDto extends PaginationParamsDto {
   @IsInt()
   @Type(() => Number)
   @IsOptional()

@@ -3,11 +3,20 @@ import { Column, Entity, ManyToOne, CreateDateColumn, UpdateDateColumn, PrimaryG
 import { InstitutionalDocumentType } from './document-type.entity';
 import { DocumentSection } from './document-section.entity';
 import { DocumentSubType } from './document-subtype.entiy';
+import { User } from 'src/modules/users/entities';
+
+export enum DocumentStatus {
+  PUBLISHED = 'PUBLISHED',
+  ARCHIVED = 'ARCHIVED',
+}
 
 @Entity('documents')
 export class InstitutionalDocument {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column()
+  displayName: string;
 
   @Column()
   fileName: string;
@@ -27,8 +36,8 @@ export class InstitutionalDocument {
   @Column({ default: 0 })
   downloadCount: number;
 
-  @Column({ type: 'enum', enum: ['DRAFT', 'PUBLISHED', 'ARCHIVED'], default: 'DRAFT' })
-  status: string;
+  @Column({ type: 'enum', enum: DocumentStatus, default: DocumentStatus.PUBLISHED })
+  status: DocumentStatus;
 
   @ManyToOne(() => DocumentSection)
   section: DocumentSection;
@@ -38,6 +47,9 @@ export class InstitutionalDocument {
 
   @ManyToOne(() => DocumentSubType, { nullable: true })
   subtype?: DocumentSubType;
+
+  @ManyToOne(() => User)
+  createdBy: User;
 
   @CreateDateColumn()
   createdAt: Date;

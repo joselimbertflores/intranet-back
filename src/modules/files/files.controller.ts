@@ -45,7 +45,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveFile(file, FileGroup.DOCUMENTIS);
+    return this.filesService.newSaveFile(file);
   }
 
   @Post('quick-access')

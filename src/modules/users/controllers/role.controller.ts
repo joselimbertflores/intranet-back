@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
 import { CreateRoleDto, UpdateRoleDto } from '../dtos';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 import { RoleService } from '../services';
 
 @Controller('roles')
@@ -24,7 +24,7 @@ export class RoleController {
   }
 
   @Get()
-  findAll(@Query() queryParams: PaginationDto) {
+  findAll(@Query() queryParams: PaginationParamsDto) {
     return this.roleService.findAll(queryParams);
   }
 }

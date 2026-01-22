@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { DocumentTypeService, DocumentSectionService } from '../services';
 import { CreateSectionDto } from '../dtos';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 
 @Controller('document-sections')
 export class DocumentSectionController {

@@ -10,7 +10,7 @@ import {
   Matches,
 } from 'class-validator';
 
-export class PaginationDto {
+export class PaginationParamsDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()

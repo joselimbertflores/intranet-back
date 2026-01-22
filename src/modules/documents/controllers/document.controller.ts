@@ -1,7 +1,10 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
+
 import { DocumentTypeService, DocumentSectionService, DocumentService } from '../services';
+import { GetAuthUser } from 'src/modules/auth/decorators';
+import { PaginationParamsDto } from 'src/modules/common';
+import { User } from 'src/modules/users/entities';
 import { CreateDocumentsDto } from '../dtos';
-import { PaginationDto } from 'src/modules/common';
 
 @Controller('documents')
 export class DocumentController {
@@ -27,12 +30,17 @@ export class DocumentController {
   }
 
   @Get()
-  findAll(@Query() queryParams: PaginationDto) {
-    return this.documentService.getDocumentsToManage(queryParams);
+  findAll(@Query() queryParams: PaginationParamsDto) {
+    return this.documentService.findAll(queryParams);
   }
 
   @Put('sync/:relationId')
   syncDocuments(@Param('relationId', ParseIntPipe) relationId: string, @Body() documentsDto: CreateDocumentsDto) {
     return this.documentService.syncDocuments(+relationId, documentsDto);
+  }
+
+  @Post()
+  create(@Body() body: CreateDocumentsDto, @GetAuthUser() user: User) {
+    return this.documentService.create(body, user);
   }
 }

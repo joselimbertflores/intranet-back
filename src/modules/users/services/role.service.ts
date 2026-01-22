@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, Repository } from 'typeorm';
 
 import { CreateRoleDto, UpdateRoleDto } from '../dtos';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 import { Permission, Role } from '../entities';
 
 @Injectable()
@@ -69,7 +69,7 @@ export class RoleService {
     }));
   }
 
-  async findAll(paginatioDto: PaginationDto) {
+  async findAll(paginatioDto: PaginationParamsDto) {
     const { limit, offset, term } = paginatioDto;
     const [roles, total] = await this.roleRepository.findAndCount({
       relations: { permissions: true },

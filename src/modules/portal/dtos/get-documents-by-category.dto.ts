@@ -1,11 +1,11 @@
 import { Type } from 'class-transformer';
 import { IsDate, IsIn, IsInt, IsOptional } from 'class-validator';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 
 type FilterField = 'originalName' | 'createdAt';
 type OrderDirection = 'asc' | 'desc';
 
-export class FilterDocsByCategoryDto extends PaginationDto {
+export class FilterDocsByCategoryDto extends PaginationParamsDto {
   @IsIn(['originalName', 'createdAt'])
   @IsOptional()
   orderBy?: FilterField;

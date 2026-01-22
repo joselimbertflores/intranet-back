@@ -1,13 +1,13 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { AssistanceService } from 'src/modules/assistance/assistance.service';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 
 @Controller('portal/assistance')
 export class PortalAssistanceController {
   constructor(private assistanceService: AssistanceService) {}
 
   @Get()
-  findAll(@Query() queryParams: PaginationDto) {
+  findAll(@Query() queryParams: PaginationParamsDto) {
     return this.assistanceService.findAll(queryParams);
   }
 

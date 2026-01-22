@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 
 import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos/communication.dto';
 import { CommunicationService } from './communication.service';
-import { PaginationDto } from '../common';
+import { PaginationParamsDto } from '../common';
 
 @Controller('communications')
 export class CommunicationController {
@@ -24,7 +24,7 @@ export class CommunicationController {
   }
 
   @Get()
-  findAll(@Query() queryParams: PaginationDto) {
+  findAll(@Query() queryParams: PaginationParamsDto) {
     return this.communicationService.findAll(queryParams);
   }
 }

@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 
 import { AssistanceService } from './assistance.service';
 import { CreateTutorialDto } from './dtos/tutorial.dto';
-import { PaginationDto } from '../common';
+import { PaginationParamsDto } from '../common';
 
 @Controller('assistance')
 export class AssistanceController {
@@ -18,7 +18,7 @@ export class AssistanceController {
   }
 
   @Get()
-  findAll(@Query() queryParams: PaginationDto) {
+  findAll(@Query() queryParams: PaginationParamsDto) {
     return this.assistanceService.findAll(queryParams);
   }
 }

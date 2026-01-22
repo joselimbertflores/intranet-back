@@ -8,7 +8,7 @@ import { CreateTutorialDto, UpdateTutorialDto } from './dtos/tutorial.dto';
 import { Tutorial, TutorialVideo } from './entities';
 import { FilesService } from '../files/files.service';
 import { FileGroup } from '../files/file-group.enum';
-import { PaginationDto } from '../common';
+import { PaginationParamsDto } from '../common';
 
 @Injectable()
 export class AssistanceService {
@@ -61,7 +61,7 @@ export class AssistanceService {
     }
   }
 
-  async findAll({ term, limit, offset }: PaginationDto) {
+  async findAll({ term, limit, offset }: PaginationParamsDto) {
     const [tutorials, total] = await this.tutorialRepository.findAndCount({
       ...(term && { where: { title: ILike(`%${term}%`) } }),
       take: limit,

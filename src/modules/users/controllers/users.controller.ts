@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Query } from '@nestjs/common';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 
 import { CreateUserDto, UpdateUserDto } from '../dtos';
 import { RoleService, UsersService } from '../services';
@@ -22,7 +22,7 @@ export class UsersController {
   }
 
   @Get()
-  findAll(@Query() queryParams: PaginationDto) {
+  findAll(@Query() queryParams: PaginationParamsDto) {
     return this.userService.findAll(queryParams);
   }
 

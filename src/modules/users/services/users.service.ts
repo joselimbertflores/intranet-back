@@ -4,7 +4,7 @@ import { ILike, In, Repository } from 'typeorm';
 
 import { AccessTokenPayload } from 'src/modules/auth/interfaces';
 import { Permission, Role, User } from '../entities';
-import { PaginationDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/modules/common';
 import { PERMISSIONS_SEED } from '../constants';
 import { UpdateUserDto } from '../dtos';
 
@@ -24,7 +24,7 @@ export class UsersService {
     return { ok: true, message: 'Permissions seeded successfully' };
   }
 
-  async findAll({ limit, offset, term }: PaginationDto) {
+  async findAll({ limit, offset, term }: PaginationParamsDto) {
     const [users, total] = await this.userRepository.findAndCount({
       take: limit,
       skip: offset,
