@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Put, Query } from '@nestjs/common';
 
 import { DocumentTypeService, DocumentSectionService, DocumentService } from '../services';
+import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { GetAuthUser } from 'src/modules/auth/decorators';
 import { PaginationParamsDto } from 'src/modules/common';
 import { User } from 'src/modules/users/entities';
-import { CreateDocumentsDto } from '../dtos';
 
 @Controller('documents')
 export class DocumentController {
@@ -30,17 +30,17 @@ export class DocumentController {
   }
 
   @Get()
-  findAll(@Query() queryParams: PaginationParamsDto) {
-    return this.documentService.findAll(queryParams);
-  }
-
-  @Put('sync/:relationId')
-  syncDocuments(@Param('relationId', ParseIntPipe) relationId: string, @Body() documentsDto: CreateDocumentsDto) {
-    return this.documentService.syncDocuments(+relationId, documentsDto);
+  findAll(@Query() queryParams: NewFilterDocumentsDto, @GetAuthUser() user: User) {
+    return this.documentService.findAll(queryParams, user);
   }
 
   @Post()
   create(@Body() body: CreateDocumentsDto, @GetAuthUser() user: User) {
     return this.documentService.create(body, user);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: UpdateDocumentDto) {
+    return this.documentService.update(id, body);
   }
 }

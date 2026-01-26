@@ -80,7 +80,7 @@ export class FilesService {
     const finalPath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
 
     if (!existsSync(tempPath)) {
-      throw new InternalServerErrorException('Temp file missing during confirmation');
+      throw new InternalServerErrorException(`Temp file ${fileName} not found during confirmation`);
     }
 
     await this.ensureFolderExists(dirname(finalPath));

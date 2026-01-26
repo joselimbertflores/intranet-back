@@ -2,13 +2,12 @@ import { Inject, Injectable, NotFoundException, BadRequestException } from '@nes
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { ILike, Repository, FindOptionsWhere } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 
 import { InstitutionalDocument, DocumentSection, InstitutionalDocumentType, DocumentSubType } from '../entities';
-import { CreateDocumentsDto, FilterDocumentsDto } from '../dtos';
+import { CreateDocumentsDto, FilterDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { FilesService } from 'src/modules/files/files.service';
 import { FileGroup } from 'src/modules/files/file-group.enum';
-import { PaginationParamsDto } from 'src/modules/common';
 import { User } from 'src/modules/users/entities';
 
 @Injectable()
@@ -22,9 +21,18 @@ export class DocumentService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async findAll({ limit, offset, term }: PaginationParamsDto) {
+  async findAll(filterParamsDto: NewFilterDocumentsDto, authUser: User) {
+    const { limit, offset, term, fiscalYear, sectionId, typeId, subtypeId } = filterParamsDto;
+    const where: FindOptionsWhere<InstitutionalDocument> = {
+      createdBy: { id: authUser.id },
+      ...(term && { displayName: ILike(`%${term}%`) }),
+      ...(fiscalYear && { fiscalYear }),
+      ...(sectionId && { section: { id: sectionId } }),
+      ...(typeId && { type: { id: typeId } }),
+      ...(subtypeId && { subtype: { id: subtypeId } }),
+    };
     const [documents, total] = await this.docRepository.findAndCount({
-      where: {},
+      where,
       relations: { section: true, type: true, subtype: true },
       order: { createdAt: 'DESC' },
       take: limit,
@@ -38,6 +46,9 @@ export class DocumentService {
     const currentYear = new Date().getFullYear();
     const { section, type, subtype } = await this.getValidDocumentProps(sectionId, typeId, subtypeId);
 
+    const fileNames = documents.map((doc) => doc.fileName);
+    await this.fileService.confirmFiles(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
+
     const moodels = documents.map((doc) =>
       this.docRepository.create({
         ...doc,
@@ -50,10 +61,31 @@ export class DocumentService {
     );
     const result = await this.docRepository.save(moodels);
 
-    const fileNames = documents.map((doc) => doc.fileName);
-    await this.fileService.confirmFiles(fileNames, FileGroup.DOCUMENTIS);
-
     return result;
+  }
+
+  async update(id: string, dto: UpdateDocumentDto) {
+    const documentDB = await this.docRepository.findOne({
+      where: { id },
+      relations: { section: true, type: true, subtype: true },
+    });
+    if (!documentDB) {
+      throw new NotFoundException(`Document ${id} not found`);
+    }
+    const fileChanged = dto.fileName && dto.fileName !== documentDB.fileName;
+
+    if (fileChanged) {
+      await this.fileService.confirmFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
+    }
+    // ** “Nunca apuntes la BD a un archivo que aún no existe”.
+    this.docRepository.merge(documentDB, dto);
+    const updatedDocument = await this.docRepository.save(documentDB);
+
+    if (fileChanged) {
+      await this.fileService.deleteFile(documentDB.fileName, FileGroup.INSTITUTIONAL_DOCUMENTS);
+    }
+
+    return updatedDocument;
   }
 
   private async getValidDocumentProps(sectionId: number, typeId: number, subtypeId: number | undefined) {
@@ -79,59 +111,6 @@ export class DocumentService {
       }
     }
     return { section, type, ...(subtype && { subtype }) };
-  }
-
-  private getValidProps() {}
-
-  async getDocumentsToManage({ term, limit, offset }: PaginationParamsDto) {
-    // const [items, total] = await this.sectionCategoryRep.findAndCount({
-    //   ...(term && {
-    //     where: { documents: { originalName: ILike(`%${term}%`) } },
-    //   }),
-    //   // TODO filter by user id
-    //   relations: { documents: true, section: true, category: true },
-    //   order: { documents: { createdAt: 'DESC' } },
-    //   take: limit,
-    //   skip: offset,
-    // });
-    // return { items, total };
-  }
-
-  async syncDocuments(relationId: number, docsDto: CreateDocumentsDto) {
-    // const { documents } = docsDto;
-    // const sectionCategory = await this.sectionCategoryRep.findOne({
-    //   where: { id: relationId },
-    //   relations: { category: true, section: true, documents: true },
-    // });
-    // if (!sectionCategory) {
-    //   throw new BadRequestException(`Relation ${relationId} not found`);
-    // }
-    // const queryRunner = this.dataSource.createQueryRunner();
-    // await queryRunner.connect();
-    // await queryRunner.startTransaction();
-    // try {
-    //   const existingDocs = sectionCategory.documents;
-    //   const newIds = documents.filter((d) => d.id).map((d) => d.id);
-    //   const validIds = newIds.filter((id) => existingDocs.some((doc) => doc.id === id));
-    //   const toDelete = existingDocs.filter((doc) => !validIds.includes(doc.id));
-    //   if (toDelete.length) {
-    //     await queryRunner.manager.remove(toDelete);
-    //   }
-    //   const toSave = documents.map((doc) =>
-    //     queryRunner.manager.create(Document, {
-    //       ...doc,
-    //       sectionCategory,
-    //     }),
-    //   );
-    //   const result = await queryRunner.manager.save(toSave);
-    //   await queryRunner.commitTransaction();
-    //   return { ...sectionCategory, documents: result };
-    // } catch (error: unknown) {
-    //   await queryRunner.rollbackTransaction();
-    //   throw new InternalServerErrorException(`Failed create documents`);
-    // } finally {
-    //   await queryRunner.release();
-    // }
   }
 
   async filterDocuments(filter: FilterDocumentsDto) {
@@ -161,7 +140,7 @@ export class DocumentService {
       order: { downloadCount: 'DESC' },
       take: 8,
     });
-    return docs.map((doc) => this.plainDocument(doc));
+    // return docs.map((doc) => this.plainDocument(doc));
   }
 
   async incrementDownloadCount(id: string, userIp: string) {
@@ -181,13 +160,5 @@ export class DocumentService {
     await this.cacheManager.set(cacheKey, true, 300000);
 
     return { skippend: false, message: 'Document downloaded count updated', newCount: doc.downloadCount };
-  }
-
-  private plainDocument(doc: InstitutionalDocument) {
-    const { fileName, ...properties } = doc;
-    return {
-      ...properties,
-      fileName: this.fileService.buildFileUrl(fileName, FileGroup.DOCUMENTIS),
-    };
   }
 }

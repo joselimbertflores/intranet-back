@@ -11,6 +11,7 @@ export class CustomFileTypeValidator extends FileValidator {
   constructor(config: ValidatorConfig) {
     super(config);
     this.allowedMimes = config.validTypes.map((type) => (type.includes('/') ? type : getMimeType(type) || type));
+    console.log(this.allowedMimes);
   }
 
   async isValid(file?: Express.Multer.File): Promise<boolean> {

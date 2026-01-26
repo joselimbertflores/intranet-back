@@ -1,6 +1,19 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { PaginationParamsDto } from 'src/modules/common';
+import { DocumentStatus } from '../entities';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class DocumentDto {
   @IsString()
@@ -51,8 +64,40 @@ export class CreateDocumentsDto {
   documents: DocumentDto[];
 }
 
+export class UpdateDocumentDto extends PartialType(DocumentDto) {
+  @IsEnum(DocumentStatus)
+  @IsOptional()
+  status?: DocumentStatus;
+
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  fiscalYear?: number;
+}
+
 type OrderDirection = 'ASC' | 'DESC';
 
+export class NewFilterDocumentsDto extends PaginationParamsDto {
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  sectionId?: number;
+
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  typeId?: number;
+
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  subtypeId?: number;
+
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  fiscalYear?: number;
+}
 export class FilterDocumentsDto extends PaginationParamsDto {
   @IsInt()
   @Type(() => Number)

@@ -51,9 +51,9 @@ export class InstitutionalDocument {
   @ManyToOne(() => User)
   createdBy: User;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 }
