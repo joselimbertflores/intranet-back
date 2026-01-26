@@ -63,19 +63,15 @@ export class DocumentTypeService {
   }
 
   async getTypesBySection(sectionId: number) {
-    const result = await this.documentTypeRepository.find({
+    return await this.documentTypeRepository.find({
       where: { isActive: true, sections: { id: sectionId } },
     });
-    console.log(result);
-    return result;
   }
 
   async getSubTypesByType(typeId: number) {
-    const result = await this.documentSubTypeRepository.find({
+    return await this.documentSubTypeRepository.find({
       where: { isActive: true, type: { id: typeId } },
     });
-    console.log(result);
-    return result;
   }
 
   private updateSubtypes(existingSubtypes: DocumentSubType[], subtypes: DocumentSubTypeDto[]) {

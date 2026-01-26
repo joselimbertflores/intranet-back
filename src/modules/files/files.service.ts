@@ -95,17 +95,6 @@ export class FilesService {
     }
   }
 
-  async deleteFinalFile(fileName: string, group: FileGroup): Promise<void> {
-    const extension = extname(fileName).replace('.', '');
-    const subfolder = this.getFolderByExtension(extension);
-
-    const finalPath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
-
-    if (existsSync(finalPath)) {
-      await unlink(finalPath);
-    }
-  }
-
   async savePdfWithThumbnail(file: Express.Multer.File, group: FileGroup) {
     try {
       const { filePath, savedFileName } = await this.buildSavePathFile(file, group);

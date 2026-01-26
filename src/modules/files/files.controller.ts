@@ -27,7 +27,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveFile(file, FileGroup.HERO_SLIDES);
+    return this.filesService.newSaveFile(file);
   }
 
   @Post('document')

@@ -1,5 +1,8 @@
+import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  arrayMinSize,
   IsArray,
   IsEnum,
   IsInt,
@@ -13,7 +16,6 @@ import {
 } from 'class-validator';
 import { PaginationParamsDto } from 'src/modules/common';
 import { DocumentStatus } from '../entities';
-import { PartialType } from '@nestjs/mapped-types';
 
 export class DocumentDto {
   @IsString()
@@ -61,6 +63,7 @@ export class CreateDocumentsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DocumentDto)
+  @ArrayMinSize(1)
   documents: DocumentDto[];
 }
 

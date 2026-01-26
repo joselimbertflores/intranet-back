@@ -17,8 +17,8 @@ export class DocumentService {
     @InjectRepository(InstitutionalDocument) private docRepository: Repository<InstitutionalDocument>,
     @InjectRepository(DocumentSection) private docSectionRepository: Repository<DocumentSection>,
     @InjectRepository(DocumentSubType) private docSubtypeRepository: Repository<DocumentSubType>,
-    private fileService: FilesService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private fileService: FilesService,
   ) {}
 
   async findAll(filterParamsDto: NewFilterDocumentsDto, authUser: User) {
@@ -43,25 +43,29 @@ export class DocumentService {
 
   async create(dto: CreateDocumentsDto, authUser: User) {
     const { documents, sectionId, typeId, subtypeId, fiscalYear } = dto;
-    const currentYear = new Date().getFullYear();
     const { section, type, subtype } = await this.getValidDocumentProps(sectionId, typeId, subtypeId);
-
     const fileNames = documents.map((doc) => doc.fileName);
-    await this.fileService.confirmFiles(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
 
-    const moodels = documents.map((doc) =>
-      this.docRepository.create({
-        ...doc,
-        section,
-        type,
-        ...(subtype && { subtype }),
-        fiscalYear: fiscalYear ?? currentYear,
-        createdBy: authUser,
-      }),
-    );
-    const result = await this.docRepository.save(moodels);
+    try {
+      await this.fileService.confirmFiles(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
 
-    return result;
+      const moodels = documents.map((doc) =>
+        this.docRepository.create({
+          ...doc,
+          section,
+          type,
+          ...(subtype && { subtype }),
+          ...(fiscalYear && { fiscalYear }),
+          createdBy: authUser,
+        }),
+      );
+      const result = await this.docRepository.save(moodels);
+
+      return result;
+    } catch (error: unknown) {
+      await this.fileService.deleteMany(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
+      throw error;
+    }
   }
 
   async update(id: string, dto: UpdateDocumentDto) {
@@ -69,23 +73,33 @@ export class DocumentService {
       where: { id },
       relations: { section: true, type: true, subtype: true },
     });
+
     if (!documentDB) {
       throw new NotFoundException(`Document ${id} not found`);
     }
-    const fileChanged = dto.fileName && dto.fileName !== documentDB.fileName;
 
-    if (fileChanged) {
-      await this.fileService.confirmFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
+    const oldFileName = documentDB.fileName;
+    const fileChanged = dto.fileName && dto.fileName !== oldFileName;
+
+    try {
+      if (fileChanged) {
+        await this.fileService.confirmFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
+      }
+      // ** “Nunca apuntes la BD a un archivo que aún no existe”.
+      this.docRepository.merge(documentDB, dto);
+      const updatedDocument = await this.docRepository.save(documentDB);
+
+      if (fileChanged) {
+        await this.fileService.deleteFile(oldFileName, FileGroup.INSTITUTIONAL_DOCUMENTS);
+      }
+
+      return updatedDocument;
+    } catch (error) {
+      if (fileChanged) {
+        await this.fileService.deleteFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
+      }
+      throw error;
     }
-    // ** “Nunca apuntes la BD a un archivo que aún no existe”.
-    this.docRepository.merge(documentDB, dto);
-    const updatedDocument = await this.docRepository.save(documentDB);
-
-    if (fileChanged) {
-      await this.fileService.deleteFile(documentDB.fileName, FileGroup.INSTITUTIONAL_DOCUMENTS);
-    }
-
-    return updatedDocument;
   }
 
   private async getValidDocumentProps(sectionId: number, typeId: number, subtypeId: number | undefined) {

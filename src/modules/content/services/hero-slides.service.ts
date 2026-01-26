@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
@@ -26,15 +26,28 @@ export class HeroSlidesService {
   async replaceSlides({ slides }: ReplaceHeroSlideDto) {
     const existingSlides = await this.heroSlidesRepository.find({ select: ['image'] });
 
-    const newSlides = await this.dataSource.transaction(async (manager) => {
-      await manager.clear(HeroSlides);
-      const newSlideEntities = slides.map((s, i) => manager.create(HeroSlides, { ...s, order: i }));
-      return manager.save(newSlideEntities);
-    });
+    const existingImages = new Set(existingSlides.map((s) => s.image));
 
-    await this.removeOrphanSlideImages(existingSlides, slides);
+    const imagesToConfirm = slides.map((s) => s.image).filter((img) => !existingImages.has(img));
 
-    return newSlides;
+    try {
+      if (imagesToConfirm.length > 0) {
+        await this.fileService.confirmFiles(imagesToConfirm, FileGroup.HERO_SLIDES);
+      }
+      const newSlides = await this.dataSource.transaction(async (manager) => {
+        await manager.clear(HeroSlides);
+        return manager.save(slides.map((s, i) => manager.create(HeroSlides, { ...s, order: i })));
+      });
+
+      await this.removeOrphanSlideImages(existingSlides, slides);
+
+      return newSlides;
+    } catch (error: unknown) {
+      if (imagesToConfirm.length > 0) {
+        await this.fileService.deleteMany(imagesToConfirm, FileGroup.HERO_SLIDES);
+      }
+      throw error;
+    }
   }
 
   private async removeOrphanSlideImages(existingSlides: Pick<HeroSlides, 'image'>[], newSlides: HeroSlideDto[]) {
@@ -42,7 +55,7 @@ export class HeroSlidesService {
 
     const orphanImages = existingSlides.map((s) => s.image).filter((img) => !usedImages.has(img));
 
-    if (orphanImages.length > 0) {
+    if (orphanImages.length) {
       await this.fileService.deleteMany(orphanImages, FileGroup.HERO_SLIDES);
     }
   }
