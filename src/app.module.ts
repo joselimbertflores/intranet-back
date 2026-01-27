@@ -7,10 +7,10 @@ import { CommunicationsModule } from './modules/communications/communications.mo
 import { EnvironmentVariables, validate } from './config/env.validation';
 import { DocumentModule } from './modules/documents/document.module';
 import { ContentModule } from './modules/content/content.module';
-import { EventModule } from './modules/events/event.module';
+import { EventModule } from './modules/calendar/calendar.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { FilesModule } from './modules/files/files.module';
-import { AssistanceModule } from './modules/assistance/assistance.module';
+import { AssistanceModule } from './modules/learning/learning.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 

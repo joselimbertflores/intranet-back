@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { AssistanceService } from 'src/modules/assistance/assistance.service';
+import { AssistanceService } from 'src/modules/learning/assistance.service';
 import { PaginationParamsDto } from 'src/modules/common';
 
 @Controller('portal/assistance')

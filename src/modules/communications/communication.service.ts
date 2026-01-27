@@ -31,13 +31,16 @@ export class CommunicationService {
   }
 
   async create(dto: CreateCommunicationDto) {
-    const { typeId: typeCommunicationId, ...props } = dto;
+    const { typeId, ...props } = dto;
 
-    const typeCommunication = await this.typeCommunicationRespository.findOneBy({ id: typeCommunicationId });
+    const typeCommunication = await this.typeCommunicationRespository.findOneBy({ id: typeId });
 
     if (!typeCommunication) throw new BadGatewayException('Type communication not found');
 
+    // TODO Get code from seg-tramites
     await this.checkDuplicateCode(props.code);
+
+    await this.fileService.confirmFile(props.fileName, FileGroup.COMUNICATIONS);
 
     const entity = this.communicationRepository.create({ ...props, type: typeCommunication });
 
@@ -87,7 +90,7 @@ export class CommunicationService {
   }
 
   private async checkDuplicateCode(code: string) {
-    const duplicate = await this.communicationRepository.findOneBy({ code: code });
+    const duplicate = await this.communicationRepository.findOneBy({ code });
     if (duplicate) throw new BadGatewayException(`Code: ${code} already exists}`);
   }
 

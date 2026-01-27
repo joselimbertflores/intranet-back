@@ -2,7 +2,6 @@ import {
   Index,
   Column,
   Entity,
-  Unique,
   ManyToOne,
   BeforeInsert,
   BeforeUpdate,
@@ -12,7 +11,6 @@ import {
 import { TypeCommunication } from './type-communication.entity';
 
 @Entity('communications')
-@Unique(['code'])
 export class Communication {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -22,17 +20,14 @@ export class Communication {
   reference: string;
 
   @Index()
-  @Column({ type: 'varchar', length: 80 })
+  @Column({ type: 'varchar', length: 80, unique: true })
   code: string;
-
-  @CreateDateColumn()
-  publicationDate: Date;
-
-  @Column()
-  originalName: string;
 
   @Column()
   fileName: string;
+
+  @Column()
+  originalName: string;
 
   @Column({ nullable: true })
   previewName?: string;
@@ -43,6 +38,9 @@ export class Communication {
     eager: true,
   })
   type: TypeCommunication;
+
+  @CreateDateColumn()
+  publicationDate: Date;
 
   @BeforeInsert()
   @BeforeUpdate()
