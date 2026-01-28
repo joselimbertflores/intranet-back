@@ -1,11 +1,11 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('events')
-export class Event {
-  @PrimaryGeneratedColumn()
-  id: number;
+@Entity('calendar_events')
+export class CalendarEvent {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column()
+  @Column({ length: 150 })
   title: string;
 
   @Column({ type: 'text', nullable: true })
@@ -20,20 +20,8 @@ export class Event {
   @Column({ default: false })
   allDay: boolean;
 
-  @Column({ nullable: true })
-  recurrenceRule?: string; // RRULE estándar
-
-  @Column({ nullable: true })
-  color?: string;
-
-  @Column({ nullable: true })
-  category?: string;
-
-  @Column({ nullable: true })
-  link?: string; // enlace a comunicado o externo
-
-  @Column({ default: false })
-  isPublic: boolean;
+  @Column({ type: 'varchar', nullable: true })
+  recurrenceRule?: string;
 
   @Column({ default: true })
   isActive: boolean;
