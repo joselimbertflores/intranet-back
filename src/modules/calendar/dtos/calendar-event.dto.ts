@@ -1,8 +1,61 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
-import { IsString, IsOptional, IsBoolean, MaxLength, IsDate } from 'class-validator';
+import {
+  ValidateNested,
+  IsString,
+  IsOptional,
+  IsBoolean,
+  MaxLength,
+  IsDate,
+  IsEnum,
+  IsInt,
+  IsArray,
+  ValidateIf,
+  ArrayMinSize,
+  Min,
+} from 'class-validator';
 
-import { IsRRule } from '../decorators';
+import { IsAfterDate } from '../decorators';
+
+export enum RecurrenceFrequency {
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  MONTHLY = 'MONTHLY',
+  YEARLY = 'YEARLY',
+}
+
+export enum WeekDay {
+  MO = 'MO',
+  TU = 'TU',
+  WE = 'WE',
+  TH = 'TH',
+  FR = 'FR',
+  SA = 'SA',
+  SU = 'SU',
+}
+
+//
+
+export class RecurrenceConfigDto {
+  @IsEnum(RecurrenceFrequency)
+  frequency: RecurrenceFrequency;
+
+  @IsInt()
+  @Min(1)
+  interval: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(WeekDay, { each: true })
+  @ValidateIf((o: RecurrenceConfigDto) => o.frequency === RecurrenceFrequency.WEEKLY)
+  @ArrayMinSize(1, { message: 'Debes seleccionar al menos un día para eventos semanales' })
+  byWeekDays?: string[];
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  until?: Date;
+}
 
 export class CreateCalendarEventDto {
   @IsString()
@@ -20,14 +73,16 @@ export class CreateCalendarEventDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
+  @IsAfterDate('startDate')
   endDate?: Date;
 
   @IsBoolean()
   allDay: boolean;
 
   @IsOptional()
-  @IsRRule({ message: 'Invalid recurrence rule.' })
-  recurrenceRule?: string;
+  @ValidateNested()
+  @Type(() => RecurrenceConfigDto)
+  recurrence?: RecurrenceConfigDto;
 }
 
 export class UpdateCalendarEventDto extends PartialType(CreateCalendarEventDto) {}

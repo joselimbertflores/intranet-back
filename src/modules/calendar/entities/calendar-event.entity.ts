@@ -1,5 +1,10 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
+export interface RecurrenceConfig {
+  frequency: string;
+  interval: number;
+  byWeekDays?: string[];
+}
 @Entity('calendar_events')
 export class CalendarEvent {
   @PrimaryGeneratedColumn('uuid')
@@ -22,6 +27,9 @@ export class CalendarEvent {
 
   @Column({ type: 'varchar', nullable: true })
   recurrenceRule?: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  recurrenceConfig?: RecurrenceConfig;
 
   @Column({ default: true })
   isActive: boolean;
