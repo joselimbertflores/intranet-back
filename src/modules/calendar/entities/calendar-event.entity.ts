@@ -26,10 +26,10 @@ export class CalendarEvent {
   allDay: boolean;
 
   @Column({ type: 'varchar', nullable: true })
-  recurrenceRule?: string;
+  recurrenceRule: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  recurrenceConfig?: RecurrenceConfig;
+  recurrenceConfig: RecurrenceConfig | null;
 
   @Column({ default: true })
   isActive: boolean;

@@ -44,12 +44,11 @@ export class RecurrenceConfigDto {
   @Min(1)
   interval: number;
 
-  @IsOptional()
-  @IsArray()
-  @IsEnum(WeekDay, { each: true })
   @ValidateIf((o: RecurrenceConfigDto) => o.frequency === RecurrenceFrequency.WEEKLY)
-  @ArrayMinSize(1, { message: 'Debes seleccionar al menos un día para eventos semanales' })
-  byWeekDays?: string[];
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsEnum(WeekDay, { each: true })
+  byWeekDays?: WeekDay[];
 
   @IsOptional()
   @IsDate()
