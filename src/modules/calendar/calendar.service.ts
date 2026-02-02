@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { RRule } from 'rrule';
 
 import { CalendarEvent } from './entities';
@@ -14,7 +14,6 @@ export class CalendarService {
 
   async findAll({ limit, offset }: PaginationParamsDto) {
     const [events, total] = await this.eventRepository.findAndCount({
-      where: { isActive: true },
       skip: offset,
       take: limit,
       order: { createdAt: 'desc' },
@@ -22,41 +21,43 @@ export class CalendarService {
     return { events, total };
   }
 
-  async create(dto: CreateCalendarEventDto) {
+  async create(dto: CreateCalendarEventDto, manager?: EntityManager) {
+    const repository = manager ? manager.getRepository(CalendarEvent) : this.eventRepository;
     const { recurrence, ...props } = dto;
-    const model = this.eventRepository.create({ ...props });
+    const model = repository.create({ ...props });
     if (recurrence) {
       model.recurrenceConfig = recurrence;
       model.recurrenceRule = this.buildRRule(recurrence, dto.startDate);
     }
-    const event = this.eventRepository.create(model);
-    return await this.eventRepository.save(event);
+    const event = repository.create(model);
+    return await repository.save(event);
   }
 
-  async update(id: string, dto: UpdateCalendarEventDto) {
-    const event = await this.eventRepository.findOneBy({ id });
+  async update(id: string, dto: UpdateCalendarEventDto, manager?: EntityManager) {
+    const repository = manager ? manager.getRepository(CalendarEvent) : this.eventRepository;
+
+    const event = await repository.findOneBy({ id });
 
     if (!event) throw new NotFoundException('Event not found');
-    const { recurrence, ...props } = dto;
+    const { recurrence: newRecurrence, ...props } = dto;
 
-    Object.assign(event, {
-      ...dto,
-      // startDate: dto.startDate ? dto.startDate : event.startDate,
-      // endDate: dto.endDate ? dto.endDate : event.endDate,
-    });
-
-    if ('recurrence' in dto && recurrence === null) {
+    if ('recurrence' in dto && newRecurrence === null) {
       event.recurrenceConfig = null;
       event.recurrenceRule = null;
     }
 
-    // actualizar recurrencia o regenerar si cambia startDate
-    if (recurrence || (dto.startDate && event.recurrenceConfig)) {
-      const config = recurrence! ?? event.recurrenceConfig;
-      event.recurrenceConfig = config;
-      event.recurrenceRule = this.buildRRule(config, event.startDate);
+    if (newRecurrence || (dto.startDate && event.recurrenceConfig)) {
+      const newConfigRecurrence = newRecurrence! ?? event.recurrenceConfig;
+      event.recurrenceConfig = newConfigRecurrence;
+      event.recurrenceRule = this.buildRRule(newConfigRecurrence, event.startDate);
     }
-    return this.eventRepository.save(event);
+    return repository.save({ ...event, ...props });
+  }
+
+  async remove(id: string, manager?: EntityManager) {
+    const repository = manager ? manager.getRepository(CalendarEvent) : this.eventRepository;
+    const result = await repository.delete({ id });
+    return { ok: true, message: (result.affected ?? 0 > 0) ? 'Event deleted' : 'Event not found' };
   }
 
   private buildRRule(config: RecurrenceConfigDto, startDate: Date): string {

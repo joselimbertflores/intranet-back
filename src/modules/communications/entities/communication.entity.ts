@@ -30,7 +30,7 @@ export class Communication {
   fileName: string;
 
   @Column()
-  thumbnailFileName: string;
+  previewFileName: string;
 
   @Column()
   originalName: string;
@@ -45,9 +45,9 @@ export class Communication {
   })
   type: TypeCommunication;
 
-  @OneToOne(() => CalendarEvent, { cascade: true })
+  @OneToOne(() => CalendarEvent, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn()
-  calendarEvent: CalendarEvent;
+  calendarEvent: CalendarEvent | null;
 
   @BeforeInsert()
   @BeforeUpdate()

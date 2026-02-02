@@ -31,9 +31,6 @@ export class CalendarEvent {
   @Column({ type: 'jsonb', nullable: true })
   recurrenceConfig: RecurrenceConfig | null;
 
-  @Column({ default: true })
-  isActive: boolean;
-
   @CreateDateColumn()
   createdAt: Date;
 

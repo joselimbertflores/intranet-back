@@ -27,7 +27,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.newSaveFile(file);
+    return this.filesService.saveTempFile(file);
   }
 
   @Post('document')
@@ -45,7 +45,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.newSaveFile(file);
+    return this.filesService.saveTempFile(file);
   }
 
   @Post('quick-access')
@@ -63,7 +63,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveFile(file, FileGroup.QUICK_ACCESS);
+    return this.filesService.saveTempFile(file);
   }
 
   @Post('tutorial-video')
@@ -83,7 +83,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveVideo(file, FileGroup.ASSISTANCE);
+    // return this.filesService.saveVideo(file, FileGroup.ASSISTANCE);
   }
 
   @Post('tutorial-image')
@@ -103,7 +103,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveFile(file, FileGroup.ASSISTANCE);
+    return this.filesService.saveTempFile(file);
   }
 
   @Post('communication')
@@ -121,7 +121,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.savePdfWithThumbnail(file);
+    return this.filesService.saveTempPdfWithPreview(file);
   }
 
   @Get(':group/:fileName')

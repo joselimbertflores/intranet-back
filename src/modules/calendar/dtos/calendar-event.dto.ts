@@ -34,8 +34,6 @@ export enum WeekDay {
   SU = 'SU',
 }
 
-//
-
 export class RecurrenceConfigDto {
   @IsEnum(RecurrenceFrequency)
   frequency: RecurrenceFrequency;

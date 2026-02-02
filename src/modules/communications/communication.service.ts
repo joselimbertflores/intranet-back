@@ -1,33 +1,32 @@
 import { BadGatewayException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
+import { DataSource, ILike, Repository } from 'typeorm';
 
-import { CreateCommunicationDto, GetPublicCommunicationsDto, UpdateCommunicationDto } from './dtos/communication.dto';
+import { CreateCommunicationDto, GetPublicCommunicationsDto, UpdateCommunicationDto } from './dtos';
+import { CalendarService } from '../calendar/calendar.service';
 import { Communication, TypeCommunication } from './entities';
 import { FilesService } from '../files/files.service';
+import { CalendarEvent } from '../calendar/entities';
 import { FileGroup } from '../files/file-group.enum';
 import { PaginationParamsDto } from '../common';
-import { CalendarEvent } from '../calendar/entities';
 
 @Injectable()
 export class CommunicationService {
   constructor(
-    @InjectRepository(Communication) private communicationRepository: Repository<Communication>,
-    @InjectRepository(TypeCommunication) private typeCommunicationRespository: Repository<TypeCommunication>,
+    @InjectRepository(Communication) private commRepository: Repository<Communication>,
+    @InjectRepository(TypeCommunication) private typeCommRespository: Repository<TypeCommunication>,
+    private calendarService: CalendarService,
     private fileService: FilesService,
     private dataSource: DataSource,
   ) {}
 
-  async getTypes() {
-    return await this.typeCommunicationRespository.find();
-  }
-
   async findAll({ limit, offset, term }: PaginationParamsDto) {
-    const [communications, total] = await this.communicationRepository.findAndCount({
+    const [communications, total] = await this.commRepository.findAndCount({
       ...(term && { where: [{ reference: ILike(`%${term}%`) }, { code: ILike(`%${term}%`) }] }),
+      relations: { type: true, calendarEvent: true },
       take: limit,
       skip: offset,
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'desc' },
     });
     return { communications, total };
   }
@@ -35,53 +34,78 @@ export class CommunicationService {
   async create(dto: CreateCommunicationDto) {
     const { typeId, calendarEvent, ...props } = dto;
 
-    const typeCommunication = await this.typeCommunicationRespository.findOneBy({ id: typeId });
+    const typeCommunication = await this.typeCommRespository.findOneBy({ id: typeId });
+
     if (!typeCommunication) throw new BadGatewayException('Type communication not found');
 
-    // TODO Get code from seg-tramites
     await this.checkDuplicateCode(props.code);
-    const filesToConfirm = [props.fileName, props.thumbnailFileName];
+
+    const filesToConfirm = [props.fileName, props.previewFileName];
 
     try {
       await this.fileService.confirmFiles(filesToConfirm, FileGroup.COMMUNICATIONS);
 
-      const createdCommunication = await this.dataSource.transaction(
-        async (transactionalEntityManager: EntityManager) => {
-          return await transactionalEntityManager.save(Communication, {
-            ...props,
-            type: typeCommunication,
-            ...(calendarEvent && { calendarEvent }),
-          });
-        },
-      );
-      return createdCommunication;
+      return await this.dataSource.transaction(async (manager) => {
+        let createdEvent: CalendarEvent | null = null;
+
+        if (calendarEvent) {
+          createdEvent = await this.calendarService.create(calendarEvent, manager);
+        }
+
+        const communication = manager.create(Communication, {
+          ...props,
+          type: typeCommunication,
+          ...(createdEvent && { calendarEvent: createdEvent }),
+        });
+
+        return await manager.save(communication);
+      });
     } catch (error: unknown) {
-      await this.fileService.deleteMany(filesToConfirm, FileGroup.COMMUNICATIONS);
+      await this.fileService.deleteFiles(filesToConfirm, FileGroup.COMMUNICATIONS);
       throw new InternalServerErrorException('Error creating communication');
     }
   }
 
   async update(id: string, dto: UpdateCommunicationDto) {
-    const communication = await this.communicationRepository.findOneBy({ id });
+    const communicationDB = await this.commRepository.findOne({
+      where: { id },
+      relations: { type: true, calendarEvent: true },
+    });
 
-    if (!communication) throw new NotFoundException(`Communication ${id} not found`);
+    if (!communicationDB) throw new NotFoundException(`Communication ${id} not found`);
 
     const { typeId, ...toUpdate } = dto;
+
     if (typeId) {
-      const typeCommunication = await this.typeCommunicationRespository.findOneBy({ id: typeId });
-      if (!typeCommunication) throw new BadGatewayException('Type communication not found');
-      communication.type = typeCommunication;
+      const type = await this.typeCommRespository.findOneBy({ id: typeId });
+      if (!type) throw new BadGatewayException('Type communication not found');
+      communicationDB.type = type;
     }
-    return await this.communicationRepository.save({ ...communication, ...toUpdate });
+
+    return this.dataSource.transaction(async (manager) => {
+      if (dto.calendarEvent) {
+        if (communicationDB.calendarEvent) {
+          await this.calendarService.update(communicationDB.calendarEvent.id, dto.calendarEvent, manager);
+        } else {
+          const newEvent = await this.calendarService.create(dto.calendarEvent, manager);
+          communicationDB.calendarEvent = newEvent;
+        }
+      } else if ('calendarEvent' in dto && dto.calendarEvent === null && communicationDB.calendarEvent) {
+        await this.calendarService.remove(communicationDB.calendarEvent.id, manager);
+        communicationDB.calendarEvent = null;
+      }
+      manager.merge(Communication, communicationDB, toUpdate);
+      return manager.save(communicationDB);
+    });
   }
 
   async getLatest(limit = 5) {
-    const communications = await this.communicationRepository.find({ order: { createdAt: 'DESC' }, take: limit });
+    const communications = await this.commRepository.find({ order: { createdAt: 'DESC' }, take: limit });
     return communications.map((item) => this.plainCommunication(item));
   }
 
   async findPublicPaginated({ limit, offset, term, typeId }: GetPublicCommunicationsDto) {
-    const queryBuilder = this.communicationRepository.createQueryBuilder('c').leftJoinAndSelect('c.type', 'type');
+    const queryBuilder = this.commRepository.createQueryBuilder('c').leftJoinAndSelect('c.type', 'type');
 
     if (term) {
       queryBuilder.andWhere('(c.reference ILIKE :term OR c.code ILIKE :term)', { term: `%${term}%` });
@@ -98,21 +122,25 @@ export class CommunicationService {
   }
 
   async getOne(id: string) {
-    const communication = await this.communicationRepository.findOne({ where: { id } });
+    const communication = await this.commRepository.findOne({ where: { id } });
     if (!communication) throw new NotFoundException(`Communication ${id} not found`);
     return this.plainCommunication(communication);
   }
 
+  async getTypes() {
+    return await this.typeCommRespository.find();
+  }
+
   private async checkDuplicateCode(code: string) {
-    const duplicate = await this.communicationRepository.findOneBy({ code });
+    const duplicate = await this.commRepository.findOneBy({ code });
     if (duplicate) throw new BadGatewayException(`Code: ${code} already exists`);
   }
 
   private plainCommunication(communication: Communication) {
-    const { fileName, thumbnailFileName: previewName, ...rest } = communication;
+    const { fileName, previewFileName, ...rest } = communication;
     return {
       fileUrl: this.fileService.buildFileUrl(fileName, FileGroup.COMMUNICATIONS),
-      previewUrl: previewName ? this.fileService.buildFileUrl(previewName, FileGroup.COMMUNICATIONS) : null,
+      previewUrl: previewFileName ? this.fileService.buildFileUrl(previewFileName, FileGroup.COMMUNICATIONS) : null,
       ...rest,
     };
   }

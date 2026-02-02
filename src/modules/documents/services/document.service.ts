@@ -63,7 +63,7 @@ export class DocumentService {
 
       return result;
     } catch (error: unknown) {
-      await this.fileService.deleteMany(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
+      await this.fileService.deleteFiles(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
       throw error;
     }
   }
@@ -83,7 +83,7 @@ export class DocumentService {
 
     try {
       if (fileChanged) {
-        await this.fileService.confirmFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
+        await this.fileService.finalizeFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
       }
       // ** “Nunca apuntes la BD a un archivo que aún no existe”.
       this.docRepository.merge(documentDB, dto);

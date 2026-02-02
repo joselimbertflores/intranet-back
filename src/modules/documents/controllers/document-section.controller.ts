@@ -1,32 +1,32 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+
 import { DocumentTypeService, DocumentSectionService } from '../services';
 import { CreateSectionDto } from '../dtos';
-import { PaginationParamsDto } from 'src/modules/common';
 
 @Controller('document-sections')
 export class DocumentSectionController {
   constructor(
-    private sectionService: DocumentSectionService,
-    private categoryService: DocumentTypeService,
+    private documentSectionService: DocumentSectionService,
+    private documentTypeService: DocumentTypeService,
   ) {}
 
-  @Get('doc-types')
-  getCategories() {
-    return this.categoryService.getActiveTypes();
+  @Get('types')
+  getDocumentTypes() {
+    return this.documentTypeService.getActiveTypes();
   }
 
   @Get()
   findAll() {
-    return this.sectionService.findAll();
+    return this.documentSectionService.findAll();
   }
 
   @Post()
   create(@Body() body: CreateSectionDto) {
-    return this.sectionService.create(body);
+    return this.documentSectionService.create(body);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() body: CreateSectionDto) {
-    return this.sectionService.update(+id, body);
+    return this.documentSectionService.update(+id, body);
   }
 }

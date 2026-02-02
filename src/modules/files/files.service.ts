@@ -2,21 +2,15 @@ import { BadRequestException, Injectable, InternalServerErrorException } from '@
 import { ConfigService } from '@nestjs/config';
 
 import { mkdir, rename, unlink, writeFile } from 'fs/promises';
-import { dirname, extname, join } from 'path';
+import { basename, extname, join } from 'path';
 import { v4 as uuid } from 'uuid';
 import { existsSync } from 'fs';
 
-import { generatePdfThumbnail } from 'src/helpers';
+import { pdfToPng } from 'pdf-to-png-converter';
+
 import { EnvironmentVariables } from 'src/config';
 import { GetFileDto } from './dtos/get-file.dto';
 import { FileGroup } from './file-group.enum';
-
-export interface savedFile {
-  fileName: string;
-  originalName: string;
-  type: string;
-  sizeBytes: number;
-}
 
 const FOLDERS: Record<string, string[]> = {
   images: ['jpg', 'png', 'jpeg'],
@@ -27,128 +21,100 @@ const FOLDERS: Record<string, string[]> = {
 
 @Injectable()
 export class FilesService {
-  private readonly BASE_UPLOAD_PATH = join(__dirname, '..', '..', '..', 'static', 'uploads');
+  private readonly BASE_PATH = join(__dirname, '..', '..', '..', 'static', 'uploads');
+  private readonly TEMP_PATH = join(this.BASE_PATH, 'temp');
 
   constructor(private configService: ConfigService<EnvironmentVariables>) {}
 
-  async saveFile(file: Express.Multer.File, group: FileGroup): Promise<savedFile> {
-    try {
-      const { filePath, savedFileName } = await this.buildSavePathFile(file, group);
-
-      await writeFile(filePath, new Uint8Array(file.buffer));
-
-      const decodedOriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-
-      return {
-        fileName: savedFileName,
-        originalName: decodedOriginalName,
-        type: this.getFileType(file.mimetype),
-        sizeBytes: file.size,
-      };
-    } catch (error) {
-      throw new InternalServerErrorException('Error saving file');
+  async saveTempFile(file: Express.Multer.File) {
+    const extension = extname(file.originalname).replace('.', '').toLowerCase();
+    if (!extension) {
+      throw new BadRequestException('File must have an extension');
     }
+
+    const fileName = `${uuid()}.${extension}`;
+    const tempFilePath = join(this.TEMP_PATH, fileName);
+
+    await this.ensureFolderExists(this.TEMP_PATH);
+
+    await writeFile(tempFilePath, file.buffer);
+
+    return {
+      fileName,
+      originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    };
   }
 
-  async newSaveFile(file: Express.Multer.File) {
-    try {
-      const { filePath, savedFileName } = await this.buildTempSavePath(file);
+  async saveTempPdfWithPreview(file: Express.Multer.File) {
+    const tempPdf = await this.saveTempFile(file);
 
-      await writeFile(filePath, file.buffer);
+    const baseName = basename(tempPdf.fileName, '.pdf');
+    const previewName = `${baseName}-preview.png`;
 
-      return {
-        fileName: savedFileName,
-        originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-      };
-    } catch {
-      throw new InternalServerErrorException('Error saving temp file');
-    }
+    const tempPdfPath = join(this.TEMP_PATH, tempPdf.fileName);
+    const tempPreviewPath = join(this.TEMP_PATH, previewName);
+
+    await this.generatePdfThumbnail(tempPdfPath, tempPreviewPath);
+
+    return {
+      fileName: tempPdf.fileName,
+      originalName: tempPdf.originalName,
+      mimeType: tempPdf.mimeType,
+      sizeBytes: file.size,
+      previewFileName: previewName,
+    };
   }
 
-  async confirmFiles(fileNames: string[], group: FileGroup): Promise<void> {
-    await Promise.all(fileNames.map((file) => this.confirmFile(file, group)));
-  }
-
-  async confirmFile(fileName: string, group: FileGroup): Promise<void> {
-    const extension = extname(fileName).replace('.', '');
-    const subfolder = this.getFolderByExtension(extension);
-
-    const tempPath = join(this.BASE_UPLOAD_PATH, 'temp', fileName);
-
-    const finalPath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
+  async finalizeFile(tempFileName: string, group: FileGroup): Promise<void> {
+    const tempPath = join(this.TEMP_PATH, tempFileName);
 
     if (!existsSync(tempPath)) {
-      throw new InternalServerErrorException(`Temp file ${fileName} not found during confirmation`);
+      throw new InternalServerErrorException(`Temp file ${tempFileName} not found`);
     }
 
-    await this.ensureFolderExists(dirname(finalPath));
+    const folder = this.resolveFolderByExtension(tempFileName);
+    const finalDir = join(this.BASE_PATH, group, folder);
+    const finalPath = join(finalDir, tempFileName);
+
+    await this.ensureFolderExists(finalDir);
+
     await rename(tempPath, finalPath);
   }
 
-  async deleteTempFile(fileName: string): Promise<void> {
-    const tempPath = join(this.BASE_UPLOAD_PATH, 'temp', fileName);
-
-    if (existsSync(tempPath)) {
-      await unlink(tempPath);
+  private async ensureFolderExists(path: string): Promise<void> {
+    if (!existsSync(path)) {
+      await mkdir(path, { recursive: true });
     }
   }
 
-  async savePdfWithThumbnail(file: Express.Multer.File) {
-    try {
-      const { filePath, savedFileName } = await this.buildTempSavePath(file);
-
-      await writeFile(filePath, file.buffer);
-
-      const thumbnailPath = join(this.BASE_UPLOAD_PATH, 'temp');
-      if (!existsSync(thumbnailPath)) {
-        await mkdir(thumbnailPath, { recursive: true });
-      }
-      const thumbnailFileName = await generatePdfThumbnail(filePath, thumbnailPath);
-      console.log(thumbnailFileName);
-
-      return {
-        fileName: savedFileName,
-        originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-        thumbnailFileName,
-      };
-    } catch (error) {
-      throw new InternalServerErrorException('Error saving pdf file');
+  /**
+   * Elimina archivo de su ubicación final
+   */
+  async deleteFile(fileName: string, group: FileGroup): Promise<void> {
+    const folder = this.resolveFolderByExtension(fileName);
+    const filePath = join(this.BASE_PATH, group, folder, fileName);
+    if (existsSync(filePath)) {
+      await unlink(filePath);
     }
   }
 
-  async saveVideo(file: Express.Multer.File, group: FileGroup) {
-    try {
-      const { filePath, savedFileName } = await this.buildSavePathFile(file, group);
+  /**
+   * Elimina múltiples archivos de su ubicación final
+   */
+  async deleteFiles(fileNames: string[], group: FileGroup): Promise<void> {
+    await Promise.all(fileNames.map((file) => this.deleteFile(file, group)));
+  }
 
-      await writeFile(filePath, new Uint8Array(file.buffer));
-
-      const groupPath = join(this.BASE_UPLOAD_PATH, group);
-
-      const videoDir = join(groupPath, 'videos');
-
-      await this.ensureFolderExists(videoDir);
-
-      const decodedOriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-
-      return {
-        fileName: savedFileName,
-        originalName: decodedOriginalName,
-        type: this.getFileType(file.mimetype),
-        sizeBytes: file.size,
-      };
-    } catch (error) {
-      throw new InternalServerErrorException('Error saving pdf file');
-    }
+  async confirmFiles(fileNames: string[], group: FileGroup): Promise<void> {
+    await Promise.all(fileNames.map((file) => this.finalizeFile(file, group)));
   }
 
   getStaticFilePath({ fileName, group }: GetFileDto): string {
     const extension = extname(fileName).replace('.', '');
-    const subfolder = this.getFolderByExtension(extension);
-    const filePath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
+    const subfolder = this.resolveFolderByExtension(extension);
+    const filePath = join(this.BASE_PATH, group, subfolder, fileName);
     if (!existsSync(filePath)) {
       throw new BadRequestException(`No file found with name ${fileName}`);
     }
@@ -160,69 +126,22 @@ export class FilesService {
     return `${host}/files/${group}/${filename}`;
   }
 
-  async deleteFile(fileName: string, group: FileGroup): Promise<void> {
-    const extension = extname(fileName).replace('.', '');
-    const subfolder = this.getFolderByExtension(extension);
+  private resolveFolderByExtension(fileName: string): string {
+    const extension = extname(fileName).replace('.', '').toLowerCase();
+    const folder = Object.keys(FOLDERS).find((key) => FOLDERS[key].includes(extension));
+    return folder || 'others';
+  }
 
-    const filePath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
+  async generatePdfThumbnail(pdfPath: string, outputPath: string): Promise<void> {
+    const [image] = await pdfToPng(pdfPath, {
+      pagesToProcess: [1],
+      viewportScale: 0.7,
+    });
 
-    if (existsSync(filePath)) {
-      await unlink(filePath);
+    if (!image?.content) {
+      throw new InternalServerErrorException('Failed to generate PDF thumbnail');
     }
-  }
 
-  async deleteMany(fileNames: string[], group: FileGroup): Promise<void> {
-    await Promise.all(fileNames.map((file) => this.deleteFile(file, group)));
-  }
-
-  private getFolderByExtension(ext: string): string {
-    ext = ext.toLowerCase();
-    for (const [folder, extensions] of Object.entries(FOLDERS)) {
-      if (extensions.includes(ext)) {
-        return folder;
-      }
-    }
-    return 'others';
-  }
-
-  private async buildSavePathFile(file: Express.Multer.File, group: FileGroup) {
-    const fileExtension = file.originalname.split('.').pop()?.toLowerCase() ?? '';
-
-    const subfolder = this.getFolderByExtension(fileExtension);
-
-    const folderPath = join(this.BASE_UPLOAD_PATH, group, subfolder);
-
-    await this.ensureFolderExists(folderPath);
-
-    const savedFileName = `${uuid()}.${fileExtension}`;
-
-    const filePath = join(folderPath, savedFileName);
-
-    return { filePath, savedFileName };
-  }
-
-  private async ensureFolderExists(path: string): Promise<void> {
-    if (!existsSync(path)) {
-      await mkdir(path, { recursive: true });
-    }
-  }
-
-  private getFileType(mimetype: string): 'image' | 'video' | 'audio' | 'document' {
-    if (mimetype.startsWith('image/')) return 'image';
-    if (mimetype.startsWith('video/')) return 'video';
-    if (mimetype.startsWith('audio/')) return 'audio';
-    return 'document';
-  }
-
-  private async buildTempSavePath(file: Express.Multer.File) {
-    const extension = extname(file.originalname).toLowerCase().replace('.', '');
-    if (!extension) throw new BadRequestException('File must have an extension');
-    const savedFileName = `${uuid()}.${extension}`;
-    const tempFolder = join(this.BASE_UPLOAD_PATH, 'temp');
-    if (!existsSync(tempFolder)) {
-      await mkdir(tempFolder, { recursive: true });
-    }
-    const filePath = join(tempFolder, savedFileName);
-    return { filePath, savedFileName };
+    await writeFile(outputPath, image.content);
   }
 }

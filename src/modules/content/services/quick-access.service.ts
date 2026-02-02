@@ -38,7 +38,7 @@ export class QuickAccessService {
     const usedImages = new Set(newItems.map(({ icon }) => icon));
     const orphanImages = existingSlides.map((item) => item.icon).filter((img) => !usedImages.has(img));
     if (orphanImages.length > 0) {
-      await this.fileService.deleteMany(orphanImages, FileGroup.QUICK_ACCESS);
+      await this.fileService.deleteFiles(orphanImages, FileGroup.QUICK_ACCESS);
     }
   }
 

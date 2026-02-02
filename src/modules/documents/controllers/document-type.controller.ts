@@ -6,14 +6,9 @@ import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos';
 export class DocumentCategoryController {
   constructor(private documentTypeService: DocumentTypeService) {}
 
-  @Get('categories')
-  getCategories() {
+  @Get()
+  findAll() {
     return this.documentTypeService.findAll();
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() body: UpdateDocumentTypeDto) {
-    return this.documentTypeService.update(+id, body);
   }
 
   @Post()
@@ -21,9 +16,9 @@ export class DocumentCategoryController {
     return this.documentTypeService.create(body);
   }
 
-  @Get()
-  findAll() {
-    return this.documentTypeService.findAll();
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: UpdateDocumentTypeDto) {
+    return this.documentTypeService.update(+id, body);
   }
 
   @Delete('subtype/:id')

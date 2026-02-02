@@ -44,7 +44,7 @@ export class HeroSlidesService {
       return newSlides;
     } catch (error: unknown) {
       if (imagesToConfirm.length > 0) {
-        await this.fileService.deleteMany(imagesToConfirm, FileGroup.HERO_SLIDES);
+        await this.fileService.deleteFiles(imagesToConfirm, FileGroup.HERO_SLIDES);
       }
       throw error;
     }
@@ -56,7 +56,7 @@ export class HeroSlidesService {
     const orphanImages = existingSlides.map((s) => s.image).filter((img) => !usedImages.has(img));
 
     if (orphanImages.length) {
-      await this.fileService.deleteMany(orphanImages, FileGroup.HERO_SLIDES);
+      await this.fileService.deleteFiles(orphanImages, FileGroup.HERO_SLIDES);
     }
   }
 }
