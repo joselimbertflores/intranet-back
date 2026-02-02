@@ -9,5 +9,6 @@ import { CalendarEvent } from './entities';
   providers: [CalendarService],
   controllers: [EventController],
   imports: [TypeOrmModule.forFeature([CalendarEvent])],
+  exports: [TypeOrmModule],
 })
-export class EventModule {}
+export class CalendarModule {}

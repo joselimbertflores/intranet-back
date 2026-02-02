@@ -1,12 +1,13 @@
-import { BadGatewayException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOneOptions, FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
 
 import { CreateCommunicationDto, GetPublicCommunicationsDto, UpdateCommunicationDto } from './dtos/communication.dto';
 import { Communication, TypeCommunication } from './entities';
 import { FilesService } from '../files/files.service';
 import { FileGroup } from '../files/file-group.enum';
 import { PaginationParamsDto } from '../common';
+import { CalendarEvent } from '../calendar/entities';
 
 @Injectable()
 export class CommunicationService {
@@ -14,6 +15,7 @@ export class CommunicationService {
     @InjectRepository(Communication) private communicationRepository: Repository<Communication>,
     @InjectRepository(TypeCommunication) private typeCommunicationRespository: Repository<TypeCommunication>,
     private fileService: FilesService,
+    private dataSource: DataSource,
   ) {}
 
   async getTypes() {
@@ -25,26 +27,38 @@ export class CommunicationService {
       ...(term && { where: [{ reference: ILike(`%${term}%`) }, { code: ILike(`%${term}%`) }] }),
       take: limit,
       skip: offset,
-      order: { publicationDate: 'DESC' },
+      order: { createdAt: 'DESC' },
     });
     return { communications, total };
   }
 
   async create(dto: CreateCommunicationDto) {
-    const { typeId, ...props } = dto;
+    const { typeId, calendarEvent, ...props } = dto;
 
     const typeCommunication = await this.typeCommunicationRespository.findOneBy({ id: typeId });
-
     if (!typeCommunication) throw new BadGatewayException('Type communication not found');
 
     // TODO Get code from seg-tramites
     await this.checkDuplicateCode(props.code);
+    const filesToConfirm = [props.fileName, props.thumbnailFileName];
 
-    await this.fileService.confirmFile(props.fileName, FileGroup.COMUNICATIONS);
+    try {
+      await this.fileService.confirmFiles(filesToConfirm, FileGroup.COMMUNICATIONS);
 
-    const entity = this.communicationRepository.create({ ...props, type: typeCommunication });
-
-    return this.communicationRepository.save(entity);
+      const createdCommunication = await this.dataSource.transaction(
+        async (transactionalEntityManager: EntityManager) => {
+          return await transactionalEntityManager.save(Communication, {
+            ...props,
+            type: typeCommunication,
+            ...(calendarEvent && { calendarEvent }),
+          });
+        },
+      );
+      return createdCommunication;
+    } catch (error: unknown) {
+      await this.fileService.deleteMany(filesToConfirm, FileGroup.COMMUNICATIONS);
+      throw new InternalServerErrorException('Error creating communication');
+    }
   }
 
   async update(id: string, dto: UpdateCommunicationDto) {
@@ -62,7 +76,7 @@ export class CommunicationService {
   }
 
   async getLatest(limit = 5) {
-    const communications = await this.communicationRepository.find({ order: { publicationDate: 'DESC' }, take: limit });
+    const communications = await this.communicationRepository.find({ order: { createdAt: 'DESC' }, take: limit });
     return communications.map((item) => this.plainCommunication(item));
   }
 
@@ -91,14 +105,14 @@ export class CommunicationService {
 
   private async checkDuplicateCode(code: string) {
     const duplicate = await this.communicationRepository.findOneBy({ code });
-    if (duplicate) throw new BadGatewayException(`Code: ${code} already exists}`);
+    if (duplicate) throw new BadGatewayException(`Code: ${code} already exists`);
   }
 
   private plainCommunication(communication: Communication) {
-    const { fileName, previewName, ...rest } = communication;
+    const { fileName, thumbnailFileName: previewName, ...rest } = communication;
     return {
-      fileUrl: this.fileService.buildFileUrl(fileName, FileGroup.COMUNICATIONS),
-      previewUrl: previewName ? this.fileService.buildFileUrl(previewName, FileGroup.COMUNICATIONS) : null,
+      fileUrl: this.fileService.buildFileUrl(fileName, FileGroup.COMMUNICATIONS),
+      previewUrl: previewName ? this.fileService.buildFileUrl(previewName, FileGroup.COMMUNICATIONS) : null,
       ...rest,
     };
   }

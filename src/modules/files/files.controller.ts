@@ -121,7 +121,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.savePdfWithThumbnail(file, FileGroup.COMUNICATIONS);
+    return this.filesService.savePdfWithThumbnail(file);
   }
 
   @Get(':group/:fileName')

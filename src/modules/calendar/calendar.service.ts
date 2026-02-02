@@ -19,7 +19,6 @@ export class CalendarService {
       take: limit,
       order: { createdAt: 'desc' },
     });
-    console.log(events);
     return { events, total };
   }
 
@@ -31,9 +30,7 @@ export class CalendarService {
       model.recurrenceRule = this.buildRRule(recurrence, dto.startDate);
     }
     const event = this.eventRepository.create(model);
-    const result = await this.eventRepository.save(event);
-    console.log(result);
-    return result;
+    return await this.eventRepository.save(event);
   }
 
   async update(id: string, dto: UpdateCalendarEventDto) {

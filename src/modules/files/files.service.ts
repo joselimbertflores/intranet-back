@@ -95,26 +95,25 @@ export class FilesService {
     }
   }
 
-  async savePdfWithThumbnail(file: Express.Multer.File, group: FileGroup) {
+  async savePdfWithThumbnail(file: Express.Multer.File) {
     try {
-      const { filePath, savedFileName } = await this.buildSavePathFile(file, group);
+      const { filePath, savedFileName } = await this.buildTempSavePath(file);
 
-      await writeFile(filePath, new Uint8Array(file.buffer));
+      await writeFile(filePath, file.buffer);
 
-      const groupPath = join(this.BASE_UPLOAD_PATH, group);
-
-      const imagesDir = join(groupPath, 'images');
-
-      await this.ensureFolderExists(imagesDir);
-
-      const previewName = await generatePdfThumbnail(filePath, imagesDir);
-
-      const decodedOriginalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      const thumbnailPath = join(this.BASE_UPLOAD_PATH, 'temp');
+      if (!existsSync(thumbnailPath)) {
+        await mkdir(thumbnailPath, { recursive: true });
+      }
+      const thumbnailFileName = await generatePdfThumbnail(filePath, thumbnailPath);
+      console.log(thumbnailFileName);
 
       return {
         fileName: savedFileName,
-        originalName: decodedOriginalName,
-        previewName,
+        originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        thumbnailFileName,
       };
     } catch (error) {
       throw new InternalServerErrorException('Error saving pdf file');

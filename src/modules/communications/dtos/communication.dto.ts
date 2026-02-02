@@ -1,6 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { CreateCalendarEventDto } from 'src/modules/calendar/dtos';
 import { PaginationParamsDto } from 'src/modules/common';
 
 export class CreateCommunicationDto {
@@ -26,12 +27,16 @@ export class CreateCommunicationDto {
 
   @IsNotEmpty()
   @IsString()
-  @IsOptional()
-  previewName?: string;
+  thumbnailFileName: string;
 
   @Type(() => Number)
   @IsNumber()
   typeId: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateCalendarEventDto)
+  calendarEvent?: CreateCalendarEventDto;
 }
 
 export class UpdateCommunicationDto extends PartialType(CreateCommunicationDto) {}

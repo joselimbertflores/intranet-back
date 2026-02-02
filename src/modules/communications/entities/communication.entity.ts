@@ -7,8 +7,11 @@ import {
   BeforeUpdate,
   CreateDateColumn,
   PrimaryGeneratedColumn,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { TypeCommunication } from './type-communication.entity';
+import { CalendarEvent } from 'src/modules/calendar/entities';
 
 @Entity('communications')
 export class Communication {
@@ -27,10 +30,13 @@ export class Communication {
   fileName: string;
 
   @Column()
+  thumbnailFileName: string;
+
+  @Column()
   originalName: string;
 
-  @Column({ nullable: true })
-  previewName?: string;
+  @CreateDateColumn()
+  createdAt: Date;
 
   @ManyToOne(() => TypeCommunication, (type) => type.communications, {
     nullable: false,
@@ -39,8 +45,9 @@ export class Communication {
   })
   type: TypeCommunication;
 
-  @CreateDateColumn()
-  publicationDate: Date;
+  @OneToOne(() => CalendarEvent, { cascade: true })
+  @JoinColumn()
+  calendarEvent: CalendarEvent;
 
   @BeforeInsert()
   @BeforeUpdate()

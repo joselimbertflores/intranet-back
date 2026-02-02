@@ -25,6 +25,7 @@ export const generatePdfThumbnail = async (pdfPath: string, outputDir: string): 
     await fs.writeFile(outputPath, images[0].content);
     return previewName;
   } catch (err) {
+    console.log(err);
     return null;
   }
 };
