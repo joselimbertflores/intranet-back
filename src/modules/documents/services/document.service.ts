@@ -47,7 +47,7 @@ export class DocumentService {
     const fileNames = documents.map((doc) => doc.fileName);
 
     try {
-      await this.fileService.confirmFiles(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
+      await this.fileService.finalizeFiles(fileNames, FileGroup.INSTITUTIONAL_DOCUMENTS);
 
       const moodels = documents.map((doc) =>
         this.docRepository.create({

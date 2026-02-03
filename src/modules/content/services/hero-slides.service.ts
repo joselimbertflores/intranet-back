@@ -32,7 +32,7 @@ export class HeroSlidesService {
 
     try {
       if (imagesToConfirm.length > 0) {
-        await this.fileService.confirmFiles(imagesToConfirm, FileGroup.HERO_SLIDES);
+        await this.fileService.finalizeFiles(imagesToConfirm, FileGroup.HERO_SLIDES);
       }
       const newSlides = await this.dataSource.transaction(async (manager) => {
         await manager.clear(HeroSlides);

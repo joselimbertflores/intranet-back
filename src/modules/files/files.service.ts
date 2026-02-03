@@ -107,13 +107,12 @@ export class FilesService {
     await Promise.all(fileNames.map((file) => this.deleteFile(file, group)));
   }
 
-  async confirmFiles(fileNames: string[], group: FileGroup): Promise<void> {
+  async finalizeFiles(fileNames: string[], group: FileGroup): Promise<void> {
     await Promise.all(fileNames.map((file) => this.finalizeFile(file, group)));
   }
 
   getStaticFilePath({ fileName, group }: GetFileDto): string {
-    const extension = extname(fileName).replace('.', '');
-    const subfolder = this.resolveFolderByExtension(extension);
+    const subfolder = this.resolveFolderByExtension(fileName);
     const filePath = join(this.BASE_PATH, group, subfolder, fileName);
     if (!existsSync(filePath)) {
       throw new BadRequestException(`No file found with name ${fileName}`);
@@ -128,6 +127,7 @@ export class FilesService {
 
   private resolveFolderByExtension(fileName: string): string {
     const extension = extname(fileName).replace('.', '').toLowerCase();
+    console.log(extension);
     const folder = Object.keys(FOLDERS).find((key) => FOLDERS[key].includes(extension));
     return folder || 'others';
   }

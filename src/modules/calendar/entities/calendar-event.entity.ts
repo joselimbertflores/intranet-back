@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Communication } from 'src/modules/communications/entities';
+import { Column, CreateDateColumn, Entity, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 export interface RecurrenceConfig {
   frequency: string;
@@ -36,4 +37,10 @@ export class CalendarEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ default: true })
+  isActive: boolean;
+
+  @OneToOne(() => Communication, (comm) => comm.calendarEvent) // specify inverse side as a second parameter
+  communication?: Communication;
 }

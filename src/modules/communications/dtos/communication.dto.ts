@@ -1,6 +1,15 @@
 import { PartialType } from '@nestjs/mapped-types';
 
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 import { CreateCalendarEventDto } from 'src/modules/calendar/dtos';
@@ -39,6 +48,10 @@ export class CreateCommunicationDto {
   @ValidateNested()
   @Type(() => CreateCalendarEventDto)
   calendarEvent?: CreateCalendarEventDto;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class UpdateCommunicationDto extends PartialType(CreateCommunicationDto) {}

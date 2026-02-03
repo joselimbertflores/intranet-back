@@ -2,8 +2,6 @@ import { BadRequestException, Injectable, InternalServerErrorException, NotFound
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, In, Repository } from 'typeorm';
 
-import slugify from 'slugify';
-
 import { CreateTutorialDto, UpdateTutorialDto } from './dtos/tutorial.dto';
 import { Tutorial, TutorialVideo } from './entities';
 import { FilesService } from '../files/files.service';
@@ -21,6 +19,9 @@ export class AssistanceService {
 
   async create(dto: CreateTutorialDto) {
     const { videos, ...props } = dto;
+
+    const fileToConfirm = [...(props.image ? [props.image] : []), ...videos.map((video) => video.fileName)];
+    await this.fileService.finalizeFiles(fileToConfirm, FileGroup.LEARNING);
 
     const model = this.tutorialRepository.create({
       ...props,
@@ -79,10 +80,10 @@ export class AssistanceService {
   private plainTutorial(tutorial: Tutorial) {
     const { videos, image, ...rest } = tutorial;
     return {
-      imageUrl: image ? this.fileService.buildFileUrl(image, FileGroup.ASSISTANCE) : null,
+      imageUrl: image ? this.fileService.buildFileUrl(image, FileGroup.LEARNING) : null,
       videos: videos.map(({ fileName, ...proos }) => ({
         ...proos,
-        fileUrl: this.fileService.buildFileUrl(fileName, FileGroup.ASSISTANCE),
+        fileUrl: this.fileService.buildFileUrl(fileName, FileGroup.LEARNING),
       })),
       ...rest,
     };

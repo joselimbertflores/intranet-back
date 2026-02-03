@@ -80,6 +80,10 @@ export class CreateCalendarEventDto {
   @ValidateNested()
   @Type(() => RecurrenceConfigDto)
   recurrence?: RecurrenceConfigDto;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class UpdateCalendarEventDto extends PartialType(CreateCalendarEventDto) {}

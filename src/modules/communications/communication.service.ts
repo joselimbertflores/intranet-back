@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
 
 import { CreateCommunicationDto, GetPublicCommunicationsDto, UpdateCommunicationDto } from './dtos';
 import { CalendarService } from '../calendar/calendar.service';
@@ -43,12 +43,15 @@ export class CommunicationService {
     const filesToConfirm = [props.fileName, props.previewFileName];
 
     try {
-      await this.fileService.confirmFiles(filesToConfirm, FileGroup.COMMUNICATIONS);
+      await this.fileService.finalizeFiles(filesToConfirm, FileGroup.COMMUNICATIONS);
 
       return await this.dataSource.transaction(async (manager) => {
         let createdEvent: CalendarEvent | null = null;
 
         if (calendarEvent) {
+          if (typeof props.isActive === 'boolean') {
+            calendarEvent.isActive = props.isActive;
+          }
           createdEvent = await this.calendarService.create(calendarEvent, manager);
         }
 
@@ -81,22 +84,23 @@ export class CommunicationService {
       if (!type) throw new BadGatewayException('Type communication not found');
       communicationDB.type = type;
     }
+    let currentFileName: string | null = null;
+    if (dto.fileName && dto.fileName !== communicationDB.fileName) {
+      await this.fileService.finalizeFile(dto.fileName, FileGroup.COMMUNICATIONS);
+      currentFileName = communicationDB.fileName;
+    }
 
-    return this.dataSource.transaction(async (manager) => {
-      if (dto.calendarEvent) {
-        if (communicationDB.calendarEvent) {
-          await this.calendarService.update(communicationDB.calendarEvent.id, dto.calendarEvent, manager);
-        } else {
-          const newEvent = await this.calendarService.create(dto.calendarEvent, manager);
-          communicationDB.calendarEvent = newEvent;
-        }
-      } else if ('calendarEvent' in dto && dto.calendarEvent === null && communicationDB.calendarEvent) {
-        await this.calendarService.remove(communicationDB.calendarEvent.id, manager);
-        communicationDB.calendarEvent = null;
-      }
+    const updatedCommunication = await this.dataSource.transaction(async (manager) => {
+      await this.sincronizeWithEvent(dto, communicationDB, manager);
       manager.merge(Communication, communicationDB, toUpdate);
       return manager.save(communicationDB);
     });
+
+    if (currentFileName) {
+      await this.fileService.deleteFile(currentFileName, FileGroup.COMMUNICATIONS);
+    }
+
+    return updatedCommunication;
   }
 
   async getLatest(limit = 5) {
@@ -143,5 +147,28 @@ export class CommunicationService {
       previewUrl: previewFileName ? this.fileService.buildFileUrl(previewFileName, FileGroup.COMMUNICATIONS) : null,
       ...rest,
     };
+  }
+
+  private async sincronizeWithEvent(
+    dto: UpdateCommunicationDto,
+    currentCommunication: Communication,
+    manager: EntityManager,
+  ) {
+    if (dto.calendarEvent) {
+      if (typeof dto.isActive === 'boolean') dto.calendarEvent.isActive = dto.isActive;
+      if (currentCommunication.calendarEvent) {
+        currentCommunication.calendarEvent = await this.calendarService.update(
+          currentCommunication.calendarEvent.id,
+          dto.calendarEvent,
+          manager,
+        );
+      } else {
+        const newEvent = await this.calendarService.create(dto.calendarEvent, manager);
+        currentCommunication.calendarEvent = newEvent;
+      }
+    } else if ('calendarEvent' in dto && dto.calendarEvent === null && currentCommunication.calendarEvent) {
+      await this.calendarService.removeEventFromCommunication(currentCommunication.calendarEvent.id, manager);
+      currentCommunication.calendarEvent = null;
+    }
   }
 }

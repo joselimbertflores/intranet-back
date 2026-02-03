@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, ILike, Repository } from 'typeorm';
 import { RRule } from 'rrule';
 
 import { CalendarEvent } from './entities';
@@ -12,8 +12,9 @@ import { PaginationParamsDto } from '../common';
 export class CalendarService {
   constructor(@InjectRepository(CalendarEvent) private eventRepository: Repository<CalendarEvent>) {}
 
-  async findAll({ limit, offset }: PaginationParamsDto) {
+  async findAll({ limit, offset, term }: PaginationParamsDto) {
     const [events, total] = await this.eventRepository.findAndCount({
+      ...(term && { where: { title: ILike(`%${term}%`) } }),
       skip: offset,
       take: limit,
       order: { createdAt: 'desc' },
@@ -54,8 +55,18 @@ export class CalendarService {
     return repository.save({ ...event, ...props });
   }
 
-  async remove(id: string, manager?: EntityManager) {
-    const repository = manager ? manager.getRepository(CalendarEvent) : this.eventRepository;
+  async remove(id: string) {
+    const calendarEvent = await this.eventRepository.findOne({ where: { id }, relations: { communication: true } });
+    if (!calendarEvent) throw new NotFoundException('Event not found');
+    if (calendarEvent.communication) {
+      throw new BadRequestException('Cannot delete event with communication associated');
+    }
+    const result = await this.eventRepository.delete({ id });
+    return { message: (result.affected ?? 0 > 0) ? 'Event deleted' : 'Event not found' };
+  }
+
+  async removeEventFromCommunication(id: string, manager: EntityManager) {
+    const repository = manager.getRepository(CalendarEvent);
     const result = await repository.delete({ id });
     return { ok: true, message: (result.affected ?? 0 > 0) ? 'Event deleted' : 'Event not found' };
   }

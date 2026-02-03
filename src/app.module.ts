@@ -13,6 +13,8 @@ import { FilesModule } from './modules/files/files.module';
 import { AssistanceModule } from './modules/learning/learning.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { DirectoryModule } from './modules/directory/directory.module';
+import { DirectoryModule } from './modules/directory/directory.module';
 
 @Module({
   imports: [
@@ -47,6 +49,7 @@ import { UsersModule } from './modules/users/users.module';
     AssistanceModule,
     AuthModule,
     UsersModule,
+    DirectoryModule,
   ],
   controllers: [],
   providers: [],

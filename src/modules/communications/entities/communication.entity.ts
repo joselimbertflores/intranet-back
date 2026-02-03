@@ -38,6 +38,9 @@ export class Communication {
   @CreateDateColumn()
   createdAt: Date;
 
+  @Column({ default: true })
+  isActive: boolean;
+
   @ManyToOne(() => TypeCommunication, (type) => type.communications, {
     nullable: false,
     onDelete: 'RESTRICT',
@@ -45,7 +48,7 @@ export class Communication {
   })
   type: TypeCommunication;
 
-  @OneToOne(() => CalendarEvent, { nullable: true, onDelete: 'SET NULL' })
+  @OneToOne(() => CalendarEvent, (event) => event.communication, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn()
   calendarEvent: CalendarEvent | null;
 

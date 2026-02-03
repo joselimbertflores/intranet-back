@@ -73,17 +73,17 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ['mp4'],
+            validTypes: ALLOWED_FILE_TYPES.TUTORIAL_VIDEOS,
           }),
         )
         .addMaxSizeValidator({
-          maxSize: 200 * 1024 * 1024,
+          maxSize: 300 * 1024 * 1024,
         })
         .build(),
     )
     file: Express.Multer.File,
   ) {
-    // return this.filesService.saveVideo(file, FileGroup.ASSISTANCE);
+    return this.filesService.saveTempFile(file);
   }
 
   @Post('tutorial-image')
