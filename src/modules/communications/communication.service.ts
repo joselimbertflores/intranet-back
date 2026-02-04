@@ -85,10 +85,21 @@ export class CommunicationService {
       communicationDB.type = type;
     }
     let currentFileName: string | null = null;
-    if (dto.fileName && dto.fileName !== communicationDB.fileName) {
-      await this.fileService.finalizeFile(dto.fileName, FileGroup.COMMUNICATIONS);
+    // if (dto.fileName && dto.fileName !== communicationDB.fileName) {
+    //   await this.fileService.finalizeFile(dto.fileName, FileGroup.COMMUNICATIONS);
+    //   currentFileName = communicationDB.fileName;
+    // }
+    const filesToConfirm: string[] = [];
+    if (toUpdate.fileName && toUpdate.fileName !== communicationDB.fileName) {
       currentFileName = communicationDB.fileName;
+      filesToConfirm.push(toUpdate.fileName);
     }
+
+    if (toUpdate.previewFileName && toUpdate.previewFileName !== communicationDB.previewFileName) {
+      filesToConfirm.push(toUpdate.previewFileName);
+    }
+
+    await this.fileService.finalizeFiles(filesToConfirm, FileGroup.COMMUNICATIONS);
 
     const updatedCommunication = await this.dataSource.transaction(async (manager) => {
       await this.sincronizeWithEvent(dto, communicationDB, manager);
@@ -119,7 +130,7 @@ export class CommunicationService {
       queryBuilder.andWhere('c.typeId = :typeId', { typeId });
     }
 
-    queryBuilder.orderBy('c.publicationDate', 'DESC').skip(offset).take(limit);
+    queryBuilder.orderBy('c.createdAt', 'DESC').skip(offset).take(limit);
 
     const [communications, total] = await queryBuilder.getManyAndCount();
     return { communications: communications.map((item) => this.plainCommunication(item)), total };

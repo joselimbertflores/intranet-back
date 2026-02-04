@@ -38,7 +38,14 @@ export class AssistanceService {
 
     if (!tutorial) throw new BadRequestException(`Ttorial ${id} not found`);
 
-    const { videos, ...toUpdate } = dto;
+    const { videos = [], ...toUpdate } = dto;
+    const currentVideos = tutorial.videos.map((video) => video.fileName);
+
+    const fileToConfirm = [
+      ...(toUpdate.image && toUpdate.image !== tutorial.image ? [toUpdate.image] : []),
+      ...videos.filter((video) => !currentVideos.includes(video.fileName)).map((video) => video.fileName),
+    ];
+    await this.fileService.finalizeFiles(fileToConfirm, FileGroup.LEARNING);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -52,7 +59,7 @@ export class AssistanceService {
       const updatedTutorial = this.tutorialRepository.merge(tutorial, toUpdate);
       await queryRunner.manager.save(tutorial);
       await queryRunner.commitTransaction();
-      return this.plainTutorial(tutorial);
+      return this.plainTutorial(updatedTutorial);
     } catch (error) {
       console.log(error);
       await queryRunner.rollbackTransaction();

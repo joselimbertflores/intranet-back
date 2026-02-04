@@ -13,6 +13,7 @@ import {
   ValidateIf,
   ArrayMinSize,
   Min,
+  IsISO8601,
 } from 'class-validator';
 
 import { IsAfterDate } from '../decorators';
@@ -87,3 +88,11 @@ export class CreateCalendarEventDto {
 }
 
 export class UpdateCalendarEventDto extends PartialType(CreateCalendarEventDto) {}
+
+export class GetCalendarRangeDto {
+  @IsISO8601()
+  start: string;
+
+  @IsISO8601()
+  end: string;
+}

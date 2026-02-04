@@ -105,12 +105,19 @@ export class FilterDocumentsDto extends PaginationParamsDto {
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  categoryId?: number;
+  sectionId?: number;
 
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  sectionId?: number;
+  typeId?: number;
+
+
+
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  subtypeId?: number;
 
   // @IsIn(['asc', 'desc'])
   @IsOptional()

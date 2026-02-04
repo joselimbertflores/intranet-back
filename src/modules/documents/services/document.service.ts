@@ -128,33 +128,34 @@ export class DocumentService {
   }
 
   async filterDocuments(filter: FilterDocumentsDto) {
-    // const { limit, offset, term, categoryId, sectionId, fiscalYear, orderDirection } = filter;
-    // const where: FindOptionsWhere<InstitutionalDocument> = {
-    //   ...(term && { originalName: ILike(`%${term}%`) }),
-    //   ...(categoryId && { sectionCategory: { category: { id: categoryId } } }),
-    //   ...(sectionId && { sectionCategory: { section: { id: sectionId } } }),
-    //   ...(fiscalYear && { fiscalYear }),
-    // };
-    // const [documents, total] = await this.docRepository.findAndCount({
-    //   where: where,
-    //   order: {
-    //     downloadCount: 'DESC',
-    //     ...(orderDirection && { originalName: orderDirection }),
-    //   },
-    //   // relations: { sectionCategory: { category: true } },
-    //   take: limit,
-    //   skip: offset,
-    // });
-    // return { documents: documents.map((doc) => this.plainDocument(doc)), total };
+    const { limit, offset, term, sectionId, typeId, subtypeId, fiscalYear, orderDirection } = filter;
+    const where: FindOptionsWhere<InstitutionalDocument> = {
+      ...(term && { displayName: ILike(`%${term}%`) }),
+      ...(sectionId && { section: { id: sectionId } }),
+      ...(typeId && { type: { id: typeId } }),
+      ...(subtypeId && { subtype: { id: subtypeId } }),
+      ...(fiscalYear && { fiscalYear }),
+    };
+    const [documents, total] = await this.docRepository.findAndCount({
+      where: where,
+      order: {
+        downloadCount: 'DESC',
+        ...(orderDirection && { originalName: orderDirection }),
+      },
+      relations: { section: true, type: true, subtype: true },
+      take: limit,
+      skip: offset,
+    });
+    return { documents: documents.map((doc) => this.plainDocument(doc)), total };
   }
 
   async getMostDownloaded() {
     const docs = await this.docRepository.find({
-      // relations: { sectionCategory: { category: true, section: true } },
+      relations: { section: true, type: true },
       order: { downloadCount: 'DESC' },
       take: 8,
     });
-    // return docs.map((doc) => this.plainDocument(doc));
+    return docs.map((doc) => this.plainDocument(doc));
   }
 
   async incrementDownloadCount(id: string, userIp: string) {
@@ -174,5 +175,13 @@ export class DocumentService {
     await this.cacheManager.set(cacheKey, true, 300000);
 
     return { skippend: false, message: 'Document downloaded count updated', newCount: doc.downloadCount };
+  }
+
+  private plainDocument(item: InstitutionalDocument) {
+    const { fileName, ...pros } = item;
+    return {
+      ...pros,
+      fileName: this.fileService.buildFileUrl(fileName, FileGroup.INSTITUTIONAL_DOCUMENTS),
+    };
   }
 }

@@ -127,7 +127,6 @@ export class FilesService {
 
   private resolveFolderByExtension(fileName: string): string {
     const extension = extname(fileName).replace('.', '').toLowerCase();
-    console.log(extension);
     const folder = Object.keys(FOLDERS).find((key) => FOLDERS[key].includes(extension));
     return folder || 'others';
   }

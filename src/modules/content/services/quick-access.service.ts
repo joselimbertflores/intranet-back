@@ -23,7 +23,11 @@ export class QuickAccessService {
   async replaceItems({ items }: ReplaceQuickAccessDto) {
     const existingSlides = await this.quickAccessRepository.find({ select: ['icon'] });
 
+    const filestToConfirm = items.map((s) => s.icon).filter((img) => !existingSlides.map((s) => s.icon).includes(img));
+    await this.fileService.finalizeFiles(filestToConfirm, FileGroup.QUICK_ACCESS);
+
     const newItems = await this.dataSource.transaction(async (manager) => {
+      console.log(items);
       await manager.clear(QuickAccess);
       const entities = items.map((s, i) => manager.create(QuickAccess, { ...s, order: i }));
       return manager.save(entities);

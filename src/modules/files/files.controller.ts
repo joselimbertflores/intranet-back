@@ -7,7 +7,9 @@ import { ALLOWED_FILE_TYPES } from './constants';
 import { GetFileDto } from './dtos/get-file.dto';
 import { FilesService } from './files.service';
 import { FileGroup } from './file-group.enum';
+import { Public } from '../auth/decorators';
 
+@Public()
 @Controller('files')
 export class FilesController {
   constructor(private filesService: FilesService) {}

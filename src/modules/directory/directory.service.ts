@@ -164,51 +164,53 @@ export class DirectoryService {
       order: { order: 'ASC' },
     });
 
-    return this.buildTree(sections, contacts);
+    const result= this.buildTree(sections, contacts);
+    return result
   }
 
-  private buildTree(sections: DirectorySection[], contacts: DirectoryContact[]): PublicDirectorySectionDto[] {
-    const sectionMap = new Map<string, PublicDirectorySectionDto>();
+private buildTree(sections: DirectorySection[], contacts: DirectoryContact[]): PublicDirectorySectionDto[] {
+  const sectionMap = new Map<string, PublicDirectorySectionDto>();
 
-    // 1️⃣ Inicializar secciones
-    for (const section of sections) {
-      sectionMap.set(section.id, {
-        id: section.id,
-        name: section.name,
-        order: section.order,
-        contacts: [],
-        children: [],
+  for (const s of sections) {
+    sectionMap.set(s.id, { id: s.id, name: s.name, order: s.order, contacts: [], children: [] });
+  }
+
+  for (const c of contacts) {
+    const s = sectionMap.get(c.section.id);
+    if (s) {
+      s.contacts.push({
+        id: c.id,
+        title: c.title,
+        internalPhone: c.internalPhone,
+        externalPhone: c.externalPhone,
+        order: c.order,
       });
     }
-
-    // 2️⃣ Asignar contactos a su sección
-    for (const contact of contacts) {
-      const sectionDto = sectionMap.get(contact.section.id);
-      if (sectionDto) {
-        sectionDto.contacts.push({
-          id: contact.id,
-          title: contact.title,
-          internalPhone: contact.internalPhone,
-          externalPhone: contact.externalPhone,
-          order: contact.order,
-        });
-      }
-    }
-
-    // 3️⃣ Construir jerarquía
-    const tree: PublicDirectorySectionDto[] = [];
-
-    for (const section of sections) {
-      const dto = sectionMap.get(section.id)!;
-
-      if (section.parent) {
-        const parentDto = sectionMap.get(section.parent.id);
-        parentDto?.children.push(dto);
-      } else {
-        tree.push(dto);
-      }
-    }
-
-    return tree;
   }
+
+  const roots: PublicDirectorySectionDto[] = [];
+
+  for (const s of sections) {
+    const dto = sectionMap.get(s.id)!;
+
+    if (s.parentId) {
+      sectionMap.get(s.parentId)?.children.push(dto);
+    } else {
+      roots.push(dto);
+    }
+  }
+
+  // opcional: ordenar children/contacts recursivo
+  const sortRec = (nodes: PublicDirectorySectionDto[]) => {
+    nodes.sort((a,b) => (a.order ?? 0) - (b.order ?? 0));
+    for (const n of nodes) {
+      n.contacts.sort((a,b) => (a.order ?? 0) - (b.order ?? 0));
+      sortRec(n.children);
+    }
+  };
+  sortRec(roots);
+
+  return roots;
+}
+
 }

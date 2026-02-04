@@ -21,6 +21,9 @@ export class DirectorySection {
   })
   parent?: DirectorySection | null;
 
+  @Column({ nullable: true })
+  parentId?: string | null;
+
   @OneToMany(() => DirectorySection, (s) => s.parent)
   children: DirectorySection[];
 
