@@ -1,37 +1,28 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  Min,
-  ValidateIf,
-} from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateIf } from 'class-validator';
 
 export class DirectoryPaginationDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @IsOptional()
-  readonly limit?: number = 10;
+  limit?: number = 10;
 
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @IsOptional()
-  readonly offset?: number = 0;
+  offset?: number = 0;
 
   @IsOptional()
   @IsString()
-  readonly term?: string;
+  term?: string;
 
   @Type(() => Boolean)
   @IsBoolean()
   @IsOptional()
-  readonly isActive?: boolean;
+  isActive?: boolean;
 }
 
 export class CreateDirectorySectionDto {
