@@ -1,5 +1,5 @@
 export * from "./document-section.entity"
-export * from "./document-subtype.entiy"
+export * from "./document-subtype.entity"
 export * from "./document-type.entity"
 export * from "./section-document-type"
 export * from "./document.entity"

@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToMany } from 'typeorm';
-import { DocumentSubType } from './document-subtype.entiy';
+import { DocumentSubType } from './document-subtype.entity';
 import { DocumentSection } from './document-section.entity';
 
 @Entity('document_types')

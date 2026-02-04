@@ -2,7 +2,7 @@ import { Column, Entity, ManyToOne, CreateDateColumn, UpdateDateColumn, PrimaryG
 
 import { InstitutionalDocumentType } from './document-type.entity';
 import { DocumentSection } from './document-section.entity';
-import { DocumentSubType } from './document-subtype.entiy';
+import { DocumentSubType } from './document-subtype.entity';
 import { User } from 'src/modules/users/entities';
 
 export enum DocumentStatus {
