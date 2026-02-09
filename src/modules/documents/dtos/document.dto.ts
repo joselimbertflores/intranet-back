@@ -57,10 +57,9 @@ export class UpdateDocumentDto extends PartialType(DocumentDto) {
 type OrderDirection = 'ASC' | 'DESC';
 
 export class NewFilterDocumentsDto extends PaginationParamsDto {
-  @IsInt()
-  @Type(() => Number)
+  @IsUUID()
   @IsOptional()
-  sectionId?: number;
+  sectionId?: string;
 
   @IsInt()
   @Type(() => Number)

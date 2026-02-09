@@ -10,6 +10,7 @@ import { FilesService } from 'src/modules/files/files.service';
 import { FileGroup } from 'src/modules/files/file-group.enum';
 import { User } from 'src/modules/users/entities';
 import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
+import { SectionService } from './section.service';
 
 @Injectable()
 export class DocumentService {
@@ -20,23 +21,24 @@ export class DocumentService {
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
     @InjectRepository(StoredFile) private fileRepository: Repository<StoredFile>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private sectionService: SectionService,
     private fileService: FilesService,
     private dataSource: DataSource,
   ) {}
 
   async findAll(filterParamsDto: NewFilterDocumentsDto, authUser: User) {
     const { limit, offset, term, fiscalYear, sectionId, typeId, subtypeId } = filterParamsDto;
+    const sectionIds = sectionId ? await this.sectionService.getSectionAndDescendantIds(sectionId) : undefined;
     const where: FindOptionsWhere<DocumentRecord> = {
-      // createdBy: { id: authUser.id },
-      // ...(term && { displayName: ILike(`%${term}%`) }),
-      // ...(fiscalYear && { fiscalYear }),
-      // ...(sectionId && { section: { id: sectionId } }),
-      // ...(typeId && { type: { id: typeId } }),
-      // ...(subtypeId && { subtype: { id: subtypeId } }),
+      ...(term && { title: ILike(`%${term}%`) }),
+      ...(sectionIds && { section: { id: In(sectionIds) } }),
+      ...(typeId && { type: { id: typeId } }),
+      ...(subtypeId && { subtype: { id: subtypeId } }),
+      ...(fiscalYear && { fiscalYear }),
     };
     const [documents, total] = await this.docRepository.findAndCount({
       where,
-      relations: { section: true, type: true, subtype: true, file:true },
+      relations: { section: true, type: true, subtype: true, file: true },
       order: { createdAt: 'desc' },
       take: limit,
       skip: offset,

@@ -14,6 +14,16 @@ export class SectionService {
     private readonly sectionRepository: Repository<Section>,
   ) {}
 
+  async findAll(): Promise<Section[]> {
+    return this.sectionRepository.find({
+      relations: ['parent'],
+      order: {
+        level: 'ASC',
+        name: 'ASC',
+      },
+    });
+  }
+
   async create(dto: CreateSectionDto) {
     const { parentId, ...props } = dto;
     let parent: Section | null = null;
@@ -64,14 +74,22 @@ export class SectionService {
     return this.buildTree(sections);
   }
 
-  async findAll(): Promise<Section[]> {
-    return this.sectionRepository.find({
-      relations: ['parent'],
-      order: {
-        level: 'ASC',
-        name: 'ASC',
-      },
+  async getSectionAndDescendantIds(id: string): Promise<string[]> {
+    const section = await this.sectionRepository.findOne({
+      where: { id: id },
+      relations: { children: true },
     });
+    if (!section) return [];
+
+    const ids: string[] = [];
+
+    const collect = (node: Section) => {
+      ids.push(node.id);
+      node.children?.forEach(collect);
+    };
+
+    collect(section);
+    return ids;
   }
 
   private buildTree(sections: Section[]): SectionTreeNode[] {
