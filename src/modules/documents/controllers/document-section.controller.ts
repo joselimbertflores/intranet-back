@@ -10,10 +10,6 @@ export class DocumentSectionController {
     private documentTypeService: DocumentTypeService,
   ) {}
 
-  @Get('types')
-  getDocumentTypes() {
-    return this.documentTypeService.getActiveTypes();
-  }
 
   @Get()
   findAll() {

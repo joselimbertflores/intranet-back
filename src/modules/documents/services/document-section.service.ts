@@ -2,63 +2,63 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
-import { DocumentSection, InstitutionalDocument, InstitutionalDocumentType } from '../entities';
+import { Section, DocumentRecord, DocumentType } from '../entities';
 import { CreateSectionDto, UpdateSectionDto } from '../dtos';
 
 @Injectable()
 export class DocumentSectionService {
   constructor(
-    @InjectRepository(DocumentSection) private sectionRepository: Repository<DocumentSection>,
-    @InjectRepository(InstitutionalDocument) private documentRepository: Repository<InstitutionalDocument>,
-    @InjectRepository(InstitutionalDocumentType) private documentTypeRepository: Repository<InstitutionalDocumentType>,
+    @InjectRepository(Section) private sectionRepository: Repository<Section>,
+    @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
+    @InjectRepository(DocumentType) private documentTypeRepository: Repository<DocumentType>,
   ) {}
 
   async findAll() {
-    return await this.sectionRepository.find({
-      relations: { documentTypes: true },
-      order: { id: 'DESC' },
-    });
+    // return await this.sectionRepository.find({
+    //   relations: { documentTypes: true },
+    //   order: { id: 'DESC' },
+    // });
   }
 
   async create(dto: CreateSectionDto) {
-    const { documentTypesIds, ...props } = dto;
-    const documentTypes = await this.getValidDocumentTypes(documentTypesIds);
-    const sectionModel = this.sectionRepository.create({ ...props, documentTypes });
-    return await this.sectionRepository.save(sectionModel);
+    // const { documentTypesIds, ...props } = dto;
+    // const documentTypes = await this.getValidDocumentTypes(documentTypesIds);
+    // const sectionModel = this.sectionRepository.create({ ...props, documentTypes });
+    // return await this.sectionRepository.save(sectionModel);
   }
 
   async update(sectionId: number, dto: UpdateSectionDto) {
-    const { documentTypesIds, ...props } = dto;
+    // const { documentTypesIds, ...props } = dto;
 
-    const section = await this.sectionRepository.findOne({
-      where: { id: sectionId },
-      relations: { documentTypes: true },
-    });
+    // const section = await this.sectionRepository.findOne({
+    //   where: { id: sectionId },
+    //   relations: { documentTypes: true },
+    // });
 
-    if (!section) throw new NotFoundException(`Section ${sectionId} not found`);
+    // if (!section) throw new NotFoundException(`Section ${sectionId} not found`);
 
-    if (documentTypesIds) {
-      const validDocumentTypes = await this.getValidDocumentTypes(documentTypesIds);
+    // if (documentTypesIds) {
+    //   const validDocumentTypes = await this.getValidDocumentTypes(documentTypesIds);
 
-      const currentTypeIds = section.documentTypes.map((t) => t.id);
-      const incomingTypeIds = validDocumentTypes.map((t) => t.id);
+    //   const currentTypeIds = section.documentTypes.map((t) => t.id);
+    //   const incomingTypeIds = validDocumentTypes.map((t) => t.id);
 
-      const toRemove = currentTypeIds.filter((id) => !incomingTypeIds.includes(id));
-      if (toRemove.length > 0) {
-        const used = await this.documentRepository.count({
-          where: {
-            section: { id: sectionId },
-            type: { id: In(toRemove) },
-          },
-        });
+    //   const toRemove = currentTypeIds.filter((id) => !incomingTypeIds.includes(id));
+    //   if (toRemove.length > 0) {
+    //     const used = await this.documentRepository.count({
+    //       where: {
+    //         section: { id: sectionId },
+    //         type: { id: In(toRemove) },
+    //       },
+    //     });
 
-        if (used > 0) {
-          throw new BadRequestException('Cannot remove some document types because they are in use.');
-        }
-      }
-      section.documentTypes = validDocumentTypes;
-    }
-    return await this.sectionRepository.save({ ...section, ...props });
+    //     if (used > 0) {
+    //       throw new BadRequestException('Cannot remove some document types because they are in use.');
+    //     }
+    //   }
+    //   section.documentTypes = validDocumentTypes;
+    // }
+    // return await this.sectionRepository.save({ ...section, ...props });
   }
 
   async getActiveSections() {

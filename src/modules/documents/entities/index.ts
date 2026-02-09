@@ -1,5 +1,4 @@
-export * from "./document-section.entity"
+export * from "./section.entity"
 export * from "./document-subtype.entity"
 export * from "./document-type.entity"
-export * from "./section-document-type"
-export * from "./document.entity"
+export * from "./document-record.entity"

@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { mkdir, rename, unlink, writeFile } from 'fs/promises';
-import { basename, extname, join } from 'path';
+import { basename, dirname, extname, join } from 'path';
 import { v4 as uuid } from 'uuid';
 import { existsSync } from 'fs';
 
@@ -11,6 +11,11 @@ import { pdfToPng } from 'pdf-to-png-converter';
 import { EnvironmentVariables } from 'src/config';
 import { GetFileDto } from './dtos/get-file.dto';
 import { FileGroup } from './file-group.enum';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FileStatus, StoredFile } from './entities/stored-file.entity';
+import { Repository } from 'typeorm';
+import { FileContext } from './enums/file-context.enum';
+import { UploadResult } from './interfaces';
 
 const FOLDERS: Record<string, string[]> = {
   images: ['jpg', 'png', 'jpeg'],
@@ -21,10 +26,82 @@ const FOLDERS: Record<string, string[]> = {
 
 @Injectable()
 export class FilesService {
-  private readonly BASE_PATH = join(__dirname, '..', '..', '..', 'static', 'uploads');
-  private readonly TEMP_PATH = join(this.BASE_PATH, 'temp');
+  private readonly BASE_UPLOAD_PATH = join(__dirname, '..', '..', '..', 'static', 'uploads');
 
-  constructor(private configService: ConfigService<EnvironmentVariables>) {}
+  private readonly TEMP_PATH = join(this.BASE_UPLOAD_PATH, 'temp');
+
+  constructor(
+    private configService: ConfigService<EnvironmentVariables>,
+    @InjectRepository(StoredFile) private readonly fileRepo: Repository<StoredFile>,
+  ) {}
+
+  async upload(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
+    const extension = extname(file.originalname).replace('.', '').toLowerCase();
+
+    if (!extension) {
+      throw new BadRequestException('File must have an extension');
+    }
+
+    const storedName = `${uuid()}.${extension}`;
+    const storageKey = `${context}/${storedName}`;
+    const finalPath = join(this.BASE_UPLOAD_PATH, storageKey);
+
+    await this.ensureFolderExists(dirname(finalPath));
+
+    // 1️⃣ Guardar archivo físico
+    await writeFile(finalPath, file.buffer);
+
+    // 2️⃣ Crear entidad StoredFile
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+
+    const entity = this.fileRepo.create({
+      storedName,
+      originalName,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      storageKey,
+    });
+
+    const saved = await this.fileRepo.save(entity);
+
+    // 3️⃣ Respuesta al front
+    return {
+      fileId: saved.id,
+      originalName: saved.originalName,
+    };
+  }
+
+  // files.service.ts
+  async getFileForDownload(fileId: number) {
+    const file = await this.fileRepo.findOneBy({ id: fileId });
+
+    if (!file || file.status !== FileStatus.ACTIVE) {
+      throw new NotFoundException();
+    }
+
+    const path = join(this.BASE_UPLOAD_PATH, file.storageKey);
+
+    return {
+      path,
+      downloadName: file.originalName,
+    };
+  }
+
+  async getFilePath(fileId: number): Promise<string> {
+    const file = await this.fileRepo.findOneBy({ id: fileId });
+
+    if (!file || file.status === FileStatus.REMOVED) {
+      throw new NotFoundException('File not found');
+    }
+
+    const fullPath = join(this.BASE_UPLOAD_PATH, file.storageKey);
+
+    if (!existsSync(fullPath)) {
+      throw new NotFoundException('Physical file not found');
+    }
+
+    return fullPath;
+  }
 
   async saveTempFile(file: Express.Multer.File) {
     const extension = extname(file.originalname).replace('.', '').toLowerCase();
@@ -75,7 +152,7 @@ export class FilesService {
     }
 
     const folder = this.resolveFolderByExtension(tempFileName);
-    const finalDir = join(this.BASE_PATH, group, folder);
+    const finalDir = join(this.BASE_UPLOAD_PATH, group, folder);
     const finalPath = join(finalDir, tempFileName);
 
     await this.ensureFolderExists(finalDir);
@@ -83,18 +160,12 @@ export class FilesService {
     await rename(tempPath, finalPath);
   }
 
-  private async ensureFolderExists(path: string): Promise<void> {
-    if (!existsSync(path)) {
-      await mkdir(path, { recursive: true });
-    }
-  }
-
   /**
    * Elimina archivo de su ubicación final
    */
   async deleteFile(fileName: string, group: FileGroup): Promise<void> {
     const folder = this.resolveFolderByExtension(fileName);
-    const filePath = join(this.BASE_PATH, group, folder, fileName);
+    const filePath = join(this.BASE_UPLOAD_PATH, group, folder, fileName);
     if (existsSync(filePath)) {
       await unlink(filePath);
     }
@@ -113,7 +184,7 @@ export class FilesService {
 
   getStaticFilePath({ fileName, group }: GetFileDto): string {
     const subfolder = this.resolveFolderByExtension(fileName);
-    const filePath = join(this.BASE_PATH, group, subfolder, fileName);
+    const filePath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
     if (!existsSync(filePath)) {
       throw new BadRequestException(`No file found with name ${fileName}`);
     }
@@ -142,5 +213,11 @@ export class FilesService {
     }
 
     await writeFile(outputPath, image.content);
+  }
+
+  private async ensureFolderExists(path: string): Promise<void> {
+    if (!existsSync(path)) {
+      await mkdir(path, { recursive: true });
+    }
   }
 }

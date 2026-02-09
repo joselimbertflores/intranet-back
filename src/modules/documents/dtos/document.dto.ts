@@ -2,47 +2,29 @@ import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
-  arrayMinSize,
   IsArray,
-  IsEnum,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
-  Max,
-  Min,
   ValidateNested,
+  IsUUID,
 } from 'class-validator';
 import { PaginationParamsDto } from 'src/modules/common';
-import { DocumentStatus } from '../entities';
-
 export class DocumentDto {
-  @IsString()
-  @IsNotEmpty()
-  displayName: string;
-
-  @IsString()
-  @IsNotEmpty()
-  mimeType: string;
-
-  @IsString()
-  @IsNotEmpty()
-  originalName: string;
-
-  @IsString()
-  @IsNotEmpty()
-  fileName: string;
-
-  @IsNumber()
+  @IsInt()
   @Type(() => Number)
-  sizeBytes: number;
+  fileId: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  title?: string;
 }
 
 export class CreateDocumentsDto {
-  @IsInt()
-  @Type(() => Number)
-  sectionId: number;
+  @IsUUID()
+  sectionId: string;
 
   @IsInt()
   @Type(() => Number)
@@ -54,10 +36,8 @@ export class CreateDocumentsDto {
   subtypeId?: number;
 
   @IsInt()
-  @Min(2000)
-  @Max(new Date().getFullYear() + 1)
-  @Type(() => Number)
   @IsOptional()
+  @Type(() => Number)
   fiscalYear?: number;
 
   @IsArray()
@@ -68,13 +48,9 @@ export class CreateDocumentsDto {
 }
 
 export class UpdateDocumentDto extends PartialType(DocumentDto) {
-  @IsEnum(DocumentStatus)
-  @IsOptional()
-  status?: DocumentStatus;
-
   @IsInt()
-  @Type(() => Number)
   @IsOptional()
+  @Type(() => Number)
   fiscalYear?: number;
 }
 
@@ -111,8 +87,6 @@ export class FilterDocumentsDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsOptional()
   typeId?: number;
-
-
 
   @IsInt()
   @Type(() => Number)

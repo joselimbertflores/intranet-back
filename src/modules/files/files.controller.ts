@@ -8,6 +8,7 @@ import { GetFileDto } from './dtos/get-file.dto';
 import { FilesService } from './files.service';
 import { FileGroup } from './file-group.enum';
 import { Public } from '../auth/decorators';
+import { FileContext } from './enums/file-context.enum';
 
 @Public()
 @Controller('files')
@@ -32,7 +33,25 @@ export class FilesController {
     return this.filesService.saveTempFile(file);
   }
 
-  @Post('document')
+  // @Post('document')
+  // @UseInterceptors(FileInterceptor('file'))
+  // uploadDocument(
+  //   @UploadedFile(
+  //     new ParseFilePipeBuilder()
+  //       .addValidator(
+  //         new CustomFileTypeValidator({
+  //           validTypes: ALLOWED_FILE_TYPES.DOCUMENTS,
+  //         }),
+  //       )
+  //       .addMaxSizeValidator({ maxSize: 20 * 1024 * 1024 })
+  //       .build(),
+  //   )
+  //   file: Express.Multer.File,
+  // ) {
+  //   return this.filesService.saveTempFile(file);
+  // }
+
+  @Post('documents')
   @UseInterceptors(FileInterceptor('file'))
   uploadDocument(
     @UploadedFile(
@@ -47,7 +66,17 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveTempFile(file);
+    return this.filesService.upload(file, FileContext.DOCUMENT_RECORDS);
+  }
+
+  // files.controller.ts
+  @Get(':id')
+  async downloadFile(@Param('id') id: number, @Res() res: Response) {
+    const file = await this.filesService.getFileForDownload(id);
+
+    res.setHeader('Content-Disposition', `attachment; filename="${file.downloadName}"`);
+
+    res.sendFile(file.path);
   }
 
   @Post('quick-access')
