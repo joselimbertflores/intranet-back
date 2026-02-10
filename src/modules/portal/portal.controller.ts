@@ -1,24 +1,43 @@
 import { Body, Controller, Get, Ip, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 
-import { DocumentTypeService, DocumentService } from '../documents/services';
+import {
+  DocumentTypeService,
+  DocumentService,
+  DocumentSectionService,
+  DocumentFilterReadService,
+} from '../documents/services';
 import { HeroSlidesService, QuickAccessService } from '../content/services';
 import { CommunicationService } from '../communications/communication.service';
 import { FilterDocumentsDto } from '../documents/dtos';
 import { PaginationParamsDto } from '../common';
+import { Public } from '../auth/decorators';
 
+@Public()
 @Controller('portal')
 export class PortalController {
   constructor(
-    private documentCategoryService: DocumentTypeService,
     private quickAccessService: QuickAccessService,
     private documentService: DocumentService,
     private heroSlideService: HeroSlidesService,
     private coomunicationService: CommunicationService,
+    private sectionService: DocumentSectionService,
+    private documentTypeService: DocumentTypeService,
+    private documentFilterService: DocumentFilterReadService,
   ) {}
 
-  @Get('categories-sections')
-  getCategoriesWithSections() {
-    // return this.documentCategoryService.getCategoriesWithSections();
+  @Get('document-filters')
+  async getDocumentFilters() {
+    const [sections, types] = await Promise.all([
+      this.documentFilterService.getSections(),
+      this.documentFilterService.getTypes(),
+    ]);
+
+    return { sections, types };
+  }
+
+  @Get('document-filters')
+  getDocumentTypesAndSubtypes() {
+    return this.documentTypeService.getActiveTypesWithSubtypes();
   }
 
   @Post('documents')

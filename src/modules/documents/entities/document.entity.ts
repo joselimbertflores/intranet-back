@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 
 import { DocumentType } from './document-type.entity';
-import { Section } from './section.entity';
+import { DocumentSection } from './document-section.entity';
 import { DocumentSubtype } from './document-subtype.entity';
 import { User } from 'src/modules/users/entities';
 import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
@@ -75,9 +75,9 @@ export class DocumentRecord {
   @Column({ type: 'int' })
   fiscalYear: number;
 
-  @ManyToOne(() => Section)
+  @ManyToOne(() => DocumentSection)
   @JoinColumn({ name: 'section_id' })
-  section: Section;
+  section: DocumentSection;
 
   @ManyToOne(() => DocumentType)
   @JoinColumn({ name: 'type_id' })

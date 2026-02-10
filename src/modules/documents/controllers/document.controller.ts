@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
-import { DocumentTypeService, DocumentService, SectionService } from '../services';
+import { DocumentTypeService, DocumentService, DocumentSectionService } from '../services';
 import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { GetAuthUser } from 'src/modules/auth/decorators';
 import { User } from 'src/modules/users/entities';
@@ -8,7 +8,7 @@ import { User } from 'src/modules/users/entities';
 @Controller('documents')
 export class DocumentController {
   constructor(
-    private sectionService: SectionService,
+    private sectionService: DocumentSectionService,
     private documentService: DocumentService,
     private documentTypeService: DocumentTypeService,
   ) {}

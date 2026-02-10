@@ -4,24 +4,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 
-import { DocumentRecord, Section, DocumentType, DocumentSubtype } from '../entities';
+import { DocumentRecord, DocumentSection, DocumentType, DocumentSubtype } from '../entities';
 import { CreateDocumentsDto, FilterDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { FilesService } from 'src/modules/files/files.service';
 import { FileGroup } from 'src/modules/files/file-group.enum';
 import { User } from 'src/modules/users/entities';
 import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
-import { SectionService } from './section.service';
+import { DocumentSectionService } from './document-section.service';
 
 @Injectable()
 export class DocumentService {
   constructor(
     @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,
-    @InjectRepository(Section) private docSectionRepository: Repository<Section>,
+    @InjectRepository(DocumentSection) private docSectionRepository: Repository<DocumentSection>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
     @InjectRepository(StoredFile) private fileRepository: Repository<StoredFile>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private sectionService: SectionService,
+    private sectionService: DocumentSectionService,
     private fileService: FilesService,
     private dataSource: DataSource,
   ) {}

@@ -22,7 +22,7 @@ import { Column, CreateDateColumn, Entity, ManyToOne, OneToMany, PrimaryGenerate
 // }
 
 @Entity('sections')
-export class Section {
+export class DocumentSection {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -32,13 +32,13 @@ export class Section {
   @Column({ length: 150, unique: true })
   slug: string;
 
-  @ManyToOne(() => Section, (section) => section.children, {
+  @ManyToOne(() => DocumentSection, (section) => section.children, {
     nullable: true,
   })
-  parent: Section | null;
+  parent: DocumentSection | null;
 
-  @OneToMany(() => Section, (section) => section.parent)
-  children: Section[];
+  @OneToMany(() => DocumentSection, (section) => section.parent)
+  children: DocumentSection[];
 
   @Column({ type: 'int', default: 0 })
   level: number;
