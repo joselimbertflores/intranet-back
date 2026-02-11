@@ -32,7 +32,7 @@ export class FilesService {
 
   constructor(
     private configService: ConfigService<EnvironmentVariables>,
-    @InjectRepository(StoredFile) private readonly fileRepo: Repository<StoredFile>,
+    @InjectRepository(StoredFile) private readonly fileRepository: Repository<StoredFile>,
   ) {}
 
   async upload(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
@@ -54,7 +54,7 @@ export class FilesService {
     // 2️⃣ Crear entidad StoredFile
     const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
 
-    const entity = this.fileRepo.create({
+    const entity = this.fileRepository.create({
       storedName,
       originalName,
       mimeType: file.mimetype,
@@ -62,7 +62,7 @@ export class FilesService {
       storageKey,
     });
 
-    const saved = await this.fileRepo.save(entity);
+    const saved = await this.fileRepository.save(entity);
 
     // 3️⃣ Respuesta al front
     return {
@@ -73,7 +73,7 @@ export class FilesService {
 
   // files.service.ts
   async getFileForDownload(fileId: number) {
-    const file = await this.fileRepo.findOneBy({ id: fileId });
+    const file = await this.fileRepository.findOneBy({ id: fileId });
 
     if (!file || file.status !== FileStatus.ACTIVE) {
       throw new NotFoundException();
@@ -88,7 +88,7 @@ export class FilesService {
   }
 
   async getFilePath(fileId: number): Promise<string> {
-    const file = await this.fileRepo.findOneBy({ id: fileId });
+    const file = await this.fileRepository.findOneBy({ id: fileId });
 
     if (!file || file.status === FileStatus.REMOVED) {
       throw new NotFoundException('File not found');
@@ -191,11 +191,6 @@ export class FilesService {
     return filePath;
   }
 
-  buildFileUrl(filename: string, group: FileGroup): string {
-    const host = this.configService.get('HOST', { infer: true });
-    return `${host}/files/${group}/${filename}`;
-  }
-
   private resolveFolderByExtension(fileName: string): string {
     const extension = extname(fileName).replace('.', '').toLowerCase();
     const folder = Object.keys(FOLDERS).find((key) => FOLDERS[key].includes(extension));
@@ -213,6 +208,30 @@ export class FilesService {
     }
 
     await writeFile(outputPath, image.content);
+  }
+
+  async findByIdOrFail(id: number): Promise<StoredFile> {
+    const file = await this.fileRepository.findOne({ where: { id } });
+    if (!file) throw new NotFoundException('File not found');
+    return file;
+  }
+
+  async incrementDownloadCount(id: number) {
+    await this.fileRepository.increment({ id }, 'downloadCount', 1);
+  }
+
+  getAbsolutePath(file: StoredFile): string {
+    return join(this.BASE_UPLOAD_PATH, file.storageKey);
+  }
+
+  buildFileUrl(filename: string, group: FileGroup): string {
+    const host = this.configService.get('HOST', { infer: true });
+    return `${host}/files/${group}/${filename}`;
+  }
+
+  getFileUrl(id: string) {
+    const host = this.configService.getOrThrow<string>('HOST');
+    return `${host}/files/${id}`;
   }
 
   private async ensureFolderExists(path: string): Promise<void> {

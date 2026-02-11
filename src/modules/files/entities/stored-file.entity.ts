@@ -40,6 +40,9 @@ export class StoredFile {
   @Column()
   storageKey: string;
 
+  @Column({ default: 0 })
+  downloadCount: number;
+
   @Column({
     type: 'enum',
     enum: FileStatus,

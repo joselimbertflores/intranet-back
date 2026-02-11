@@ -1,4 +1,15 @@
-import { Controller, Get, Param, ParseFilePipeBuilder, Post, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseFilePipeBuilder,
+  Post,
+  Query,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 
@@ -9,6 +20,7 @@ import { FilesService } from './files.service';
 import { FileGroup } from './file-group.enum';
 import { Public } from '../auth/decorators';
 import { FileContext } from './enums/file-context.enum';
+import { createReadStream } from 'fs';
 
 @Public()
 @Controller('files')
@@ -67,16 +79,6 @@ export class FilesController {
     file: Express.Multer.File,
   ) {
     return this.filesService.upload(file, FileContext.DOCUMENT_RECORDS);
-  }
-
-  // files.controller.ts
-  @Get(':id')
-  async downloadFile(@Param('id') id: number, @Res() res: Response) {
-    const file = await this.filesService.getFileForDownload(id);
-
-    res.setHeader('Content-Disposition', `attachment; filename="${file.downloadName}"`);
-
-    res.sendFile(file.path);
   }
 
   @Post('quick-access')
@@ -159,5 +161,35 @@ export class FilesController {
   getFile(@Res() res: Response, @Param() requestParams: GetFileDto) {
     const path = this.filesService.getStaticFilePath(requestParams);
     res.sendFile(path);
+  }
+
+  @Get(':id')
+  async serveFile(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+    @Query('download') download: string | undefined,
+  ) {
+    const file = await this.filesService.findByIdOrFail(+id);
+
+    const isDownload = download === 'true';
+
+    // Header principal
+    res.setHeader('Content-Type', file.mimeType);
+
+    // Control inline vs attachment
+    res.setHeader(
+      'Content-Disposition',
+      isDownload ? `attachment; filename="${file.originalName}"` : `inline; filename="${file.originalName}"`,
+    );
+
+    // 👉 Incrementar SOLO si es descarga explícita
+    // && file.context === FileContext.DOCUMENT_RECORDS
+    if (isDownload) {
+      await this.filesService.incrementDownloadCount(file.id);
+    }
+
+    const filePath = this.filesService.getAbsolutePath(file);
+
+    return new StreamableFile(createReadStream(filePath));
   }
 }

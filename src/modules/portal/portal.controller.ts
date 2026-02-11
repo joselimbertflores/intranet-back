@@ -4,11 +4,11 @@ import {
   DocumentTypeService,
   DocumentService,
   DocumentSectionService,
-  DocumentFilterReadService,
+  DocumentSearchService,
 } from '../documents/services';
 import { HeroSlidesService, QuickAccessService } from '../content/services';
 import { CommunicationService } from '../communications/communication.service';
-import { FilterDocumentsDto } from '../documents/dtos';
+import { FilterDocumentsDto, SearchPortalDocumentsDto } from '../documents/dtos';
 import { PaginationParamsDto } from '../common';
 import { Public } from '../auth/decorators';
 
@@ -22,27 +22,21 @@ export class PortalController {
     private coomunicationService: CommunicationService,
     private sectionService: DocumentSectionService,
     private documentTypeService: DocumentTypeService,
-    private documentFilterService: DocumentFilterReadService,
+    private documentSearchService: DocumentSearchService,
   ) {}
 
   @Get('document-filters')
   async getDocumentFilters() {
     const [sections, types] = await Promise.all([
-      this.documentFilterService.getSections(),
-      this.documentFilterService.getTypes(),
+      this.documentSearchService.getSections(),
+      this.documentSearchService.getTypes(),
     ]);
-
     return { sections, types };
   }
 
-  @Get('document-filters')
-  getDocumentTypesAndSubtypes() {
-    return this.documentTypeService.getActiveTypesWithSubtypes();
-  }
-
-  @Post('documents')
-  filterDocuments(@Body() body: FilterDocumentsDto) {
-    return this.documentService.filterDocuments(body);
+  @Get('documents')
+  searchDocuments(@Query() body: SearchPortalDocumentsDto) {
+    return this.documentSearchService.searchDocuments(body);
   }
 
   @Get('home')
