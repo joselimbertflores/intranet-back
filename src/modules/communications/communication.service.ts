@@ -23,7 +23,7 @@ export class CommunicationService {
   async findAll({ limit, offset, term }: PaginationParamsDto) {
     const [communications, total] = await this.commRepository.findAndCount({
       ...(term && { where: [{ reference: ILike(`%${term}%`) }, { code: ILike(`%${term}%`) }] }),
-      relations: { type: true, calendarEvent: true },
+      relations: { type: true },
       take: limit,
       skip: offset,
       order: { createdAt: 'desc' },
@@ -72,7 +72,7 @@ export class CommunicationService {
   async update(id: string, dto: UpdateCommunicationDto) {
     const communicationDB = await this.commRepository.findOne({
       where: { id },
-      relations: { type: true, calendarEvent: true },
+      // relations: { type: true, calendarEvent: true },
     });
 
     if (!communicationDB) throw new NotFoundException(`Communication ${id} not found`);
@@ -90,14 +90,14 @@ export class CommunicationService {
     //   currentFileName = communicationDB.fileName;
     // }
     const filesToConfirm: string[] = [];
-    if (toUpdate.fileName && toUpdate.fileName !== communicationDB.fileName) {
-      currentFileName = communicationDB.fileName;
-      filesToConfirm.push(toUpdate.fileName);
-    }
+    // if (toUpdate.fileName && toUpdate.fileName !== communicationDB.fileName) {
+    //   currentFileName = communicationDB.fileName;
+    //   filesToConfirm.push(toUpdate.fileName);
+    // }
 
-    if (toUpdate.previewFileName && toUpdate.previewFileName !== communicationDB.previewFileName) {
-      filesToConfirm.push(toUpdate.previewFileName);
-    }
+    // if (toUpdate.previewFileName && toUpdate.previewFileName !== communicationDB.previewFileName) {
+    //   filesToConfirm.push(toUpdate.previewFileName);
+    // }
 
     await this.fileService.finalizeFiles(filesToConfirm, FileGroup.COMMUNICATIONS);
 

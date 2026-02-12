@@ -19,8 +19,8 @@ export enum FileStatus {
 
 @Entity('files')
 export class StoredFile {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   // nombre físico (uuid.ext)
   @Column()

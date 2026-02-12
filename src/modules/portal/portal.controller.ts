@@ -21,23 +21,7 @@ export class PortalController {
     private heroSlideService: HeroSlidesService,
     private coomunicationService: CommunicationService,
     private sectionService: DocumentSectionService,
-    private documentTypeService: DocumentTypeService,
-    private documentSearchService: DocumentSearchService,
   ) {}
-
-  @Get('document-filters')
-  async getDocumentFilters() {
-    const [sections, types] = await Promise.all([
-      this.documentSearchService.getSections(),
-      this.documentSearchService.getTypes(),
-    ]);
-    return { sections, types };
-  }
-
-  @Get('documents')
-  searchDocuments(@Query() body: SearchPortalDocumentsDto) {
-    return this.documentSearchService.searchDocuments(body);
-  }
 
   @Get('home')
   async getHomeData() {

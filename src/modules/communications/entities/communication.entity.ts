@@ -2,16 +2,16 @@ import {
   Index,
   Column,
   Entity,
+  OneToOne,
   ManyToOne,
+  JoinColumn,
   BeforeInsert,
   BeforeUpdate,
   CreateDateColumn,
   PrimaryGeneratedColumn,
-  OneToOne,
-  JoinColumn,
 } from 'typeorm';
 import { TypeCommunication } from './type-communication.entity';
-import { CalendarEvent } from 'src/modules/calendar/entities';
+import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 
 @Entity('communications')
 export class Communication {
@@ -26,15 +26,6 @@ export class Communication {
   @Column({ type: 'varchar', length: 80, unique: true })
   code: string;
 
-  @Column()
-  fileName: string;
-
-  @Column()
-  previewFileName: string;
-
-  @Column()
-  originalName: string;
-
   @CreateDateColumn()
   createdAt: Date;
 
@@ -48,9 +39,9 @@ export class Communication {
   })
   type: TypeCommunication;
 
-  @OneToOne(() => CalendarEvent, (event) => event.communication, { nullable: true, onDelete: 'SET NULL' })
+  @OneToOne(() => StoredFile)
   @JoinColumn()
-  calendarEvent: CalendarEvent | null;
+  file: StoredFile;
 
   @BeforeInsert()
   @BeforeUpdate()

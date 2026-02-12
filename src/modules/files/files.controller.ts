@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Ip,
   Param,
   ParseFilePipeBuilder,
   Post,
@@ -165,31 +166,25 @@ export class FilesController {
 
   @Get(':id')
   async serveFile(
-    @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
+    @Ip() ip: string,
+    @Param('id') id: string,
     @Query('download') download: string | undefined,
   ) {
-    const file = await this.filesService.findByIdOrFail(+id);
+    const file = await this.filesService.findByIdOrFail(id);
 
     const isDownload = download === 'true';
 
-    // Header principal
     res.setHeader('Content-Type', file.mimeType);
-
-    // Control inline vs attachment
     res.setHeader(
       'Content-Disposition',
       isDownload ? `attachment; filename="${file.originalName}"` : `inline; filename="${file.originalName}"`,
     );
 
-    // 👉 Incrementar SOLO si es descarga explícita
-    // && file.context === FileContext.DOCUMENT_RECORDS
     if (isDownload) {
-      await this.filesService.incrementDownloadCount(file.id);
+      await this.filesService.tryIncrementDownloadCount(file.id, ip);
     }
 
-    const filePath = this.filesService.getAbsolutePath(file);
-
-    return new StreamableFile(createReadStream(filePath));
+    return new StreamableFile(createReadStream(this.filesService.getAbsolutePath(file)));
   }
 }

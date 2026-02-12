@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
+import { extname } from 'path';
 
 import { DocumentType, DocumentSection, DocumentSubtype, DocumentRecord } from '../entities';
 import { SearchPortalDocumentsDto } from '../dtos';
 import { EnvironmentVariables } from 'src/config';
-import { ConfigService } from '@nestjs/config';
 
 export interface PortalDocumentSections {
   id: string;
@@ -135,7 +136,7 @@ export class DocumentSearchService {
     return filters;
   }
 
-  async getSectionAndDescendantIds(id: string): Promise<string[]> {
+  private async getSectionAndDescendantIds(id: string): Promise<string[]> {
     const ids: string[] = [];
 
     const collect = async (parentId: string) => {
@@ -162,15 +163,15 @@ export class DocumentSearchService {
       title: doc.title,
       fiscalYear: doc.fiscalYear,
       createdAt: doc.createdAt,
-      section: doc.section?.name,
-      type: doc.type?.name,
+      section: doc.section.name,
+      type: doc.type.name,
       subtype: doc.subtype?.name,
       file: {
         id: doc.file.id,
-        url: `${host}/files/${doc.file.id}`,
+        url: `${host}/files/${doc.file.id}?download=true`,
         name: doc.file.originalName,
         size: Number(doc.file.sizeBytes),
-        extension: doc.file.originalName.split('.').pop()?.toLowerCase(),
+        extension: extname(doc.file.storedName).slice(1).toLowerCase() || 'file',
         downloadCount: doc.file.downloadCount,
       },
     }));

@@ -1,5 +1,13 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 
 import { mkdir, rename, unlink, writeFile } from 'fs/promises';
 import { basename, dirname, extname, join } from 'path';
@@ -11,7 +19,6 @@ import { pdfToPng } from 'pdf-to-png-converter';
 import { EnvironmentVariables } from 'src/config';
 import { GetFileDto } from './dtos/get-file.dto';
 import { FileGroup } from './file-group.enum';
-import { InjectRepository } from '@nestjs/typeorm';
 import { FileStatus, StoredFile } from './entities/stored-file.entity';
 import { Repository } from 'typeorm';
 import { FileContext } from './enums/file-context.enum';
@@ -32,6 +39,7 @@ export class FilesService {
 
   constructor(
     private configService: ConfigService<EnvironmentVariables>,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @InjectRepository(StoredFile) private readonly fileRepository: Repository<StoredFile>,
   ) {}
 
@@ -72,7 +80,7 @@ export class FilesService {
   }
 
   // files.service.ts
-  async getFileForDownload(fileId: number) {
+  async getFileForDownload(fileId: string) {
     const file = await this.fileRepository.findOneBy({ id: fileId });
 
     if (!file || file.status !== FileStatus.ACTIVE) {
@@ -87,7 +95,7 @@ export class FilesService {
     };
   }
 
-  async getFilePath(fileId: number): Promise<string> {
+  async getFilePath(fileId: string): Promise<string> {
     const file = await this.fileRepository.findOneBy({ id: fileId });
 
     if (!file || file.status === FileStatus.REMOVED) {
@@ -210,14 +218,10 @@ export class FilesService {
     await writeFile(outputPath, image.content);
   }
 
-  async findByIdOrFail(id: number): Promise<StoredFile> {
+  async findByIdOrFail(id: string): Promise<StoredFile> {
     const file = await this.fileRepository.findOne({ where: { id } });
     if (!file) throw new NotFoundException('File not found');
     return file;
-  }
-
-  async incrementDownloadCount(id: number) {
-    await this.fileRepository.increment({ id }, 'downloadCount', 1);
   }
 
   getAbsolutePath(file: StoredFile): string {
@@ -232,6 +236,17 @@ export class FilesService {
   getFileUrl(id: string) {
     const host = this.configService.getOrThrow<string>('HOST');
     return `${host}/files/${id}`;
+  }
+
+  async tryIncrementDownloadCount(id: string, userIp: string): Promise<void> {
+    const cacheKey = `download:${id}:${userIp}`;
+
+    const alreadyCounted = await this.cacheManager.get<boolean>(cacheKey);
+    if (alreadyCounted) return;
+
+    await this.fileRepository.increment({ id }, 'downloadCount', 1);
+
+    await this.cacheManager.set(cacheKey, true, 300000);
   }
 
   private async ensureFolderExists(path: string): Promise<void> {

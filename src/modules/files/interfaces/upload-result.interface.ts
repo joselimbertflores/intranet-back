@@ -1,4 +1,4 @@
 export interface UploadResult {
-  fileId: number;
+  fileId: string;
   originalName: string;
 }

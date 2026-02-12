@@ -12,9 +12,8 @@ import {
 } from 'class-validator';
 import { PaginationParamsDto } from 'src/modules/common';
 export class DocumentDto {
-  @IsInt()
-  @Type(() => Number)
-  fileId: number;
+  @IsUUID()
+  fileId: string;
 
   @IsString()
   @IsNotEmpty()
