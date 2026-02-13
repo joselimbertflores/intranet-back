@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 
-import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos/communication.dto';
+import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos';
 import { CommunicationService } from './communication.service';
 import { PaginationParamsDto } from '../common';
 
@@ -8,9 +8,9 @@ import { PaginationParamsDto } from '../common';
 export class CommunicationController {
   constructor(private communicationService: CommunicationService) {}
 
-  @Get('types')
-  getTYpes() {
-    return this.communicationService.getTypes();
+  @Get()
+  findAll(@Query() queryParams: PaginationParamsDto) {
+    return this.communicationService.findAll(queryParams);
   }
 
   @Post()
@@ -23,8 +23,8 @@ export class CommunicationController {
     return this.communicationService.update(id, body);
   }
 
-  @Get()
-  findAll(@Query() queryParams: PaginationParamsDto) {
-    return this.communicationService.findAll(queryParams);
+  @Get('types')
+  getTYpes() {
+    return this.communicationService.getTypes();
   }
 }

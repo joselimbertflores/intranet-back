@@ -1,16 +1,16 @@
 import {
-  BadRequestException,
   Inject,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 
 import { mkdir, rename, unlink, writeFile } from 'fs/promises';
-import { basename, dirname, extname, join } from 'path';
+import { dirname, extname, join } from 'path';
 import { v4 as uuid } from 'uuid';
 import { existsSync } from 'fs';
 
@@ -23,6 +23,7 @@ import { FileStatus, StoredFile } from './entities/stored-file.entity';
 import { Repository } from 'typeorm';
 import { FileContext } from './enums/file-context.enum';
 import { UploadResult } from './interfaces';
+import { generatePdfPreview } from 'src/helpers';
 
 const FOLDERS: Record<string, string[]> = {
   images: ['jpg', 'png', 'jpeg'],
@@ -38,9 +39,9 @@ export class FilesService {
   private readonly TEMP_PATH = join(this.BASE_UPLOAD_PATH, 'temp');
 
   constructor(
-    private configService: ConfigService<EnvironmentVariables>,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     @InjectRepository(StoredFile) private readonly fileRepository: Repository<StoredFile>,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private configService: ConfigService<EnvironmentVariables>,
   ) {}
 
   async upload(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
@@ -65,9 +66,9 @@ export class FilesService {
     const entity = this.fileRepository.create({
       storedName,
       originalName,
+      storageKey,
       mimeType: file.mimetype,
       sizeBytes: file.size,
-      storageKey,
     });
 
     const saved = await this.fileRepository.save(entity);
@@ -79,7 +80,63 @@ export class FilesService {
     };
   }
 
-  // files.service.ts
+  async uploadPdfWithDerivedPreview(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('Only PDF files are allowed');
+    }
+
+    const extension = extname(file.originalname).toLowerCase();
+    if (extension !== '.pdf') {
+      throw new BadRequestException('Invalid PDF extension');
+    }
+
+    const pdfStoredName = `${uuid()}.pdf`;
+    const pdfStorageKey = `${context}/${pdfStoredName}`;
+    const pdfPath = join(this.BASE_UPLOAD_PATH, pdfStorageKey);
+
+    await this.ensureFolderExists(dirname(pdfPath));
+    await writeFile(pdfPath, file.buffer);
+
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+
+    const pdfEntity = this.fileRepository.create({
+      storedName: pdfStoredName,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      storageKey: pdfStorageKey,
+      originalName,
+    });
+
+    const savedPdf = await this.fileRepository.save(pdfEntity);
+
+    const previewBuffer = await generatePdfPreview(pdfPath);
+
+    if (previewBuffer) {
+      const previewStoredName = `${uuid()}.png`;
+      const previewStorageKey = `${context}/previews/${previewStoredName}`;
+      const previewPath = join(this.BASE_UPLOAD_PATH, previewStorageKey);
+
+      await this.ensureFolderExists(dirname(previewPath));
+
+      await writeFile(previewPath, previewBuffer);
+
+      const previewEntity = this.fileRepository.create({
+        storedName: previewStoredName,
+        originalName: originalName.replace(/\.pdf$/i, '') + ' (preview).png',
+        mimeType: 'image/png',
+        sizeBytes: previewBuffer.length,
+        storageKey: previewStorageKey,
+        parentFile: savedPdf,
+      });
+      await this.fileRepository.save(previewEntity);
+    }
+
+    return {
+      fileId: savedPdf.id,
+      originalName: savedPdf.originalName,
+    };
+  }
+
   async getFileForDownload(fileId: string) {
     const file = await this.fileRepository.findOneBy({ id: fileId });
 
@@ -129,26 +186,6 @@ export class FilesService {
       originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
       mimeType: file.mimetype,
       sizeBytes: file.size,
-    };
-  }
-
-  async saveTempPdfWithPreview(file: Express.Multer.File) {
-    const tempPdf = await this.saveTempFile(file);
-
-    const baseName = basename(tempPdf.fileName, '.pdf');
-    const previewName = `${baseName}-preview.png`;
-
-    const tempPdfPath = join(this.TEMP_PATH, tempPdf.fileName);
-    const tempPreviewPath = join(this.TEMP_PATH, previewName);
-
-    await this.generatePdfThumbnail(tempPdfPath, tempPreviewPath);
-
-    return {
-      fileName: tempPdf.fileName,
-      originalName: tempPdf.originalName,
-      mimeType: tempPdf.mimeType,
-      sizeBytes: file.size,
-      previewFileName: previewName,
     };
   }
 
@@ -218,7 +255,7 @@ export class FilesService {
     await writeFile(outputPath, image.content);
   }
 
-  async findByIdOrFail(id: string): Promise<StoredFile> {
+  async findFileOrFail(id: string): Promise<StoredFile> {
     const file = await this.fileRepository.findOne({ where: { id } });
     if (!file) throw new NotFoundException('File not found');
     return file;
@@ -233,7 +270,7 @@ export class FilesService {
     return `${host}/files/${group}/${filename}`;
   }
 
-  getFileUrl(id: string) {
+  buildPublicFileUrl(id: string) {
     const host = this.configService.getOrThrow<string>('HOST');
     return `${host}/files/${id}`;
   }

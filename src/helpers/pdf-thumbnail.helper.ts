@@ -1,31 +1,17 @@
 import { pdfToPng } from 'pdf-to-png-converter';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 
-export const generatePdfThumbnail = async (pdfPath: string, outputDir: string): Promise<string | null> => {
+export const generatePdfPreview = async (pdfPath: string): Promise<Buffer | null> => {
   try {
-    await fs.mkdir(outputDir, { recursive: true });
-
-    const baseName = path.basename(pdfPath, '.pdf');
-
-    const previewName = `${baseName}-preview.png`;
-
-    const outputPath = path.join(outputDir, previewName);
-
-    const images = await pdfToPng(pdfPath, {
+    const [page] = await pdfToPng(pdfPath, {
       pagesToProcess: [1],
-      viewportScale: 0.7,
-      outputFolder: outputDir,
+      disableFontFace: true,
+      viewportScale: 1.5,
+      outputFolder: undefined,
     });
-
-    if (!images[0]?.content) {
-      return null;
-    }
-
-    await fs.writeFile(outputPath, images[0].content);
-    return previewName;
+    if (!page?.content) return null;
+    return page.content;
   } catch (err) {
-    console.log(err);
+    console.error(`Error generating preview for ${pdfPath}: ${err}`);
     return null;
   }
 };

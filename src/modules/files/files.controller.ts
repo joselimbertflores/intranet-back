@@ -155,7 +155,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveTempPdfWithPreview(file);
+    return this.filesService.uploadPdfWithDerivedPreview(file, FileContext.COMMUNICATIONS);
   }
 
   @Get(':group/:fileName')
@@ -171,7 +171,7 @@ export class FilesController {
     @Param('id') id: string,
     @Query('download') download: string | undefined,
   ) {
-    const file = await this.filesService.findByIdOrFail(id);
+    const file = await this.filesService.findFileOrFail(id);
 
     const isDownload = download === 'true';
 
