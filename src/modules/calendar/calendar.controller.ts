@@ -8,6 +8,11 @@ import { PaginationParamsDto } from '../common';
 export class EventController {
   constructor(private readonly eventService: CalendarService) {}
 
+  @Get()
+  findAll(@Query() query: PaginationParamsDto) {
+    return this.eventService.findAll(query);
+  }
+
   @Post()
   create(@Body() dto: CreateCalendarEventDto) {
     return this.eventService.create(dto);
@@ -18,9 +23,19 @@ export class EventController {
     return this.eventService.update(id, dto);
   }
 
-  @Get()
-  findAll(@Query() query: PaginationParamsDto) {
-    return this.eventService.findAll(query);
+  @Get(':id')
+  getOne(@Param('id') id: string) {
+    return this.eventService.getOne(id);
+  }
+
+  @Patch('communications/:id/deactivate')
+  setCommunicationState(@Param('id') id: string, @Body() dto: { isActive: boolean }) {
+    return this.eventService.setCommunicationState(id, dto.isActive);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.eventService.remove(id);
   }
 
   @Get('list')

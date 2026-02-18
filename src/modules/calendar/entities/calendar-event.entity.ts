@@ -1,4 +1,4 @@
-import { Communication } from 'src/modules/communications/entities';
+import { Communication } from 'src/modules/communications/entities/communication.entity';
 import {
   Column,
   Entity,
@@ -49,10 +49,10 @@ export class CalendarEvent {
   @Column({ default: true })
   isActive: boolean;
 
-  @OneToOne(() => Communication, {
+  @OneToOne(() => Communication, (comm) => comm.calendarEvent, {
     nullable: true,
     onDelete: 'SET NULL',
   })
-  @JoinColumn({ name: 'communication_id' })
+  @JoinColumn({ name: 'communicationId', referencedColumnName: 'id' })
   communication?: Communication;
 }

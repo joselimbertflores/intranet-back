@@ -14,6 +14,7 @@ import {
   ArrayMinSize,
   Min,
   IsISO8601,
+  IsUUID,
 } from 'class-validator';
 
 import { IsAfterDate } from '../decorators';
@@ -77,14 +78,18 @@ export class CreateCalendarEventDto {
   @IsBoolean()
   allDay: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => RecurrenceConfigDto)
   recurrence?: RecurrenceConfigDto;
 
-  @IsBoolean()
+  @IsUUID()
   @IsOptional()
-  isActive?: boolean;
+  communicationId?: string;
 }
 
 export class UpdateCalendarEventDto extends PartialType(CreateCalendarEventDto) {}

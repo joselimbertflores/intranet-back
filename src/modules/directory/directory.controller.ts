@@ -1,55 +1,37 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { DirectoryService } from './directory.service';
-import {
-  CreateDirectoryContactDto,
-  CreateDirectorySectionDto,
-  GetDirectoryContactsDto,
-  GetDirectorySectionsDto,
-  UpdateDirectoryContactDto,
-  UpdateDirectorySectionDto,
-} from './dtos';
+import { CreateDirectoryEntryDto, UpdateDirectoryEntryDto } from './dtos';
+import { Public } from '../auth/decorators';
 
+@Public()
 @Controller('directory')
 export class DirectoryController {
-  constructor(private readonly directoryService: DirectoryService) {}
+  constructor(private directoryService: DirectoryService) {}
 
-  @Get('sections')
-  findSections(@Query() query: GetDirectorySectionsDto) {
-    return this.directoryService.findSections(query);
-  }
+  // 🌐 Público
+  // @Get()
+  // getPublicDirectory() {
+  //   return this.directoryService.findTree();
+  // }
 
-  @Post('sections')
-  createSection(@Body() dto: CreateDirectorySectionDto) {
-    console.log(dto);
-    return this.directoryService.createSection(dto);
-  }
-  @Get(`sections/:id/contacts`)
-  getContacts(@Param('id', ParseUUIDPipe) id: string) {
-    return this.directoryService.getContacts(id);
-  }
-
-  @Patch('sections/:id')
-  updateSection(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDirectorySectionDto) {
-    return this.directoryService.updateSection(id, dto);
-  }
-
-  @Get('contacts')
-  findContacts(@Query() query: GetDirectoryContactsDto) {
-    return this.directoryService.findContacts(query);
-  }
-
-  @Post('contacts')
-  createContact(@Body() dto: CreateDirectoryContactDto) {
-    return this.directoryService.createContact(dto);
-  }
-
-  @Patch('contacts/:id')
-  updateContact(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDirectoryContactDto) {
-    return this.directoryService.updateContact(id, dto);
-  }
-
+  // 🔐 Admin
   @Get()
-  getDirectory() {
-    return this.directoryService.getDirectoryTree();
+  getTree() {
+    return this.directoryService.getTree();
+  }
+
+  @Post()
+  create(@Body() dto: CreateDirectoryEntryDto) {
+    return this.directoryService.create(dto);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateDirectoryEntryDto) {
+    return this.directoryService.update(+id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.directoryService.remove(id);
   }
 }

@@ -20,29 +20,39 @@ export class CommunicationService {
 
   async findAll({ limit, offset, term }: PaginationParamsDto) {
     const [communications, total] = await this.commRepository.findAndCount({
-      ...(term && { where: [{ reference: ILike(`%${term}%`) }, { code: ILike(`%${term}%`) }] }),
-      relations: { type: true, file: true },
+      ...(term && {
+        where: [{ reference: ILike(`%${term}%`) }, { code: ILike(`%${term}%`) }],
+      }),
+      relations: {
+        type: true,
+        file: true,
+        calendarEvent: true,
+      },
       take: limit,
       skip: offset,
       order: { createdAt: 'desc' },
     });
-    return { communications: communications.map((item) => this.toAdminDto(item)), total };
+
+    return {
+      communications: communications.map((item) => this.toAdminDto(item)),
+      total,
+    };
   }
 
   async create(dto: CreateCommunicationDto) {
-    const { typeId, fileId, ...props } = dto;
+    const { typeId, fileId, code, ...props } = dto;
+
+    const normalizedCode = this.normalizeCode(code);
+    await this.checkDuplicateCode(normalizedCode);
 
     const type = await this.typeCommRespository.findOneBy({ id: typeId });
     if (!type) throw new BadGatewayException('Type communication not found');
-
-    const duplicate = await this.commRepository.findOneBy({ code: props.code });
-    if (duplicate) throw new BadGatewayException(`Code: ${props.code} already exists`);
 
     const file = await this.fileService.findFileOrFail(fileId);
     if (file.status !== FileStatus.PENDING) throw new BadRequestException('File is not available for use');
 
     const createdCommunication = await this.dataSource.transaction(async (manager) => {
-      const communication = manager.create(Communication, { ...props, type, file });
+      const communication = manager.create(Communication, { ...props, code: normalizedCode, type, file });
       await manager.update(StoredFile, [{ id: file.id }, { parentFileId: file.id }], { status: FileStatus.ACTIVE });
       return await manager.save(communication);
     });
@@ -54,7 +64,13 @@ export class CommunicationService {
 
     if (!communicationDB) throw new NotFoundException(`Communication ${id} not found`);
 
-    const { typeId, fileId, ...toUpdate } = dto;
+    const { typeId, fileId, code, ...toUpdate } = dto;
+
+    const normalizedCode = code ? this.normalizeCode(code) : null;
+    if (normalizedCode && normalizedCode !== communicationDB.code) {
+      await this.checkDuplicateCode(normalizedCode);
+      communicationDB.code = normalizedCode;
+    }
 
     if (typeId) {
       const type = await this.typeCommRespository.findOneBy({ id: typeId });
@@ -82,6 +98,10 @@ export class CommunicationService {
       return await manager.save(communicationDB);
     });
     return this.toAdminDto(updatedCommunication);
+  }
+
+  async setActiveState(id: string, isActive: boolean) {
+    await this.commRepository.update({ id }, { isActive });
   }
 
   async getLatest(limit = 5) {
@@ -116,15 +136,31 @@ export class CommunicationService {
     return await this.typeCommRespository.find();
   }
 
+  async findByIdOrFail(id: string) {
+    const communication = await this.commRepository.findOneBy({ id });
+    if (!communication) throw new NotFoundException(`Communication ${id} not found`);
+    return communication;
+  }
+
   private toAdminDto(communication: Communication) {
-    const { file, ...rest } = communication;
+    const { file, calendarEvent, ...rest } = communication;
     return {
       ...rest,
+      ...(calendarEvent && { eventId: calendarEvent.id }),
       file: {
         id: file.id,
         originalName: file.originalName,
         url: this.fileService.buildPublicFileUrl(file.id),
       },
     };
+  }
+
+  private async checkDuplicateCode(code: string) {
+    const duplicate = await this.commRepository.findOneBy({ code });
+    if (duplicate) throw new BadGatewayException(`Code: ${code} already exists`);
+  }
+
+  private normalizeCode(code: string): string {
+    return code.replace(/\s+/g, ' ').trim().toUpperCase();
   }
 }

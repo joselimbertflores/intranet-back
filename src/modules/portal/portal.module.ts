@@ -4,7 +4,7 @@ import { DocumentModule } from '../documents/document.module';
 import { ContentModule } from '../content/content.module';
 import { CommunicationsModule } from '../communications/communications.module';
 import { PortalAssistanceController, PortalCommunicationsController, PortalDocumentsController } from './controllers';
-import { AssistanceModule } from '../learning/learning.module';
+import { TutorialModule } from '../tutorial/tutorial.module';
 
 @Module({
   controllers: [
@@ -13,6 +13,6 @@ import { AssistanceModule } from '../learning/learning.module';
     PortalAssistanceController,
     PortalDocumentsController,
   ],
-  imports: [DocumentModule, ContentModule, CommunicationsModule, AssistanceModule],
+  imports: [DocumentModule, ContentModule, CommunicationsModule, TutorialModule],
 })
 export class PortalModule {}

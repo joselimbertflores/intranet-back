@@ -7,6 +7,8 @@ import { RRule, rrulestr } from 'rrule';
 import { CalendarEvent } from './entities';
 import { CreateCalendarEventDto, RecurrenceConfigDto, UpdateCalendarEventDto } from './dtos';
 import { PaginationParamsDto } from '../common';
+import { CommunicationService } from '../communications/communication.service';
+import { Communication } from '../communications/entities';
 
 function overlapsRange(evStart: Date, evEnd: Date | null, rangeStart: Date, rangeEnd: Date) {
   const end = evEnd ?? evStart; // si no hay endDate, se considera instante
@@ -66,7 +68,10 @@ export interface CalendarOccurrenceDto {
 
 @Injectable()
 export class CalendarService {
-  constructor(@InjectRepository(CalendarEvent) private eventRepository: Repository<CalendarEvent>) {}
+  constructor(
+    @InjectRepository(CalendarEvent) private eventRepository: Repository<CalendarEvent>,
+    private communicationService: CommunicationService,
+  ) {}
 
   async findAll({ limit, offset, term }: PaginationParamsDto) {
     const [events, total] = await this.eventRepository.findAndCount({
@@ -78,22 +83,27 @@ export class CalendarService {
     return { events, total };
   }
 
-  async create(dto: CreateCalendarEventDto, manager?: EntityManager) {
-    const repository = manager ? manager.getRepository(CalendarEvent) : this.eventRepository;
-    const { recurrence, ...props } = dto;
-    const model = repository.create({ ...props });
+  async create(dto: CreateCalendarEventDto) {
+    const { communicationId, recurrence, ...props } = dto;
+
+    let communication: Communication | null = null;
+    if (communicationId) {
+      communication = await this.communicationService.findByIdOrFail(communicationId);
+
+      const existing = await this.eventRepository.findOne({ where: { communication: { id: communication.id } } });
+      if (existing) throw new BadRequestException('This communication already has an associated event');
+    }
+
+    const model = this.eventRepository.create({ ...props, ...(communication && { communication }) });
     if (recurrence) {
       model.recurrenceConfig = recurrence;
       model.recurrenceRule = this.buildRRule(recurrence, dto.startDate);
     }
-    const event = repository.create(model);
-    return await repository.save(event);
+    return await this.eventRepository.save(model);
   }
 
-  async update(id: string, dto: UpdateCalendarEventDto, manager?: EntityManager) {
-    const repository = manager ? manager.getRepository(CalendarEvent) : this.eventRepository;
-
-    const event = await repository.findOneBy({ id });
+  async update(id: string, dto: UpdateCalendarEventDto) {
+    const event = await this.eventRepository.findOneBy({ id });
 
     if (!event) throw new NotFoundException('Event not found');
     const { recurrence: newRecurrence, ...props } = dto;
@@ -108,23 +118,26 @@ export class CalendarService {
       event.recurrenceConfig = newConfigRecurrence;
       event.recurrenceRule = this.buildRRule(newConfigRecurrence, event.startDate);
     }
-    return repository.save({ ...event, ...props });
+    return this.eventRepository.save({ ...event, ...props });
+  }
+
+  async getOne(id: string) {
+    return await this.eventRepository.findOneBy({ id });
+  }
+
+  async setCommunicationState(communicationId: string, isActive: boolean) {
+    const communication = await this.communicationService.findByIdOrFail(communicationId);
+    if (communication.isActive === isActive) return;
+    await this.communicationService.setActiveState(communicationId, isActive);
+    await this.eventRepository.update({ communication: { id: communicationId } }, { isActive });
+    return { ok: true, message: isActive ? 'Communication activated' : 'Communication deactivated' };
   }
 
   async remove(id: string) {
-    const calendarEvent = await this.eventRepository.findOne({ where: { id }, relations: { communication: true } });
-    if (!calendarEvent) throw new NotFoundException('Event not found');
-    if (calendarEvent.communication) {
-      throw new BadRequestException('Cannot delete event with communication associated');
-    }
-    const result = await this.eventRepository.delete({ id });
-    return { message: (result.affected ?? 0 > 0) ? 'Event deleted' : 'Event not found' };
-  }
-
-  async removeEventFromCommunication(id: string, manager: EntityManager) {
-    const repository = manager.getRepository(CalendarEvent);
-    const result = await repository.delete({ id });
-    return { ok: true, message: (result.affected ?? 0 > 0) ? 'Event deleted' : 'Event not found' };
+    const result = await this.eventRepository.delete(id);
+    return (result.affected ?? 0 > 0)
+      ? { ok: true, message: 'Event deleted' }
+      : { ok: false, message: 'Event not found' };
   }
 
   private buildRRule(config: RecurrenceConfigDto, startDate: Date): string {
@@ -148,7 +161,6 @@ export class CalendarService {
     // 1) Trae eventos “maestros” que podrían aparecer en el rango
     // OJO: para recurrentes, startDate puede ser antiguo pero igual aplica.
     const masters = await this.eventRepository.find({
-      where: { isActive: true },
       relations: { communication: true },
     });
 

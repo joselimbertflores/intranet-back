@@ -1,0 +1,2 @@
+export * from "./tutorial-category.dto"
+export * from "./tutorial.dto"

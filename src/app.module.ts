@@ -10,10 +10,10 @@ import { ContentModule } from './modules/content/content.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { FilesModule } from './modules/files/files.module';
-import { AssistanceModule } from './modules/learning/learning.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { DirectoryModule } from './modules/directory/directory.module';
+import { TutorialModule } from './modules/tutorial/tutorial.module';
 
 @Module({
   imports: [
@@ -45,7 +45,7 @@ import { DirectoryModule } from './modules/directory/directory.module';
     PortalModule,
     CommunicationsModule,
     CalendarModule,
-    AssistanceModule,
+    TutorialModule,
     AuthModule,
     UsersModule,
     DirectoryModule,

@@ -1,2 +1,2 @@
-export * from './directory-section.entity';
-export * from './directory-contact.entity';
+
+export * from './directory-entry.entity';

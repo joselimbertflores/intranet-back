@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { TypeCommunication } from './type-communication.entity';
 import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
+import { CalendarEvent } from 'src/modules/calendar/entities/calendar-event.entity';
 
 @Entity('communications')
 export class Communication {
@@ -43,6 +44,9 @@ export class Communication {
   @JoinColumn()
   file: StoredFile;
 
+  @OneToOne(() => CalendarEvent, (event) => event.communication)
+  calendarEvent?: CalendarEvent;
+  
   @BeforeInsert()
   @BeforeUpdate()
   normalize() {
