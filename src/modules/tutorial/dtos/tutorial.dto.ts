@@ -1,6 +1,6 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 import { TutorialBlockType } from '../entities';
 
 export class CreateTutorialBlockDto {
@@ -17,8 +17,7 @@ export class CreateTutorialBlockDto {
 }
 
 export class UpdateTutorialBlockDto extends PartialType(OmitType(CreateTutorialBlockDto, ['type'] as const)) {
-  @IsUUID()
-  id: string;
+ 
 }
 
 export class TutorialBlockActionsDto {
@@ -60,3 +59,20 @@ export class CreateTutorialDto {
 }
 
 export class UpdateTutorialDto extends PartialType(CreateTutorialDto) {}
+
+export class BlockOrderDto {
+  @IsUUID()
+  id: string;
+
+  @IsInt()
+  @Min(1)
+  order: number;
+}
+
+export class ReorderTutorialBlocksDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BlockOrderDto)
+  @ArrayMinSize(1)
+  items: BlockOrderDto[];
+}

@@ -1,6 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { TutorialCategoryService, TutorialService } from '../services';
-import { CreateTutorialDto, UpdateTutorialDto } from '../dtos';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
+import { TutorialBlockService, TutorialCategoryService, TutorialService } from '../services';
+import {
+  CreateTutorialBlockDto,
+  CreateTutorialDto,
+  ReorderTutorialBlocksDto,
+  UpdateTutorialBlockDto,
+  UpdateTutorialDto,
+} from '../dtos';
 import { PaginationParamsDto } from 'src/modules/common';
 
 @Controller('tutorials')
@@ -8,6 +14,7 @@ export class TutorialController {
   constructor(
     private tutorialService: TutorialService,
     private tutorialCategory: TutorialCategoryService,
+    private tutorialBlockService: TutorialBlockService,
   ) {}
 
   @Get('categories')
@@ -18,6 +25,11 @@ export class TutorialController {
   @Post()
   create(@Body() createTutorialDto: CreateTutorialDto) {
     return this.tutorialService.create(createTutorialDto);
+  }
+
+  @Post('/:id/block')
+  createBlock(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateTutorialBlockDto) {
+    return this.tutorialBlockService.create(id, dto);
   }
 
   @Patch(':id')
@@ -33,6 +45,16 @@ export class TutorialController {
   @Get()
   findAll(@Param() queryParams: PaginationParamsDto) {
     return this.tutorialService.findAll(queryParams);
+  }
+
+  @Patch('block/:id')
+  updateBLock(@Param('id') id: string, @Body() body: UpdateTutorialBlockDto) {
+    return this.tutorialBlockService.update(id, body);
+  }
+
+  @Put(':id/blocks/order')
+  updateBlockOrder(@Param('id') id: string, @Body() dto: ReorderTutorialBlocksDto) {
+    return this.tutorialBlockService.updateBlocksOrder(id, dto);
   }
 
   // @Delete(':id')

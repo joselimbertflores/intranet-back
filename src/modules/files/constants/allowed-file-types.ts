@@ -19,5 +19,5 @@ export const ALLOWED_FILE_TYPES = {
   ],
   QUICK_ACCESS: ['jpg', 'jpeg', 'png'],
   COMMUNICATIONS: ['pdf'],
-  TUTORIAL_VIDEOS: ['mp4'],
+  TUTORIALS: ['mp4', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'pptx'],
 };

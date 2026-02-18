@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 
 import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
-import { CreateTutorialBlockDto, UpdateTutorialBlockDto } from '../dtos';
+import { CreateTutorialBlockDto, UpdateTutorialBlockDto, ReorderTutorialBlocksDto } from '../dtos';
 import { Tutorial, TutorialBlock, TutorialBlockType } from '../entities';
 
 @Injectable()
@@ -14,6 +14,7 @@ export class TutorialBlockService {
     @InjectRepository(Tutorial) private tutorialRepo: Repository<Tutorial>,
     @InjectRepository(TutorialBlock) private blockRepo: Repository<TutorialBlock>,
   ) {}
+
   async create(tutorialId: string, dto: CreateTutorialBlockDto): Promise<TutorialBlock> {
     return this.dataSource.transaction(async (manager) => {
       const tutorial = await manager.findOneByOrFail(Tutorial, { id: tutorialId });
@@ -43,16 +44,15 @@ export class TutorialBlockService {
     });
   }
 
-  async update(blockId: string, dto: UpdateTutorialBlockDto): Promise<TutorialBlock> {
+  async update(id: string, dto: UpdateTutorialBlockDto): Promise<TutorialBlock> {
     return this.dataSource.transaction(async (manager) => {
       const block = await manager.findOne(TutorialBlock, {
-        where: { id: blockId },
+        where: { id: id },
         relations: { file: true },
       });
 
       if (!block) throw new NotFoundException();
 
-      // type es inmutable (no viene en DTO)
       const finalFileId = dto.fileId !== undefined ? dto.fileId : block.file?.id;
 
       this.validateBlock(block.type, dto.content ?? block.content, finalFileId);
@@ -95,14 +95,36 @@ export class TutorialBlockService {
     });
   }
 
-  async reorder(tutorialId: string, blockIds: string[]) {
-    return this.dataSource.transaction(async (manager) => {
-      for (let i = 0; i < blockIds.length; i++) {
-        await manager.update(TutorialBlock, { id: blockIds[i], tutorial: { id: tutorialId } }, { order: i + 1 });
+  async updateBlocksOrder(tutorialId: string, { items }: ReorderTutorialBlocksDto) {
+    await this.dataSource.transaction(async (manager) => {
+      const ids = items.map((i) => i.id);
+      const count = await manager.count(TutorialBlock, {
+        where: {
+          id: In(ids),
+          tutorial: { id: tutorialId },
+        },
+      });
+
+      if (count !== items.length) {
+        throw new BadRequestException('One or more blocks do not belong to this tutorial');
       }
-      return { ok: true };
+
+      for (const item of items) {
+        await manager.update(TutorialBlock, { id: item.id }, { order: item.order });
+      }
     });
+
+    return { ok: true, message: 'Order updated successfully' };
   }
+
+  // async reorder(tutorialId: string, blockIds: string[]) {
+  //   return this.dataSource.transaction(async (manager) => {
+  //     for (let i = 0; i < blockIds.length; i++) {
+  //       await manager.update(TutorialBlock, { id: blockIds[i], tutorial: { id: tutorialId } }, { order: i + 1 });
+  //     }
+  //     return { ok: true };
+  //   });
+  // }
 
   private async activateFile(manager: EntityManager, fileId: string): Promise<StoredFile> {
     const file = await manager.findOne(StoredFile, {
@@ -121,7 +143,7 @@ export class TutorialBlockService {
       throw new BadRequestException('TEXT block requires content');
     }
 
-    if (type === TutorialBlockType.VIDEO && !content) {
+    if (type === TutorialBlockType.VIDEO_URL && !content) {
       throw new BadRequestException('VIDEO block requires URL');
     }
 

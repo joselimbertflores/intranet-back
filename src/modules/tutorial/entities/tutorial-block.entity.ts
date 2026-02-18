@@ -6,7 +6,8 @@ import { Tutorial } from './tutorial.entity';
 export enum TutorialBlockType {
   TEXT = 'TEXT',
   IMAGE = 'IMAGE',
-  VIDEO = 'VIDEO',
+  VIDEO_URL = 'VIDEO_URL',
+  VIDEO_FILE = 'VIDEO_FILE',
   FILE = 'FILE',
 }
 

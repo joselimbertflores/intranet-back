@@ -14,6 +14,7 @@ import {
 import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import { generateSlug } from 'src/helpers';
 import { PaginationParamsDto } from 'src/modules/common';
+import { FilesService } from 'src/modules/files/files.service';
 
 @Injectable()
 export class TutorialService {
@@ -22,6 +23,7 @@ export class TutorialService {
     @InjectRepository(Tutorial) private tutorialRepository: Repository<Tutorial>,
     @InjectRepository(TutorialBlock) private tutorialBlockRepository: Repository<TutorialBlock>,
     @InjectRepository(TutorialCategory) private tutorialCategoryRepository: Repository<TutorialCategory>,
+    private fileService: FilesService,
   ) {}
 
   async findAll({ limit, offset, term }: PaginationParamsDto) {
@@ -74,7 +76,11 @@ export class TutorialService {
       order: { blocks: { order: 'ASC' } },
     });
     if (!tutorial) throw new NotFoundException('Tutorial not found');
-    return tutorial;
+    const { blocks, ...props } = tutorial;
+    return {
+      ...props,
+      blocks: blocks.map((block) => this.mapBlock(block)),
+    };
   }
 
   async remove(id: string) {
@@ -104,5 +110,22 @@ export class TutorialService {
     const duplicate = await this.tutorialRepository.findOne({ where: { slug } });
     if (duplicate) throw new BadRequestException('Slug already exists, rename the tutorial');
     return slug;
+  }
+
+  private mapBlock(block: TutorialBlock) {
+    return {
+      id: block.id,
+      type: block.type,
+      content: block.content,
+      order: block.order,
+      ...(block.file && {
+        file: {
+          id: block.file.id,
+          url: this.fileService.buildPublicFileUrl(block.file.id),
+          originalName: block.file.originalName,
+          mimeType: block.file.mimeType,
+        },
+      }),
+    };
   }
 }
