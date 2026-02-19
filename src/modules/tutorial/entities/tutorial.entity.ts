@@ -8,8 +8,8 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-import { TutorialBlock } from './tutorial-block.entity';
 import { TutorialCategory } from './tutorial-category.entity';
+import { TutorialBlock } from './tutorial-block.entity';
 
 @Entity('tutorials')
 export class Tutorial {

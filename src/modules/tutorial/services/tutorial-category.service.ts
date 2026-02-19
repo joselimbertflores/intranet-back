@@ -15,7 +15,6 @@ export class TutorialCategoryService {
   ) {}
 
   async findAll() {
-    console.log('search');
     return await this.tutorialCategoryRepository.find({
       order: {
         createdAt: 'desc',

@@ -1,24 +1,21 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
-
-import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import { CreateTutorialBlockDto, UpdateTutorialBlockDto, ReorderTutorialBlocksDto } from '../dtos';
+import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import { Tutorial, TutorialBlock, TutorialBlockType } from '../entities';
+import { FilesService } from 'src/modules/files/files.service';
 
 @Injectable()
 export class TutorialBlockService {
   constructor(
     private dataSource: DataSource,
-    @InjectRepository(Tutorial) private tutorialRepo: Repository<Tutorial>,
-    @InjectRepository(TutorialBlock) private blockRepo: Repository<TutorialBlock>,
+    private fileService: FilesService,
   ) {}
 
-  async create(tutorialId: string, dto: CreateTutorialBlockDto): Promise<TutorialBlock> {
-    return this.dataSource.transaction(async (manager) => {
+  async create(tutorialId: string, dto: CreateTutorialBlockDto) {
+    const createdBlock = await this.dataSource.transaction(async (manager) => {
       const tutorial = await manager.findOneByOrFail(Tutorial, { id: tutorialId });
-
       const result = await manager
         .getRepository(TutorialBlock)
         .createQueryBuilder('b')
@@ -28,53 +25,39 @@ export class TutorialBlockService {
 
       let file: StoredFile | null = null;
 
+      this.validateBlock(dto.type, dto.content, dto.fileId);
+
       if (dto.fileId) {
         file = await this.activateFile(manager, dto.fileId);
       }
 
+      const order = (Number(result?.max ?? 0) || 0) + 1;
       const block = manager.create(TutorialBlock, {
-        tutorial,
         type: dto.type,
         content: dto.content,
-        order: Number(result?.max ?? 0) + 1,
+        tutorial,
+        order,
         ...(file && { file }),
       });
-
-      return manager.save(block);
+      return await manager.save(block);
     });
+    return this.mapBlock(createdBlock);
   }
 
-  async update(id: string, dto: UpdateTutorialBlockDto): Promise<TutorialBlock> {
-    return this.dataSource.transaction(async (manager) => {
-      const block = await manager.findOne(TutorialBlock, {
-        where: { id: id },
-        relations: { file: true },
-      });
+  async update(id: string, dto: UpdateTutorialBlockDto) {
+    const result = await this.dataSource.transaction(async (manager) => {
+      const block = await manager.findOne(TutorialBlock, { where: { id: id }, relations: { file: true } });
+      if (!block) throw new NotFoundException(`Block with id ${id} not found`);
 
-      if (!block) throw new NotFoundException();
+      this.validateBlock(block.type, dto.content ?? block.content, dto.fileId ?? block.file?.id);
 
-      const finalFileId = dto.fileId !== undefined ? dto.fileId : block.file?.id;
-
-      this.validateBlock(block.type, dto.content ?? block.content, finalFileId);
-
-      // Si cambia archivo → REMOVED el anterior
-      if (dto.fileId !== undefined && block.file && block.file.id !== dto.fileId) {
-        await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
+      if (dto.fileId && dto.fileId !== block.file?.id) {
+        if (block.file) await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
+        block.file = await this.activateFile(manager, dto.fileId);
       }
-
-      let newFile: StoredFile | null | undefined = undefined;
-
-      if (dto.fileId !== undefined) {
-        newFile = dto.fileId ? await this.activateFile(manager, dto.fileId) : null;
-      }
-
-      Object.assign(block, {
-        content: dto.content,
-        file: newFile,
-      });
-
       return manager.save(block);
     });
+    return this.mapBlock(result);
   }
 
   async remove(blockId: string) {
@@ -117,14 +100,23 @@ export class TutorialBlockService {
     return { ok: true, message: 'Order updated successfully' };
   }
 
-  // async reorder(tutorialId: string, blockIds: string[]) {
-  //   return this.dataSource.transaction(async (manager) => {
-  //     for (let i = 0; i < blockIds.length; i++) {
-  //       await manager.update(TutorialBlock, { id: blockIds[i], tutorial: { id: tutorialId } }, { order: i + 1 });
-  //     }
-  //     return { ok: true };
-  //   });
-  // }
+  mapBlock(block: TutorialBlock) {
+    return {
+      id: block.id,
+      type: block.type,
+      content: block.content,
+      order: block.order,
+      ...(block.file && {
+        file: {
+          id: block.file.id,
+          url: this.fileService.buildPublicFileUrl(block.file.id),
+          originalName: block.file.originalName,
+          mimeType: block.file.mimeType,
+          size: Number(block.file.sizeBytes),
+        },
+      }),
+    };
+  }
 
   private async activateFile(manager: EntityManager, fileId: string): Promise<StoredFile> {
     const file = await manager.findOne(StoredFile, {

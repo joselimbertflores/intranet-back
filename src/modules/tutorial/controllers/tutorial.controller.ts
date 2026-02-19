@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { TutorialBlockService, TutorialCategoryService, TutorialService } from '../services';
 import {
   CreateTutorialBlockDto,
@@ -27,9 +27,9 @@ export class TutorialController {
     return this.tutorialService.create(createTutorialDto);
   }
 
-  @Post('/:id/block')
-  createBlock(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateTutorialBlockDto) {
-    return this.tutorialBlockService.create(id, dto);
+  @Post('/:tutorialId/block')
+  createBlock(@Param('tutorialId', ParseUUIDPipe) tutorialId: string, @Body() dto: CreateTutorialBlockDto) {
+    return this.tutorialBlockService.create(tutorialId, dto);
   }
 
   @Patch(':id')
@@ -43,7 +43,7 @@ export class TutorialController {
   }
 
   @Get()
-  findAll(@Param() queryParams: PaginationParamsDto) {
+  findAll(@Query() queryParams: PaginationParamsDto) {
     return this.tutorialService.findAll(queryParams);
   }
 
@@ -57,8 +57,8 @@ export class TutorialController {
     return this.tutorialBlockService.updateBlocksOrder(id, dto);
   }
 
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.tutorialService.remove(+id);
-  // }
+  @Delete('block/:id')
+  remove(@Param('id') id: string) {
+    return this.tutorialBlockService.remove(id);
+  }
 }
