@@ -59,7 +59,7 @@ export class TutorialService {
       tutorial.category = category;
     }
     Object.assign(tutorial, proops);
-    await this.tutorialRepository.save(tutorial);
+    return await this.tutorialRepository.save(tutorial);
   }
 
   async remove(id: string) {

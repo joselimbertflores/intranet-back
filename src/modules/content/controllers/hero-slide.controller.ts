@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { HeroSlidesService } from '../services';
+import { BannerService } from '../services';
 import { ReplaceHeroSlideDto } from '../dtos';
 
 @Controller('hero-slide')
 export class HeroSlideController {
-  constructor(private readonly heroSlideService: HeroSlidesService) {}
+  constructor(private readonly heroSlideService: BannerService) {}
 
   @Put()
   replaceSlides(@Body() heroSlideDto: ReplaceHeroSlideDto) {

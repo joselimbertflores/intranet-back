@@ -48,6 +48,8 @@ export class TutorialBlockService {
     const result = await this.dataSource.transaction(async (manager) => {
       const block = await manager.findOne(TutorialBlock, { where: { id: id }, relations: { file: true } });
       if (!block) throw new NotFoundException(`Block with id ${id} not found`);
+      console.log('ACTUAL', block.content);
+      console.log('NUEVO', dto.content);
 
       this.validateBlock(block.type, dto.content ?? block.content, dto.fileId ?? block.file?.id);
 
@@ -55,7 +57,7 @@ export class TutorialBlockService {
         if (block.file) await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
         block.file = await this.activateFile(manager, dto.fileId);
       }
-      return manager.save(block);
+      return manager.save({ ...block, ...dto });
     });
     return this.mapBlock(result);
   }

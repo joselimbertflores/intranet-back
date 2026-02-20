@@ -1,2 +1,2 @@
-export * from "./hero-slides.entity"
-export * from "./quick-access.entity"
+export * from "./banner.entity"
+export * from "./quick-access-item"

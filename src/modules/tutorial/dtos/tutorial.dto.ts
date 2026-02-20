@@ -1,6 +1,17 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { TutorialBlockType } from '../entities';
 
 export class CreateTutorialBlockDto {
@@ -16,9 +27,7 @@ export class CreateTutorialBlockDto {
   fileId?: string;
 }
 
-export class UpdateTutorialBlockDto extends PartialType(OmitType(CreateTutorialBlockDto, ['type'] as const)) {
- 
-}
+export class UpdateTutorialBlockDto extends PartialType(OmitType(CreateTutorialBlockDto, ['type'] as const)) {}
 
 export class TutorialBlockActionsDto {
   @IsOptional()

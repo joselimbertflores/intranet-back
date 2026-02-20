@@ -1,14 +1,14 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { QuickAccessService } from '../services';
+import { QuickAccessItemService } from '../services';
 import { ReplaceQuickAccessDto } from '../dtos';
 
 @Controller('quick-access')
 export class QuickAccessController {
-  constructor(private quickAccesService: QuickAccessService) {}
+  constructor(private quickAccesService: QuickAccessItemService) {}
 
   @Put()
-  replaceItems(@Body() heroSlideDto: ReplaceQuickAccessDto) {
-    return this.quickAccesService.replaceItems(heroSlideDto);
+  replaceAll(@Body() heroSlideDto: ReplaceQuickAccessDto) {
+    return this.quickAccesService.replaceAll(heroSlideDto);
   }
 
   @Get()

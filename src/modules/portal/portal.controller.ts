@@ -6,7 +6,7 @@ import {
   DocumentSectionService,
   DocumentSearchService,
 } from '../documents/services';
-import { HeroSlidesService, QuickAccessService } from '../content/services';
+import { BannerService, QuickAccessItemService } from '../content/services';
 import { CommunicationService } from '../communications/communication.service';
 import { FilterDocumentsDto, SearchPortalDocumentsDto } from '../documents/dtos';
 import { PaginationParamsDto } from '../common';
@@ -16,9 +16,9 @@ import { Public } from '../auth/decorators';
 @Controller('portal')
 export class PortalController {
   constructor(
-    private quickAccessService: QuickAccessService,
+    private quickAccessService: QuickAccessItemService,
     private documentService: DocumentService,
-    private heroSlideService: HeroSlidesService,
+    private heroSlideService: BannerService,
     private coomunicationService: CommunicationService,
     private sectionService: DocumentSectionService,
   ) {}
