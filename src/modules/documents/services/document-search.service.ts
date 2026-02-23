@@ -71,6 +71,17 @@ export class DocumentSearchService {
     return { documents: this.plainDocuments(documents), total };
   }
 
+  async getMostDownloaded() {
+    const documents = await this.documentRepository.find({
+      where: { isActive: true },
+      relations: { file: true, section: true, type: true, subtype: true },
+      order: { file: { downloadCount: 'desc' } },
+      take: 8,
+    });
+
+    return this.plainDocuments(documents);
+  }
+
   private buildTreeSections(sections: DocumentSection[]): PortalDocumentSections[] {
     const map = new Map<string, PortalDocumentSections>();
     const roots: PortalDocumentSections[] = [];

@@ -9,5 +9,6 @@ import { DirectoryEntry } from './entities';
   imports: [TypeOrmModule.forFeature([DirectoryEntry])],
   controllers: [DirectoryController],
   providers: [DirectoryService],
+  exports: [DirectoryService],
 })
 export class DirectoryModule {}

@@ -66,4 +66,5 @@ export class QuickAccessItemService {
       return [...updated, ...created].sort((a, b) => a.order - b.order);
     });
   }
+
 }

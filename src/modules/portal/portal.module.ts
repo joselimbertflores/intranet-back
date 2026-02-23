@@ -1,10 +1,17 @@
 import { Module } from '@nestjs/common';
-import { PortalController } from './portal.controller';
+
+import { CommunicationsModule } from '../communications/communications.module';
 import { DocumentModule } from '../documents/document.module';
 import { ContentModule } from '../content/content.module';
-import { CommunicationsModule } from '../communications/communications.module';
-import { PortalAssistanceController, PortalCommunicationsController, PortalDocumentsController } from './controllers';
+import {
+  PortalCommunicationsController,
+  PortalAssistanceController,
+  PortalDocumentsController,
+  PortalDirectoryController,
+  PortalController,
+} from './controllers';
 import { TutorialModule } from '../tutorial/tutorial.module';
+import { DirectoryModule } from '../directory/directory.module';
 
 @Module({
   controllers: [
@@ -12,7 +19,8 @@ import { TutorialModule } from '../tutorial/tutorial.module';
     PortalCommunicationsController,
     PortalAssistanceController,
     PortalDocumentsController,
+    PortalDirectoryController,
   ],
-  imports: [DocumentModule, ContentModule, CommunicationsModule, TutorialModule],
+  imports: [DocumentModule, ContentModule, CommunicationsModule, TutorialModule, DirectoryModule],
 })
 export class PortalModule {}

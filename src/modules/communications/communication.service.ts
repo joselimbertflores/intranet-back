@@ -104,9 +104,13 @@ export class CommunicationService {
     await this.commRepository.update({ id }, { isActive });
   }
 
-  async getLatest(limit = 5) {
-    const communications = await this.commRepository.find({ order: { createdAt: 'DESC' }, take: limit });
-    // return communications.map((item) => this.plainCommunication(item));
+  async getLatest(limit = 10) {
+    const communications = await this.commRepository.find({
+      order: { createdAt: 'DESC' },
+      relations: { type: true, file: { derivedFiles: true } },
+      take: limit,
+    });
+    return communications.map((item) => this.toPublicDto(item));
   }
 
   async findPublicPaginated({ limit, offset, term, typeId }: GetPublicCommunicationsDto) {
@@ -152,6 +156,18 @@ export class CommunicationService {
         originalName: file.originalName,
         url: this.fileService.buildPublicFileUrl(file.id),
       },
+    };
+  }
+
+  private toPublicDto(communication: Communication) {
+    const { file, type, ...rest } = communication;
+
+    const preview = file.derivedFiles?.find((f) => f.mimeType.startsWith('image/'));
+
+    return {
+      ...rest,
+      type: type.name,
+      previewUrl: preview ? this.fileService.buildPublicFileUrl(preview.id) : null,
     };
   }
 
