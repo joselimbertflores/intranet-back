@@ -1,15 +1,15 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 
-export enum PortalBannerLinkType {
+export enum BannerLinkType {
   INTERNAL = 'INTERNAL',
   EXTERNAL = 'EXTERNAL',
 }
 
 @Entity('banners')
 export class Banner {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ length: 80, nullable: true })
   title?: string;
@@ -17,15 +17,14 @@ export class Banner {
   @Column({ type: 'text', nullable: true })
   subtitle?: string;
 
-  @ManyToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })
+  @OneToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn()
   image: StoredFile;
 
-  @Column({ type: 'enum', enum: PortalBannerLinkType, default: PortalBannerLinkType.INTERNAL })
-  linkType: PortalBannerLinkType;
+  @Column({ type: 'enum', enum: BannerLinkType, default: BannerLinkType.INTERNAL })
+  linkType: BannerLinkType;
 
-  @Column({ type: 'text' })
-  @Index()
+  @Column({ type: 'text', nullable: true })
   url: string;
 
   @Column({ default: false })

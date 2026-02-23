@@ -17,4 +17,7 @@ export class QuickAccessItem {
 
   @Column({ type: 'int', default: 0 })
   order: number;
+
+  @Column({ length: 7, nullable: true })
+  color?: string;
 }

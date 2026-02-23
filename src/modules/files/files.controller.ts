@@ -28,14 +28,14 @@ import { createReadStream } from 'fs';
 export class FilesController {
   constructor(private filesService: FilesService) {}
 
-  @Post('hero-section')
+  @Post('banners')
   @UseInterceptors(FileInterceptor('file'))
   uploadHeroSlideImage(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.HERO_SLIDES,
+            validTypes: ALLOWED_FILE_TYPES.banners,
           }),
         )
         .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
@@ -43,7 +43,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.saveTempFile(file);
+    return this.filesService.upload(file, FileContext.BANNERS);
   }
 
   // @Post('document')
@@ -71,7 +71,7 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.DOCUMENTS,
+            validTypes: ALLOWED_FILE_TYPES['document-records'],
           }),
         )
         .addMaxSizeValidator({ maxSize: 20 * 1024 * 1024 })
@@ -89,7 +89,7 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.QUICK_ACCESS,
+            validTypes: ALLOWED_FILE_TYPES['quick-access'],
           }),
         )
         .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
@@ -107,7 +107,7 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.TUTORIALS,
+            validTypes: ALLOWED_FILE_TYPES.tutorials,
           }),
         )
         .addMaxSizeValidator({
@@ -127,7 +127,7 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.COMMUNICATIONS,
+            validTypes: ALLOWED_FILE_TYPES.communications,
           }),
         )
         .addMaxSizeValidator({ maxSize: 10 * 1024 * 1024 })

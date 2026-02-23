@@ -87,7 +87,7 @@ export class DocumentRecord {
   @JoinColumn({ name: 'subtype_id' })
   subtype?: DocumentSubtype;
 
-  @ManyToOne(() => StoredFile)
+  @ManyToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'fileId' })
   file: StoredFile;
 

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 
 import { ReplaceQuickAccessDto } from '../dtos';
 import { QuickAccessItem } from '../entities';
@@ -18,53 +18,52 @@ export class QuickAccessItemService {
   }
 
   async replaceAll({ items = [] }: ReplaceQuickAccessDto): Promise<QuickAccessItem[]> {
-    const normalizedUrls = items.map((i) => i.url.trim());
-    if (new Set(normalizedUrls).size !== normalizedUrls.length) {
+    const normalized = items.map((i, index) => ({
+      id: i.id,
+      name: i.name.trim(),
+      icon: i.icon.trim(),
+      url: i.url,
+      color: i.color,
+      order: index,
+    }));
+
+    const urls = normalized.map((x) => x.url);
+    if (new Set(urls).size !== urls.length) {
       throw new BadRequestException('Duplicate URLs are not allowed in quick-access items.');
     }
 
-    const ids = items.filter((i) => i.id).map((i) => i.id!);
+    const ids = normalized.flatMap((x) => (x.id ? [x.id] : []));
     if (new Set(ids).size !== ids.length) {
       throw new BadRequestException('Duplicate IDs are not allowed in quick-access items.');
     }
 
     return this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(QuickAccessItem);
+      const repo = manager.getRepository(QuickAccessItem);
 
-      const existing = await repository.find({ select: { id: true } });
-      const existingIds = new Set(existing.map((e) => e.id));
-      const incomingIds = new Set(ids);
-
-      for (const id of incomingIds) {
-        if (!existingIds.has(id)) {
-          throw new NotFoundException(`Id ${id} does not exist. Items with an id must reference existing items.`);
+      if (ids.length) {
+        const found = await repo.find({ where: { id: In(ids) }, select: { id: true } });
+        const foundSet = new Set(found.map((e) => e.id));
+        const missing = ids.filter((id) => !foundSet.has(id));
+        if (missing.length) {
+          throw new NotFoundException(
+            `Some ids do not exist: ${missing.join(', ')}. Items with an id must reference existing items.`,
+          );
         }
       }
 
-      const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
-      if (toDelete.length) {
-        await repository.delete(toDelete);
+      if (ids.length) {
+        await repo.createQueryBuilder().delete().from(QuickAccessItem).where('id NOT IN (:...ids)', { ids }).execute();
+      } else {
+        await repo.createQueryBuilder().delete().from(QuickAccessItem).execute();
       }
 
-      const saved: QuickAccessItem[] = [];
-      for (let index = 0; index < items.length; index++) {
-        if (items[index].id) {
-          const entity = await repository.preload({
-            ...items[index],
-            order: index,
-          });
-          const updated = await repository.save({ ...entity, id: items[index].id });
-          saved.push(updated);
-        } else {
-          const entity = repository.create({
-            ...items[index],
-            order: index,
-          });
-          saved.push(await repository.save(entity));
-        }
-      }
-      saved.sort((a, b) => a.order - b.order);
-      return saved;
+      // 5) Upsert claro (update vs create)
+      const toUpdate = normalized.filter((x) => x.id) as Array<Required<(typeof normalized)[number]>>;
+      const toCreate = normalized.filter((x) => !x.id);
+
+      const updated = toUpdate.length ? await repo.save(toUpdate) : [];
+      const created = toCreate.length ? await repo.save(toCreate) : [];
+      return [...updated, ...created].sort((a, b) => a.order - b.order);
     });
   }
 }

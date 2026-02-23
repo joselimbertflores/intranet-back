@@ -7,7 +7,6 @@ import {
   IsArray,
   IsString,
   IsNotEmpty,
-  IsBoolean,
   MaxLength,
   IsOptional,
   ArrayMinSize,
@@ -23,6 +22,7 @@ export class QuickAccessItemDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   name: string;
 
   @IsString()
@@ -35,12 +35,14 @@ export class QuickAccessItemDto {
   @IsString()
   @IsNotEmpty()
   @IsUrl({ require_protocol: true, protocols: ['http', 'https'] })
-  @Transform(({ value }): string => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   url: string;
 
   @IsOptional()
-  @IsBoolean()
-  openInNewTab?: boolean = true;
+  @IsString()
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @Matches(/^#[0-9A-F]{6}$/, { message: 'color debe ser HEX #RRGGBB (ej: #2563EB)' })
+  color?: string;
 }
 export class ReplaceQuickAccessDto {
   @IsArray()

@@ -1,6 +1,8 @@
-export const ALLOWED_FILE_TYPES = {
-  HERO_SLIDES: ['jpg', 'jpeg', 'png'],
-  DOCUMENTS: [
+import { FileContext } from '../enums/file-context.enum';
+
+export const ALLOWED_FILE_TYPES: Record<FileContext, string[]> = {
+  [FileContext.BANNERS]: ['jpg', 'jpeg', 'png'],
+  [FileContext.DOCUMENT_RECORDS]: [
     'pdf',
     'odt',
     'ods',
@@ -17,7 +19,7 @@ export const ALLOWED_FILE_TYPES = {
     'mp3',
     'ogg',
   ],
-  QUICK_ACCESS: ['jpg', 'jpeg', 'png'],
-  COMMUNICATIONS: ['pdf'],
-  TUTORIALS: ['mp4', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'pptx'],
+  [FileContext.QUICK_ACCESS]: ['jpg', 'jpeg', 'png'],
+  [FileContext.COMMUNICATIONS]: ['pdf'],
+  [FileContext.TUTORIALS]: ['mp4', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'pptx'],
 };
