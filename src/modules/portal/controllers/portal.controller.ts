@@ -20,7 +20,7 @@ export class PortalController {
     const [quickAccess, banners, communications, documents] = await Promise.all([
       this.quickAccessService.findAll(),
       this.bannerService.findAll(),
-      this.communicationService.getLatest(),
+      this.communicationService.getLatestCommunications(),
       this.documentService.getMostDownloaded(),
     ]);
 

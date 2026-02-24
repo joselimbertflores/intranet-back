@@ -1,6 +1,6 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 
-import { GetPublicCommunicationsDto } from 'src/modules/communications/dtos/communication.dto';
+import { GetPortalCommunicationsDto } from 'src/modules/communications/dtos/communication.dto';
 import { CommunicationService } from 'src/modules/communications/communication.service';
 
 @Controller('portal/communications')
@@ -14,16 +14,11 @@ export class PortalCommunicationsController {
 
   @Get(':id')
   getOneCommunication(@Param('id', ParseUUIDPipe) id: string) {
-    return this.coomunicationService.getOne(id);
-  }
-
-  @Get('latest')
-  getLatest() {
-    return this.coomunicationService.getLatest();
+    return this.coomunicationService.getPortalCommunicationById(id);
   }
 
   @Get()
-  findAll(@Query() queryParams: GetPublicCommunicationsDto) {
-    return this.coomunicationService.findPublicPaginated(queryParams);
+  findAll(@Query() queryParams: GetPortalCommunicationsDto) {
+    return this.coomunicationService.getPortalCommunications(queryParams);
   }
 }

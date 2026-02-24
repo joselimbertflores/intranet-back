@@ -3,12 +3,27 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, ILike, Repository } from 'typeorm';
 
-import { CreateCommunicationDto, GetPublicCommunicationsDto, UpdateCommunicationDto } from './dtos';
+import { CreateCommunicationDto, GetPortalCommunicationsDto, UpdateCommunicationDto } from './dtos';
 import { Communication, TypeCommunication } from './entities';
 import { FilesService } from '../files/files.service';
 import { PaginationParamsDto } from '../common';
 import { FileStatus, StoredFile } from '../files/entities/stored-file.entity';
 
+export interface PortalCommunication {
+  id: string;
+  reference: string;
+  type: string;
+  createdAt: Date;
+  previewImageUrl?: string | null;
+  attachment?: Attachment;
+}
+
+export interface Attachment {
+  fileName: string;
+  mimeType: string;
+  url: string;
+  size?: number;
+}
 @Injectable()
 export class CommunicationService {
   constructor(
@@ -104,36 +119,73 @@ export class CommunicationService {
     await this.commRepository.update({ id }, { isActive });
   }
 
-  async getLatest(limit = 10) {
+  async getLatestCommunications(limit: number = 8): Promise<PortalCommunication[]> {
     const communications = await this.commRepository.find({
-      order: { createdAt: 'DESC' },
-      relations: { type: true, file: { derivedFiles: true } },
+      where: { isActive: true },
       take: limit,
+      relations: {
+        type: true,
+        file: { derivedFiles: true },
+      },
+      order: { createdAt: 'desc' },
     });
     return communications.map((item) => this.toPublicDto(item));
   }
 
-  async findPublicPaginated({ limit, offset, term, typeId }: GetPublicCommunicationsDto) {
-    const queryBuilder = this.commRepository.createQueryBuilder('c').leftJoinAndSelect('c.type', 'type');
-
-    if (term) {
-      queryBuilder.andWhere('(c.reference ILIKE :term OR c.code ILIKE :term)', { term: `%${term}%` });
-    }
-
-    if (typeId) {
-      queryBuilder.andWhere('c.typeId = :typeId', { typeId });
-    }
-
-    queryBuilder.orderBy('c.createdAt', 'DESC').skip(offset).take(limit);
-
-    const [communications, total] = await queryBuilder.getManyAndCount();
-    // return { communications: communications.map((item) => this.plainCommunication(item)), total };
+  async getPortalCommunications({
+    limit,
+    offset,
+    term,
+    typeId,
+  }: GetPortalCommunicationsDto): Promise<{ communications: PortalCommunication[]; total: number }> {
+    const [communications, total] = await this.commRepository.findAndCount({
+      where: {
+        ...(term && { reference: ILike(`%${term}%`) }),
+        ...(typeId && { type: { id: typeId } }),
+        isActive: true,
+      },
+      relations: {
+        type: true,
+        file: { derivedFiles: true },
+      },
+      take: limit,
+      skip: offset,
+      order: { createdAt: 'desc' },
+    });
+    return {
+      communications: communications.map((item) => this.toPublicDto(item)),
+      total,
+    };
   }
 
-  async getOne(id: string) {
-    const communication = await this.commRepository.findOne({ where: { id } });
-    if (!communication) throw new NotFoundException(`Communication ${id} not found`);
-    // return this.plainCommunication(communication);
+  async getPortalCommunicationById(id: string): Promise<PortalCommunication> {
+    const communication = await this.commRepository.findOne({
+      where: { id, isActive: true },
+      relations: {
+        type: true,
+        file: { derivedFiles: true },
+      },
+    });
+
+    if (!communication) {
+      throw new NotFoundException();
+    }
+
+    const image = communication.file.derivedFiles?.find((f) => f.mimeType.startsWith('image/'));
+    return {
+      id: communication.id,
+      type: communication.type.name,
+      reference: communication.reference,
+      createdAt: communication.createdAt,
+      previewImageUrl: image ? this.fileService.buildPublicFileUrl(image.id) : null,
+      ...(communication.file && {
+        attachment: {
+          fileName: communication.file.originalName,
+          mimeType: communication.file.mimeType,
+          url: this.fileService.buildPublicFileUrl(communication.file.id),
+        },
+      }),
+    };
   }
 
   async getTypes() {
@@ -144,6 +196,15 @@ export class CommunicationService {
     const communication = await this.commRepository.findOneBy({ id });
     if (!communication) throw new NotFoundException(`Communication ${id} not found`);
     return communication;
+  }
+
+  private async checkDuplicateCode(code: string) {
+    const duplicate = await this.commRepository.findOneBy({ code });
+    if (duplicate) throw new BadGatewayException(`Code: ${code} already exists`);
+  }
+
+  private normalizeCode(code: string): string {
+    return code.replace(/\s+/g, ' ').trim().toUpperCase();
   }
 
   private toAdminDto(communication: Communication) {
@@ -159,24 +220,12 @@ export class CommunicationService {
     };
   }
 
-  private toPublicDto(communication: Communication) {
-    const { file, type, ...rest } = communication;
-
-    const preview = file.derivedFiles?.find((f) => f.mimeType.startsWith('image/'));
-
+  toPublicDto({ file, type, ...rest }: Communication): PortalCommunication {
+    const image = file.derivedFiles?.find((f) => f.mimeType.startsWith('image/'));
     return {
       ...rest,
       type: type.name,
-      previewUrl: preview ? this.fileService.buildPublicFileUrl(preview.id) : null,
+      previewImageUrl: image ? this.fileService.buildPublicFileUrl(image.id) : null,
     };
-  }
-
-  private async checkDuplicateCode(code: string) {
-    const duplicate = await this.commRepository.findOneBy({ code });
-    if (duplicate) throw new BadGatewayException(`Code: ${code} already exists`);
-  }
-
-  private normalizeCode(code: string): string {
-    return code.replace(/\s+/g, ' ').trim().toUpperCase();
   }
 }

@@ -36,7 +36,7 @@ export class CreateTypeCommunicationDto {
   name: string;
 }
 
-export class GetPublicCommunicationsDto extends PaginationParamsDto {
+export class GetPortalCommunicationsDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsInt()
   @IsOptional()
