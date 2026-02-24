@@ -2,7 +2,9 @@ import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 
 import { GetPortalCommunicationsDto } from 'src/modules/communications/dtos/communication.dto';
 import { CommunicationService } from 'src/modules/communications/communication.service';
+import { Public } from 'src/modules/auth/decorators';
 
+@Public()
 @Controller('portal/communications')
 export class PortalCommunicationsController {
   constructor(private coomunicationService: CommunicationService) {}
@@ -13,12 +15,12 @@ export class PortalCommunicationsController {
   }
 
   @Get(':id')
-  getOneCommunication(@Param('id', ParseUUIDPipe) id: string) {
+  getPortalCommunicationById(@Param('id', ParseUUIDPipe) id: string) {
     return this.coomunicationService.getPortalCommunicationById(id);
   }
 
   @Get()
-  findAll(@Query() queryParams: GetPortalCommunicationsDto) {
+  getPortalCommunications(@Query() queryParams: GetPortalCommunicationsDto) {
     return this.coomunicationService.getPortalCommunications(queryParams);
   }
 }

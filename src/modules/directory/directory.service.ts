@@ -58,7 +58,6 @@ export class DirectoryService {
       relations: { parent: true },
       order: { order: 'asc' },
     });
-    console.log(entries);
     return this.buildTree(entries);
   }
 

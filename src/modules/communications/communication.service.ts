@@ -12,6 +12,7 @@ import { FileStatus, StoredFile } from '../files/entities/stored-file.entity';
 export interface PortalCommunication {
   id: string;
   reference: string;
+  code:string
   type: string;
   createdAt: Date;
   previewImageUrl?: string | null;
@@ -175,12 +176,14 @@ export class CommunicationService {
     return {
       id: communication.id,
       type: communication.type.name,
+      code: communication.code,
       reference: communication.reference,
       createdAt: communication.createdAt,
       previewImageUrl: image ? this.fileService.buildPublicFileUrl(image.id) : null,
       ...(communication.file && {
         attachment: {
           fileName: communication.file.originalName,
+          size: communication.file.sizeBytes,
           mimeType: communication.file.mimeType,
           url: this.fileService.buildPublicFileUrl(communication.file.id),
         },

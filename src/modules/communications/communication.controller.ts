@@ -24,7 +24,7 @@ export class CommunicationController {
   }
 
   @Get('types')
-  getTYpes() {
+  getTypes() {
     return this.communicationService.getTypes();
   }
 }
