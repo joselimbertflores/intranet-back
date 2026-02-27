@@ -5,6 +5,7 @@ import { CreateTutorialBlockDto, UpdateTutorialBlockDto, ReorderTutorialBlocksDt
 import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import { Tutorial, TutorialBlock, TutorialBlockType } from '../entities';
 import { FilesService } from 'src/modules/files/files.service';
+import { sanitizeHtml } from 'src/helpers';
 
 @Injectable()
 export class TutorialBlockService {
@@ -31,7 +32,11 @@ export class TutorialBlockService {
         file = await this.activateFile(manager, dto.fileId);
       }
 
-      const order = (Number(result?.max ?? 0) || 0) + 1;
+      if (dto.type === TutorialBlockType.TEXT && dto.content) {
+        dto.content = sanitizeHtml(dto.content);
+      }
+
+      const order = Number(result?.max ?? 0) + 1;
       const block = manager.create(TutorialBlock, {
         type: dto.type,
         content: dto.content,
@@ -48,8 +53,6 @@ export class TutorialBlockService {
     const result = await this.dataSource.transaction(async (manager) => {
       const block = await manager.findOne(TutorialBlock, { where: { id: id }, relations: { file: true } });
       if (!block) throw new NotFoundException(`Block with id ${id} not found`);
-      console.log('ACTUAL', block.content);
-      console.log('NUEVO', dto.content);
 
       this.validateBlock(block.type, dto.content ?? block.content, dto.fileId ?? block.file?.id);
 
@@ -57,7 +60,14 @@ export class TutorialBlockService {
         if (block.file) await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
         block.file = await this.activateFile(manager, dto.fileId);
       }
-      return manager.save({ ...block, ...dto });
+
+      if (block.type === TutorialBlockType.TEXT && dto.content) {
+        dto.content = sanitizeHtml(dto.content);
+      }
+
+      Object.assign(block, dto);
+
+      return manager.save(block);
     });
     return this.mapBlock(result);
   }

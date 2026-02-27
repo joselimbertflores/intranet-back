@@ -21,6 +21,6 @@ import { DirectoryModule } from '../directory/directory.module';
     PortalDocumentsController,
     PortalDirectoryController,
   ],
-  imports: [DocumentModule, ContentModule, CommunicationsModule, TutorialModule, DirectoryModule],
+  imports: [DocumentModule, ContentModule, CommunicationsModule, DirectoryModule, TutorialModule],
 })
 export class PortalModule {}
