@@ -90,7 +90,7 @@ export class TutorialService {
     const { blocks, ...props } = tutorial;
     return {
       ...props,
-      blocks: blocks.map((block) => this.tutorialBlockService.mapBlock(block)),
+      blocks: blocks.map((block) => this.tutorialBlockService.mapToAdminBlock(block)),
     };
   }
 

@@ -6,6 +6,7 @@ import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.e
 import { Tutorial, TutorialBlock, TutorialBlockType } from '../entities';
 import { FilesService } from 'src/modules/files/files.service';
 import { sanitizeHtml } from 'src/helpers';
+import { TutorialVideoHelper } from '../helpers';
 
 @Injectable()
 export class TutorialBlockService {
@@ -15,61 +16,69 @@ export class TutorialBlockService {
   ) {}
 
   async create(tutorialId: string, dto: CreateTutorialBlockDto) {
+    const { fileId, content, type } = dto;
     const createdBlock = await this.dataSource.transaction(async (manager) => {
       const tutorial = await manager.findOneByOrFail(Tutorial, { id: tutorialId });
-      const result = await manager
+
+      const { max } = (await manager
         .getRepository(TutorialBlock)
         .createQueryBuilder('b')
         .select('COALESCE(MAX(b.order), 0)', 'max')
         .where('b.tutorialId = :id', { id: tutorialId })
-        .getRawOne<{ max: number }>();
+        .getRawOne<{ max: number }>()) ?? { max: 0 };
+
+      this.validateBlock(type, content, fileId);
 
       let file: StoredFile | null = null;
-
-      this.validateBlock(dto.type, dto.content, dto.fileId);
-
       if (dto.fileId) {
         file = await this.activateFile(manager, dto.fileId);
       }
 
-      if (dto.type === TutorialBlockType.TEXT && dto.content) {
-        dto.content = sanitizeHtml(dto.content);
-      }
-
-      const order = Number(result?.max ?? 0) + 1;
       const block = manager.create(TutorialBlock, {
-        type: dto.type,
-        content: dto.content,
+        type,
         tutorial,
-        order,
+        content: this.transformContent(type, content),
+        order: Number(max) + 1,
         ...(file && { file }),
       });
-      return await manager.save(block);
-    });
-    return this.mapBlock(createdBlock);
-  }
-
-  async update(id: string, dto: UpdateTutorialBlockDto) {
-    const result = await this.dataSource.transaction(async (manager) => {
-      const block = await manager.findOne(TutorialBlock, { where: { id: id }, relations: { file: true } });
-      if (!block) throw new NotFoundException(`Block with id ${id} not found`);
-
-      this.validateBlock(block.type, dto.content ?? block.content, dto.fileId ?? block.file?.id);
-
-      if (dto.fileId && dto.fileId !== block.file?.id) {
-        if (block.file) await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
-        block.file = await this.activateFile(manager, dto.fileId);
-      }
-
-      if (block.type === TutorialBlockType.TEXT && dto.content) {
-        dto.content = sanitizeHtml(dto.content);
-      }
-
-      Object.assign(block, dto);
 
       return manager.save(block);
     });
-    return this.mapBlock(result);
+
+    return this.mapToAdminBlock(createdBlock);
+  }
+
+  async update(id: string, dto: UpdateTutorialBlockDto) {
+    const { content, ...toUpdate } = dto;
+    const result = await this.dataSource.transaction(async (manager) => {
+      const block = await manager.findOne(TutorialBlock, {
+        where: { id },
+        relations: { file: true },
+      });
+      if (!block) throw new NotFoundException(`Block with id ${id} not found`);
+
+      const nextContent = dto.content ?? block.content;
+      const nextFileId = dto.fileId ?? block.file?.id;
+
+      this.validateBlock(block.type, nextContent, nextFileId);
+
+      if (dto.fileId && dto.fileId !== block.file?.id) {
+        if (block.file) {
+          await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
+        }
+        block.file = await this.activateFile(manager, dto.fileId);
+      }
+
+      if (dto.content !== undefined) {
+        block.content = this.transformContent(block.type, dto.content);
+      }
+
+      Object.assign(block, toUpdate);
+
+      return manager.save(block);
+    });
+
+    return this.mapToAdminBlock(result);
   }
 
   async remove(blockId: string) {
@@ -112,7 +121,15 @@ export class TutorialBlockService {
     return { ok: true, message: 'Order updated successfully' };
   }
 
-  mapBlock(block: TutorialBlock) {
+  mapToAdminBlock(block: TutorialBlock) {
+    if (block.type === TutorialBlockType.VIDEO_URL && block.content) {
+      return {
+        id: block.id,
+        type: block.type,
+        order: block.order,
+        content: TutorialVideoHelper.toEmbedUrl(block.content),
+      };
+    }
     return {
       id: block.id,
       type: block.type,
@@ -142,17 +159,44 @@ export class TutorialBlockService {
     return file;
   }
 
-  private validateBlock(type: TutorialBlockType, content?: string, fileId?: string | null) {
-    if (type === TutorialBlockType.TEXT && !content) {
-      throw new BadRequestException('TEXT block requires content');
-    }
+  private validateBlock(type: TutorialBlockType, content?: string | null, fileId?: string | null) {
+    switch (type) {
+      case TutorialBlockType.TEXT:
+        if (!content?.trim()) {
+          throw new BadRequestException('TEXT block requires content');
+        }
+        break;
 
-    if (type === TutorialBlockType.VIDEO_URL && !content) {
-      throw new BadRequestException('VIDEO block requires URL');
-    }
+      case TutorialBlockType.VIDEO_URL:
+        if (!content?.trim()) {
+          throw new BadRequestException('VIDEO_URL block requires content');
+        }
+        break;
 
-    if ((type === TutorialBlockType.IMAGE || type === TutorialBlockType.FILE) && !fileId) {
-      throw new BadRequestException(`${type} block requires file`);
+      case TutorialBlockType.IMAGE:
+      case TutorialBlockType.VIDEO_FILE:
+      case TutorialBlockType.FILE:
+        if (!fileId) {
+          throw new BadRequestException(`${type} block requires file`);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  private transformContent(type: TutorialBlockType, content?: string): string | undefined {
+    if (!content) return undefined;
+    switch (type) {
+      case TutorialBlockType.TEXT:
+        return sanitizeHtml(content);
+
+      case TutorialBlockType.VIDEO_URL:
+        if (content.startsWith('youtube:')) return content;
+        return TutorialVideoHelper.normalizeContent(content);
+
+      default:
+        return content;
     }
   }
 }

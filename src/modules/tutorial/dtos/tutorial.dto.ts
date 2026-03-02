@@ -6,10 +6,12 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { TutorialBlockType } from '../entities';
@@ -18,38 +20,26 @@ export class CreateTutorialBlockDto {
   @IsEnum(TutorialBlockType)
   type: TutorialBlockType;
 
-  @IsOptional()
+  @ValidateIf(
+    (o: CreateTutorialBlockDto) => o.type === TutorialBlockType.TEXT || o.type === TutorialBlockType.VIDEO_URL,
+  )
+  @IsNotEmpty({ message: 'El contenido es requerido para textos o URLs de video' })
   @IsString()
   content?: string;
 
-  @IsOptional()
+  @ValidateIf(
+    (o: CreateTutorialBlockDto) =>
+      o.type === TutorialBlockType.IMAGE ||
+      o.type === TutorialBlockType.VIDEO_FILE ||
+      o.type === TutorialBlockType.FILE,
+  )
+  @IsNotEmpty({ message: 'El archivo es requerido para este tipo de bloque' })
   @IsUUID()
   fileId?: string;
 }
 
 export class UpdateTutorialBlockDto extends PartialType(OmitType(CreateTutorialBlockDto, ['type'] as const)) {}
 
-export class TutorialBlockActionsDto {
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => CreateTutorialBlockDto)
-  create?: CreateTutorialBlockDto[];
-
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => UpdateTutorialBlockDto)
-  update?: UpdateTutorialBlockDto[];
-
-  @IsOptional()
-  @IsUUID('4', { each: true })
-  remove?: string[];
-
-  @IsOptional()
-  @IsUUID('4', { each: true })
-  reorder?: string[];
-}
-
-export class TutorialBlockDto {}
 export class CreateTutorialDto {
   @IsString()
   title: string;

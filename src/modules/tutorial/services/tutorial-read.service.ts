@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
+import { Tutorial, TutorialBlockType } from '../entities';
 import { GetPortalTutorialsDto } from '../dtos';
-import { Tutorial } from '../entities';
-import { InjectRepository } from '@nestjs/typeorm';
+import { TutorialVideoHelper } from '../helpers';
 
 @Injectable()
 export class TutorialReadService {
@@ -60,7 +61,7 @@ export class TutorialReadService {
       slug: tutorial.slug,
       title: tutorial.title,
       summary: tutorial.summary,
-      createdAt: tutorial.createdAt.toISOString(),
+      createdAt: tutorial.createdAt,
       category: tutorial.category?.name ?? null,
       blocks: [...tutorial.blocks]
         .sort((a, b) => a.order - b.order)
@@ -68,7 +69,7 @@ export class TutorialReadService {
           id: block.id,
           type: block.type,
           order: block.order,
-          content: block.content ?? null,
+          content: this.handleContent(block.type, block.content ?? null),
           file: block.file
             ? {
                 id: block.file.id,
@@ -80,5 +81,11 @@ export class TutorialReadService {
             : null,
         })),
     };
+  }
+
+  private handleContent(type: TutorialBlockType, content: string | null) {
+    if (!content) return null;
+    if (type !== TutorialBlockType.VIDEO_URL) return content;
+    return TutorialVideoHelper.toEmbedUrl(content);
   }
 }
