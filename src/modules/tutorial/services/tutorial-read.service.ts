@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
-import { Tutorial, TutorialBlockType } from '../entities';
+import { Tutorial, TutorialBlockType, TutorialCategory } from '../entities';
 import { GetPortalTutorialsDto } from '../dtos';
 import { TutorialVideoHelper } from '../helpers';
 
@@ -11,12 +11,17 @@ import { TutorialVideoHelper } from '../helpers';
 export class TutorialReadService {
   constructor(
     @InjectRepository(Tutorial) private tutorialRepository: Repository<Tutorial>,
+    @InjectRepository(TutorialCategory) private tutorialCategoryRepository: Repository<TutorialCategory>,
     private fileServicce: FilesService,
   ) {}
 
-  async findPublicList({ limit, offset, category }: GetPortalTutorialsDto) {
+  async findPublicList({ limit, offset, term, categoryId }: GetPortalTutorialsDto) {
     const [tutorials, total] = await this.tutorialRepository.findAndCount({
-      where: { isPublished: true, ...(category && { category: { id: category } }) },
+      where: {
+        isPublished: true,
+        ...(categoryId && { category: { id: categoryId } }),
+        ...(term && { title: ILike(`%${term}%`) }),
+      },
       relations: { category: true },
       take: limit,
       skip: offset,
@@ -25,6 +30,7 @@ export class TutorialReadService {
 
     return {
       tutorials: tutorials.map((item) => ({
+        id: item.id,
         slug: item.slug,
         title: item.title,
         summary: item.summary,
@@ -53,6 +59,11 @@ export class TutorialReadService {
 
     if (!tutorial) throw new NotFoundException();
     return this.toPublicDetail(tutorial);
+  }
+
+  async getCategories() {
+    const result = await this.tutorialCategoryRepository.find({});
+    return result.map(({ id, name }) => ({ id, name }));
   }
 
   private toPublicDetail(tutorial: Tutorial) {

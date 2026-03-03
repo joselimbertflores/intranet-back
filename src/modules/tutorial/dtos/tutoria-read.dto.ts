@@ -6,5 +6,5 @@ export class GetPortalTutorialsDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsInt()
   @IsOptional()
-  category?: number;
+  categoryId?: number;
 }

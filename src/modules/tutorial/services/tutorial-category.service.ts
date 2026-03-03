@@ -75,7 +75,6 @@ export class TutorialCategoryService {
         throw new BadRequestException('Category slug already exists');
       }
     }
-
     throw new BadRequestException('Could not process tutorial category request');
   }
 }

@@ -8,6 +8,11 @@ import { TutorialReadService } from 'src/modules/tutorial/services';
 export class PortalAssistanceController {
   constructor(private tutorialReadService: TutorialReadService) {}
 
+  @Get('categories')
+  getCategoires() {
+    return this.tutorialReadService.getCategories();
+  }
+
   @Get()
   findAll(@Query() queryParams: GetPortalTutorialsDto) {
     return this.tutorialReadService.findPublicList(queryParams);
