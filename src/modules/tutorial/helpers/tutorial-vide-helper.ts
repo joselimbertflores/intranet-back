@@ -1,4 +1,3 @@
-
 export type ParsedVideoContent = {
   id: string;
   provider: 'youtube';
@@ -28,27 +27,20 @@ export class TutorialVideoHelper {
     return `https://www.youtube.com/embed/${videoId}`;
   }
 
-  /**
-   * Extrae el ID de YouTube desde URL o ID directo
-   */
   private static extractYoutubeId(input: string): string {
     const trimmed = input.trim();
 
-    // Si ya es un ID válido (11 chars)
+    // Caso 1: ID directo
     if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
       return trimmed;
     }
 
-    // Extraer desde URL
-    const match = trimmed.match(/(?:youtube\.com\/.*v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-
-
-    console.log(match);
+    // Casos URL válidos de YouTube (watch, short, embed)
+    const match = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
 
     if (!match) {
       throw new Error('Invalid YouTube URL');
     }
-
     return match[1];
   }
 }

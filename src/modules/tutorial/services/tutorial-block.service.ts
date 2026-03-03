@@ -37,7 +37,7 @@ export class TutorialBlockService {
       const block = manager.create(TutorialBlock, {
         type,
         tutorial,
-        content: this.transformContent(type, content),
+        content: this.normalizeContent(type, content),
         order: Number(max) + 1,
         ...(file && { file }),
       });
@@ -70,7 +70,7 @@ export class TutorialBlockService {
       }
 
       if (dto.content !== undefined) {
-        block.content = this.transformContent(block.type, dto.content);
+        block.content = this.normalizeContent(block.type, dto.content);
       }
 
       Object.assign(block, toUpdate);
@@ -185,7 +185,7 @@ export class TutorialBlockService {
     }
   }
 
-  private transformContent(type: TutorialBlockType, content?: string): string | undefined {
+  private normalizeContent(type: TutorialBlockType, content?: string): string | undefined {
     if (!content) return undefined;
     switch (type) {
       case TutorialBlockType.TEXT:
