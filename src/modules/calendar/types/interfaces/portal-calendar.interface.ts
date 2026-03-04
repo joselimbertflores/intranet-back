@@ -1,8 +1,8 @@
 export interface PortalCalendarDto {
   id: string;
   title: string;
-  start: string;
-  end?: string;
+  start: Date;
+  end?: Date;
   allDay: boolean;
   description?: string;
   location?: string;

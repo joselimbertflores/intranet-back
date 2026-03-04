@@ -1,36 +1,34 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CalendarEvent } from './entities';
+
 import { IsNull, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { RRule } from 'rrule';
+
 import { PortalCalendarDto } from './types/interfaces/portal-calendar.interface';
+import { CalendarEvent } from './entities';
 
 @Injectable()
 export class CalendarReadService {
   constructor(@InjectRepository(CalendarEvent) private eventRepo: Repository<CalendarEvent>) {}
 
-  async getEventsInRange(rangeStart: Date, rangeEnd: Date) {
+  async getEventsInRange(start: Date, end: Date) {
     const [singleEvents, recurringEvents] = await Promise.all([
-      this.getSingleEvents(rangeStart, rangeEnd),
-      this.getRecurringEvents(),
+      this.getSingleEvents(start, end),
+      this.getRecurringEvents(start, end),
     ]);
-
-    const expandedRecurring = recurringEvents.flatMap((event) =>
-      this.expandRecurringEvent(event, rangeStart, rangeEnd),
+    console.log( [...singleEvents, ...recurringEvents].length);
+    return [...singleEvents, ...recurringEvents].sort(
+      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
     );
-
-    return [...singleEvents, ...expandedRecurring];
   }
 
-  private async getSingleEvents(rangeStart: Date, rangeEnd: Date) {
+  private async getSingleEvents(start: Date, end: Date) {
     const events = await this.eventRepo.find({
       where: {
         isActive: true,
         recurrenceRule: IsNull(),
-        startDate: LessThanOrEqual(rangeEnd),
-        ...(rangeStart && {
-          endDate: MoreThanOrEqual(rangeStart),
-        }),
+        startDate: LessThanOrEqual(end),
+        endDate: MoreThanOrEqual(start),
       },
       relations: {
         communication: {
@@ -39,14 +37,15 @@ export class CalendarReadService {
       },
     });
 
-    return events.map((event) => this.toDto(event));
+    return events.map((event) => this.mapOccurrence(event, event.startDate, event.endDate));
   }
 
-  private async getRecurringEvents(): Promise<CalendarEvent[]> {
-    return this.eventRepo.find({
+  private async getRecurringEvents(start: Date, end: Date) {
+    const result = await this.eventRepo.find({
       where: {
         isActive: true,
         recurrenceRule: Not(IsNull()),
+        startDate: LessThanOrEqual(end),
       },
       relations: {
         communication: {
@@ -54,36 +53,44 @@ export class CalendarReadService {
         },
       },
     });
-  }
-
-  private toDto(event: CalendarEvent): PortalCalendarDto {
-    return {
-      id: event.id,
-      title: event.title,
-      description: event.description,
-      start: event.startDate.toISOString(),
-      end: event.endDate?.toISOString(),
-      allDay: event.allDay,
-      isRecurring: event.recurrenceConfig !== null,
-      ...(event.communication && {
-        id: event.communication.id,
-        reference: event.communication.reference,
-        code: event.communication.code,
-        type: event.communication.type.name,
-      }),
-    };
+    return result.flatMap((event) => this.expandRecurringEvent(event, start, end));
   }
 
   private expandRecurringEvent(event: CalendarEvent, rangeStart: Date, rangeEnd: Date) {
-    const rule = RRule.fromString(event.recurrenceRule!);
+    if (!event.recurrenceRule) return [];
+
+    const rule = RRule.fromString(event.recurrenceRule);
+    rule.options.dtstart = event.startDate;
 
     const durationMs = event.endDate ? event.endDate.getTime() - event.startDate.getTime() : 0;
 
     return rule.between(rangeStart, rangeEnd, true).map((date) => {
-      const start = new Date(date);
+      const start = date;
       const end = durationMs ? new Date(start.getTime() + durationMs) : undefined;
 
-      return this.toDto({ ...event,  });
+      return this.mapOccurrence(event, start, end);
     });
+  }
+
+  private mapOccurrence(event: CalendarEvent, start: Date, end?: Date): PortalCalendarDto {
+    const isRecurring = !!event.recurrenceRule;
+    return {
+      // Generar ids distintos para eventos recurrentes
+      id: isRecurring ? `${event.id}_${start.toISOString()}` : event.id,
+      title: event.title,
+      description: event.description,
+      start: start,
+      end: end,
+      allDay: event.allDay,
+      isRecurring,
+      ...(event.communication && {
+        communication: {
+          id: event.communication.id,
+          reference: event.communication.reference,
+          code: event.communication.code,
+          type: event.communication.type.name,
+        },
+      }),
+    };
   }
 }

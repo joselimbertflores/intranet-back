@@ -25,10 +25,10 @@ export class CalendarEvent {
   @Column({ type: 'text', nullable: true })
   description?: string;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'timestamptz' })
   startDate: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   endDate?: Date;
 
   @Column({ default: false })
