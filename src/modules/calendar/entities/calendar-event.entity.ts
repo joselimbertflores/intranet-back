@@ -28,8 +28,8 @@ export class CalendarEvent {
   @Column({ type: 'timestamptz' })
   startDate: Date;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  endDate?: Date;
+  @Column({ type: 'timestamptz' })
+  endDate: Date;
 
   @Column({ default: false })
   allDay: boolean;

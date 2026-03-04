@@ -38,10 +38,4 @@ export class EventController {
     return this.eventService.remove(id);
   }
 
-  @Get('list')
-  async list(@Query() q: GetCalendarRangeDto) {
-    const rangeStart = new Date(q.start);
-    const rangeEnd = new Date(q.end);
-    return this.eventService.getOccurrences(rangeStart, rangeEnd);
-  }
 }

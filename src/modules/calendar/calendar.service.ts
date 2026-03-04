@@ -3,68 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { EntityManager, ILike, Repository } from 'typeorm';
 import { RRule, rrulestr } from 'rrule';
+import { addDays, startOfDay } from 'date-fns';
 
 import { CalendarEvent } from './entities';
 import { CreateCalendarEventDto, RecurrenceConfigDto, UpdateCalendarEventDto } from './dtos';
 import { PaginationParamsDto } from '../common';
 import { CommunicationService } from '../communications/communication.service';
 import { Communication } from '../communications/entities';
-
-function overlapsRange(evStart: Date, evEnd: Date | null, rangeStart: Date, rangeEnd: Date) {
-  const end = evEnd ?? evStart; // si no hay endDate, se considera instante
-  return evStart < rangeEnd && end > rangeStart;
-}
-
-function addMs(date: Date, ms: number) {
-  return new Date(date.getTime() + ms);
-}
-
-// Helpers
-function toRRuleDate(date: Date) {
-  // formato UTC: YYYYMMDDTHHMMSSZ
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`;
-}
-
-function mapFreq(freq: string) {
-  switch (freq) {
-    case 'DAILY':
-      return RRule.DAILY;
-    case 'WEEKLY':
-      return RRule.WEEKLY;
-    case 'MONTHLY':
-      return RRule.MONTHLY;
-    case 'YEARLY':
-      return RRule.YEARLY;
-    default:
-      return RRule.WEEKLY;
-  }
-}
-
-function mapWeekdays(days?: string[]) {
-  if (!days?.length) return undefined;
-  const m: Record<string, any> = {
-    MO: RRule.MO,
-    TU: RRule.TU,
-    WE: RRule.WE,
-    TH: RRule.TH,
-    FR: RRule.FR,
-    SA: RRule.SA,
-    SU: RRule.SU,
-  };
-  return days.map((d) => m[d]).filter(Boolean);
-}
-
-export interface CalendarOccurrenceDto {
-  id: string; // id único por ocurrencia
-  parentId: string; // id del evento maestro (útil para editar)
-  title: string;
-  start: string; // ISO
-  end?: string; // ISO
-  allDay: boolean;
-  description?: string;
-  communicationId?: string;
-}
 
 @Injectable()
 export class CalendarService {
@@ -86,6 +31,8 @@ export class CalendarService {
   async create(dto: CreateCalendarEventDto) {
     const { communicationId, recurrence, ...props } = dto;
 
+    const { startDate, endDate } = this.normalizeDates(dto.startDate, dto.endDate, dto.allDay);
+
     let communication: Communication | null = null;
     if (communicationId) {
       communication = await this.communicationService.findByIdOrFail(communicationId);
@@ -94,7 +41,12 @@ export class CalendarService {
       if (existing) throw new BadRequestException('This communication already has an associated event');
     }
 
-    const model = this.eventRepository.create({ ...props, ...(communication && { communication }) });
+    const model = this.eventRepository.create({
+      ...props,
+      startDate,
+      endDate,
+      ...(communication && { communication }),
+    });
     if (recurrence) {
       model.recurrenceConfig = recurrence;
       model.recurrenceRule = this.buildRRule(recurrence, dto.startDate);
@@ -106,7 +58,16 @@ export class CalendarService {
     const event = await this.eventRepository.findOneBy({ id });
 
     if (!event) throw new NotFoundException('Event not found');
-    const { recurrence: newRecurrence, ...props } = dto;
+    const { recurrence: newRecurrence, startDate, endDate, ...props } = dto;
+
+    const start = startDate ?? event.startDate;
+    const end = endDate ?? event.endDate;
+    const allDay = dto.allDay ?? event.allDay;
+
+    const normalized = this.normalizeDates(start, end, allDay);
+
+    event.startDate = normalized.startDate;
+    event.endDate = normalized.endDate;
 
     if ('recurrence' in dto && newRecurrence === null) {
       event.recurrenceConfig = null;
@@ -118,7 +79,10 @@ export class CalendarService {
       event.recurrenceConfig = newConfigRecurrence;
       event.recurrenceRule = this.buildRRule(newConfigRecurrence, event.startDate);
     }
-    return this.eventRepository.save({ ...event, ...props });
+
+    Object.assign(event, props);
+
+    return this.eventRepository.save(event);
   }
 
   async getOne(id: string) {
@@ -157,80 +121,22 @@ export class CalendarService {
     }
   }
 
-  async getOccurrences(rangeStart: Date, rangeEnd: Date): Promise<CalendarOccurrenceDto[]> {
-    // 1) Trae eventos “maestros” que podrían aparecer en el rango
-    // OJO: para recurrentes, startDate puede ser antiguo pero igual aplica.
-    const masters = await this.eventRepository.find({
-      relations: { communication: true },
-    });
-
-    const out: CalendarOccurrenceDto[] = [];
-
-    for (const ev of masters) {
-      // NO recurrente
-      if (!ev.recurrenceRule && !ev.recurrenceConfig) {
-        if (overlapsRange(ev.startDate, ev.endDate ?? null, rangeStart, rangeEnd)) {
-          out.push({
-            id: ev.id,
-            parentId: ev.id,
-            title: ev.title,
-            start: ev.startDate.toISOString(),
-            end: ev.endDate?.toISOString(),
-            allDay: ev.allDay,
-            description: ev.description,
-            communicationId: ev.communication?.id,
-          });
-        }
-        continue;
-      }
-
-      // Recurrente (regla)
-      // Recomendación: usa recurrenceRule como fuente principal si existe.
-      // Asegúrate de que la regla tenga DTSTART (o lo fuerzas desde startDate).
-      const durationMs = ev.endDate ? ev.endDate.getTime() - ev.startDate.getTime() : 0;
-
-      let rule: RRule;
-
-      if (ev.recurrenceRule) {
-        // Si tu RRULE no incluye DTSTART, rrulestr usa "now" por defecto => malo.
-        // Solución simple: si no trae DTSTART, la prependes.
-        const hasDtStart = /DTSTART/i.test(ev.recurrenceRule);
-        const rruleStr = hasDtStart
-          ? ev.recurrenceRule
-          : `DTSTART:${toRRuleDate(ev.startDate)}\nRRULE:${ev.recurrenceRule.replace(/^RRULE:/i, '')}`;
-
-        rule = rrulestr(rruleStr) as RRule;
-      } else {
-        // Si solo tienes recurrenceConfig, construyes RRule desde ahí.
-        rule = new RRule({
-          freq: mapFreq(ev.recurrenceConfig!.frequency),
-          interval: ev.recurrenceConfig!.interval ?? 1,
-          byweekday: mapWeekdays(ev.recurrenceConfig!.byWeekDays),
-          dtstart: ev.startDate,
-          // until: opcional si lo manejas
-        });
-      }
-
-      // 2) Expande dentro del rango
-      const dates = rule.between(rangeStart, rangeEnd, true);
-
-      for (const d of dates) {
-        const occStart = d;
-        const occEnd = durationMs > 0 ? addMs(occStart, durationMs) : undefined;
-
-        out.push({
-          id: `${ev.id}__${occStart.toISOString()}`,
-          parentId: ev.id,
-          title: ev.title,
-          start: occStart.toISOString(),
-          end: occEnd?.toISOString(),
-          allDay: ev.allDay,
-          description: ev.description,
-          communicationId: ev.communication?.id,
-        });
-      }
+  private normalizeDates(start: Date, end: Date | undefined, allDay: boolean) {
+    if (allDay) {
+      const startDate = startOfDay(start);
+      return {
+        startDate: startDate,
+        endDate: addDays(startDate, 1),
+      };
     }
 
-    return out;
+    if (!end) {
+      throw new BadRequestException('endDate is required for timed events');
+    }
+
+    return {
+      startDate: start,
+      endDate: end,
+    };
   }
 }

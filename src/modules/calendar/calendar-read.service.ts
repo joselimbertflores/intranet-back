@@ -16,26 +16,21 @@ export class CalendarReadService {
       this.getSingleEvents(start, end),
       this.getRecurringEvents(start, end),
     ]);
-    console.log( [...singleEvents, ...recurringEvents].length);
     return [...singleEvents, ...recurringEvents].sort(
       (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
     );
   }
 
   private async getSingleEvents(start: Date, end: Date) {
-    const events = await this.eventRepo.find({
-      where: {
-        isActive: true,
-        recurrenceRule: IsNull(),
-        startDate: LessThanOrEqual(end),
-        endDate: MoreThanOrEqual(start),
-      },
-      relations: {
-        communication: {
-          type: true,
-        },
-      },
-    });
+    const events = await this.eventRepo
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.communication', 'communication')
+      .leftJoinAndSelect('communication.type', 'type')
+      .where('event.isActive = true')
+      .andWhere('event.recurrenceRule IS NULL')
+      .andWhere('event.startDate < :end', { end })
+      .andWhere('event.endDate > :start', { start })
+      .getMany();
 
     return events.map((event) => this.mapOccurrence(event, event.startDate, event.endDate));
   }
@@ -58,11 +53,10 @@ export class CalendarReadService {
 
   private expandRecurringEvent(event: CalendarEvent, rangeStart: Date, rangeEnd: Date) {
     if (!event.recurrenceRule) return [];
-
     const rule = RRule.fromString(event.recurrenceRule);
     rule.options.dtstart = event.startDate;
 
-    const durationMs = event.endDate ? event.endDate.getTime() - event.startDate.getTime() : 0;
+    const durationMs = event.endDate.getTime() - event.startDate.getTime();
 
     return rule.between(rangeStart, rangeEnd, true).map((date) => {
       const start = date;
