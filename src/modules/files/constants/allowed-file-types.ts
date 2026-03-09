@@ -19,7 +19,7 @@ export const ALLOWED_FILE_TYPES: Record<FileContext, string[]> = {
     'mp3',
     'ogg',
   ],
-  [FileContext.QUICK_ACCESS]: ['jpg', 'jpeg', 'png'],
+  [FileContext.QUICK_ACCESS]: [],
   [FileContext.COMMUNICATIONS]: ['pdf'],
   [FileContext.TUTORIALS]: ['mp4', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'pptx'],
 };

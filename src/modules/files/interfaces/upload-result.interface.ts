@@ -1,4 +1,5 @@
 export interface UploadResult {
-  fileId: string;
-  originalName: string;
+  id: string;
+  name: string;
+  message: string;
 }

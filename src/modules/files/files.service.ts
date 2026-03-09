@@ -1,42 +1,32 @@
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  InternalServerErrorException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 
-import { mkdir, rename, unlink, writeFile } from 'fs/promises';
-import { dirname, extname, join } from 'path';
-import { v4 as uuid } from 'uuid';
-import { existsSync } from 'fs';
-
-import { pdfToPng } from 'pdf-to-png-converter';
-
-import { EnvironmentVariables } from 'src/config';
-import { GetFileDto } from './dtos/get-file.dto';
-import { FileGroup } from './file-group.enum';
-import { FileStatus, StoredFile } from './entities/stored-file.entity';
+import { access, mkdir, writeFile } from 'fs/promises';
+import { dirname, join, parse } from 'path';
 import { Repository } from 'typeorm';
-import { FileContext } from './enums/file-context.enum';
-import { UploadResult } from './interfaces';
-import { generatePdfPreview } from 'src/helpers';
+import { v4 as uuid } from 'uuid';
+import { constants, existsSync } from 'fs';
+import sharp from 'sharp';
+import mime from 'mime-types';
 
-const FOLDERS: Record<string, string[]> = {
-  images: ['jpg', 'png', 'jpeg'],
-  documents: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ods', 'ppt'],
-  videos: ['mp4'],
-  audios: ['mp3'],
-};
+import { FileStatus, StoredFile } from './entities/stored-file.entity';
+import { FileContext } from './enums/file-context.enum';
+import { EnvironmentVariables } from 'src/config';
+import { generatePdfPreview } from 'src/helpers';
+import { UploadResult } from './interfaces';
+
+interface SaveFileParams {
+  buffer: Buffer;
+  originalName: string;
+  mimeType: string;
+  context: FileContext;
+}
 
 @Injectable()
 export class FilesService {
   private readonly BASE_UPLOAD_PATH = join(__dirname, '..', '..', '..', 'static', 'uploads');
-
-  private readonly TEMP_PATH = join(this.BASE_UPLOAD_PATH, 'temp');
 
   constructor(
     @InjectRepository(StoredFile) private readonly fileRepository: Repository<StoredFile>,
@@ -44,96 +34,71 @@ export class FilesService {
     private configService: ConfigService<EnvironmentVariables>,
   ) {}
 
-  async upload(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
-    const extension = extname(file.originalname).replace('.', '').toLowerCase();
-
-    if (!extension) {
-      throw new BadRequestException('File must have an extension');
-    }
-
-    const storedName = `${uuid()}.${extension}`;
-    const storageKey = `${context}/${storedName}`;
-    const finalPath = join(this.BASE_UPLOAD_PATH, storageKey);
-
-    await this.ensureFolderExists(dirname(finalPath));
-
-    // 1️⃣ Guardar archivo físico
-    await writeFile(finalPath, file.buffer);
-
-    // 2️⃣ Crear entidad StoredFile
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-
-    const entity = this.fileRepository.create({
-      storedName,
-      originalName,
-      storageKey,
+  async uploadFile(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
+    const saved = await this.saveFile({
+      buffer: file.buffer,
+      originalName: file.originalname,
       mimeType: file.mimetype,
-      sizeBytes: file.size,
+      context,
     });
 
-    const saved = await this.fileRepository.save(entity);
-
-    // 3️⃣ Respuesta al front
     return {
-      fileId: saved.id,
-      originalName: saved.originalName,
+      id: saved.id,
+      name: saved.originalName,
+      message: 'File uploaded successfully',
     };
   }
 
-  async uploadPdfWithDerivedPreview(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
-    if (file.mimetype !== 'application/pdf') {
-      throw new BadRequestException('Only PDF files are allowed');
-    }
-
-    const extension = extname(file.originalname).toLowerCase();
-    if (extension !== '.pdf') {
-      throw new BadRequestException('Invalid PDF extension');
-    }
-
-    const pdfStoredName = `${uuid()}.pdf`;
-    const pdfStorageKey = `${context}/${pdfStoredName}`;
-    const pdfPath = join(this.BASE_UPLOAD_PATH, pdfStorageKey);
-
-    await this.ensureFolderExists(dirname(pdfPath));
-    await writeFile(pdfPath, file.buffer);
-
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-
-    const pdfEntity = this.fileRepository.create({
-      storedName: pdfStoredName,
+  async uploadPdf(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
+    const savedPdf = await this.saveFile({
+      buffer: file.buffer,
+      originalName: file.originalname,
       mimeType: file.mimetype,
-      sizeBytes: file.size,
-      storageKey: pdfStorageKey,
-      originalName,
+      context,
     });
 
-    const savedPdf = await this.fileRepository.save(pdfEntity);
+    const pdfPath = join(this.BASE_UPLOAD_PATH, savedPdf.storageKey);
 
     const previewBuffer = await generatePdfPreview(pdfPath);
 
     if (previewBuffer) {
-      const previewStoredName = `${uuid()}.png`;
-      const previewStorageKey = `${context}/previews/${previewStoredName}`;
-      const previewPath = join(this.BASE_UPLOAD_PATH, previewStorageKey);
-
-      await this.ensureFolderExists(dirname(previewPath));
-
-      await writeFile(previewPath, previewBuffer);
-
-      const previewEntity = this.fileRepository.create({
-        storedName: previewStoredName,
-        originalName: originalName.replace(/\.pdf$/i, '') + ' (preview).png',
-        mimeType: 'image/png',
-        sizeBytes: previewBuffer.length,
-        storageKey: previewStorageKey,
-        parentFile: savedPdf,
-      });
-      await this.fileRepository.save(previewEntity);
+      await this.saveDerivedPreview(previewBuffer, savedPdf, context);
     }
 
     return {
-      fileId: savedPdf.id,
-      originalName: savedPdf.originalName,
+      id: savedPdf.id,
+      name: savedPdf.originalName,
+      message: 'File uploaded successfully',
+    };
+  }
+  async uploadImage(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
+    const optimizedBuffer = await sharp(file.buffer)
+      .resize({
+        width: 1600,
+        height: 1600,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({
+        quality: 75,
+        effort: 6,
+        smartSubsample: true,
+      })
+      .toBuffer();
+
+    const { name } = parse(file.originalname);
+
+    const saved = await this.saveFile({
+      buffer: optimizedBuffer,
+      originalName: `${name}.webp`,
+      mimeType: 'image/webp',
+      context,
+    });
+
+    return {
+      id: saved.id,
+      name: saved.originalName,
+      message: 'File uploaded successfully',
     };
   }
 
@@ -168,106 +133,22 @@ export class FilesService {
     return fullPath;
   }
 
-  async saveTempFile(file: Express.Multer.File) {
-    const extension = extname(file.originalname).replace('.', '').toLowerCase();
-    if (!extension) {
-      throw new BadRequestException('File must have an extension');
-    }
-
-    const fileName = `${uuid()}.${extension}`;
-    const tempFilePath = join(this.TEMP_PATH, fileName);
-
-    await this.ensureFolderExists(this.TEMP_PATH);
-
-    await writeFile(tempFilePath, file.buffer);
-
-    return {
-      fileName,
-      originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
-      mimeType: file.mimetype,
-      sizeBytes: file.size,
-    };
-  }
-
-  async finalizeFile(tempFileName: string, group: FileGroup): Promise<void> {
-    const tempPath = join(this.TEMP_PATH, tempFileName);
-
-    if (!existsSync(tempPath)) {
-      throw new InternalServerErrorException(`Temp file ${tempFileName} not found`);
-    }
-
-    const folder = this.resolveFolderByExtension(tempFileName);
-    const finalDir = join(this.BASE_UPLOAD_PATH, group, folder);
-    const finalPath = join(finalDir, tempFileName);
-
-    await this.ensureFolderExists(finalDir);
-
-    await rename(tempPath, finalPath);
-  }
-
-  /**
-   * Elimina archivo de su ubicación final
-   */
-  async deleteFile(fileName: string, group: FileGroup): Promise<void> {
-    const folder = this.resolveFolderByExtension(fileName);
-    const filePath = join(this.BASE_UPLOAD_PATH, group, folder, fileName);
-    if (existsSync(filePath)) {
-      await unlink(filePath);
-    }
-  }
-
-  /**
-   * Elimina múltiples archivos de su ubicación final
-   */
-  async deleteFiles(fileNames: string[], group: FileGroup): Promise<void> {
-    await Promise.all(fileNames.map((file) => this.deleteFile(file, group)));
-  }
-
-  async finalizeFiles(fileNames: string[], group: FileGroup): Promise<void> {
-    await Promise.all(fileNames.map((file) => this.finalizeFile(file, group)));
-  }
-
-  getStaticFilePath({ fileName, group }: GetFileDto): string {
-    const subfolder = this.resolveFolderByExtension(fileName);
-    const filePath = join(this.BASE_UPLOAD_PATH, group, subfolder, fileName);
-    if (!existsSync(filePath)) {
-      throw new BadRequestException(`No file found with name ${fileName}`);
-    }
-    return filePath;
-  }
-
-  private resolveFolderByExtension(fileName: string): string {
-    const extension = extname(fileName).replace('.', '').toLowerCase();
-    const folder = Object.keys(FOLDERS).find((key) => FOLDERS[key].includes(extension));
-    return folder || 'others';
-  }
-
-  async generatePdfThumbnail(pdfPath: string, outputPath: string): Promise<void> {
-    const [image] = await pdfToPng(pdfPath, {
-      pagesToProcess: [1],
-      viewportScale: 0.7,
-    });
-
-    if (!image?.content) {
-      throw new InternalServerErrorException('Failed to generate PDF thumbnail');
-    }
-
-    await writeFile(outputPath, image.content);
-  }
-
   async findFileOrFail(id: string): Promise<StoredFile> {
     const file = await this.fileRepository.findOne({ where: { id } });
     if (!file) throw new NotFoundException('File not found');
     return file;
   }
 
-  getAbsolutePath(file: StoredFile): string {
-    return join(this.BASE_UPLOAD_PATH, file.storageKey);
-  }
+  async getAbsolutePathOrFail(file: StoredFile): Promise<string> {
+    const path = join(this.BASE_UPLOAD_PATH, file.storageKey);
 
-  buildFileUrl(filename: string, group: FileGroup): string {
-    const host = this.configService.get('HOST', { infer: true });
-    return `${host}/files/${group}/${filename}`;
+    try {
+      await access(path, constants.R_OK);
+    } catch {
+      throw new NotFoundException('File missing from storage');
+    }
+
+    return path;
   }
 
   buildPublicFileUrl(id: string) {
@@ -286,9 +167,49 @@ export class FilesService {
     await this.cacheManager.set(cacheKey, true, 300000);
   }
 
-  private async ensureFolderExists(path: string): Promise<void> {
-    if (!existsSync(path)) {
-      await mkdir(path, { recursive: true });
+  private async saveFile(params: SaveFileParams): Promise<StoredFile> {
+    const { mimeType, context, buffer, originalName } = params;
+    const extension = mime.extension(mimeType);
+
+    if (!extension) {
+      throw new Error(`Unsupported mime type: ${mimeType}`);
     }
+
+    const storedName = `${uuid()}.${extension}`;
+    const storageKey = `${context}/${storedName}`;
+    const finalPath = join(this.BASE_UPLOAD_PATH, storageKey);
+
+    await this.ensureFolderExists(dirname(finalPath));
+    await writeFile(finalPath, buffer);
+
+    const normalizedName = Buffer.from(originalName, 'latin1').toString('utf8');
+
+    const entity = this.fileRepository.create({
+      storedName,
+      originalName: normalizedName,
+      storageKey,
+      mimeType,
+      sizeBytes: buffer.length,
+    });
+    return this.fileRepository.save(entity);
+  }
+
+  private async saveDerivedPreview(buffer: Buffer, parent: StoredFile, context: FileContext) {
+    const { name } = parse(parent.originalName);
+
+    const saved = await this.saveFile({
+      buffer,
+      originalName: `${name}-preview.png`,
+      mimeType: 'image/png',
+      context,
+    });
+
+    saved.parentFile = parent;
+
+    await this.fileRepository.save(saved);
+  }
+
+  private async ensureFolderExists(folderPath: string) {
+    await mkdir(folderPath, { recursive: true });
   }
 }

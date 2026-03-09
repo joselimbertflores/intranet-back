@@ -16,14 +16,15 @@ export class CustomFileTypeValidator extends FileValidator {
   async isValid(file?: Express.Multer.File): Promise<boolean> {
     if (!file) return false;
 
-    const detected = await fileTypeFromBuffer(file.buffer);
+    const detected = await fileTypeFromBuffer(file.buffer.subarray(0, 4100));
 
-    if (!detected) return false;
-
-    return this.allowedMimes.includes(detected.mime);
+    if (detected && this.allowedMimes.includes(detected.mime)) {
+      return true;
+    }
+    return this.allowedMimes.includes(file.mimetype);
   }
 
   buildErrorMessage(file: Express.Multer.File): string {
-    return `File "${file.originalname}" is not valid.`;
+    return `File "${file.originalname}" has an invalid type. Allowed types: ${this.allowedMimes.join(', ')}`;
   }
 }
