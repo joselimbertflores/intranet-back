@@ -5,10 +5,10 @@ import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 
-import { EnvironmentVariables } from 'src/config';
-import { UsersService } from '../../users/services';
 import { AccessTokenPayload, TokenRequestResponse } from '../interfaces';
 import { TokenVerifierService } from './token-verifier.service';
+import { UsersService } from '../../users/services';
+import { EnvironmentVariables } from 'src/config';
 
 @Injectable()
 export class OAuthuthService {
@@ -33,17 +33,21 @@ export class OAuthuthService {
     }
   }
 
-  buildAuthorizeUrl(): string {
+  buildAuthorizeUrl() {
     const idpUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
     const clientId = this.configService.getOrThrow<string>('CLIENT_KEY');
     const redirectUri = this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI');
+    const state = crypto.randomUUID();
 
     const authorizeUrl = new URL(`${idpUrl}/oauth/authorize`);
     authorizeUrl.searchParams.set('client_id', clientId);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
     authorizeUrl.searchParams.set('response_type', 'code');
-    // authorizeUrl.searchParams.set('state', redirectUri);
-    return authorizeUrl.toString();
+    authorizeUrl.searchParams.set('state', state);
+    return {
+      url: authorizeUrl.toString(),
+      state,
+    };
   }
 
   private async buildExchangeTokenRequest(code: string) {

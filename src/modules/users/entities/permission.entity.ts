@@ -1,21 +1,25 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, Unique } from 'typeorm';
 import { Role } from './role.entity';
 
+export enum Resource {
+  USERS = 'users',
+  COMMUNICATIONS = 'communications',
+  DOCUMENTS = 'documents',
+  TUTORIALS = 'tutorials',
+  CONTENT = 'content',
+}
 @Unique(['resource', 'action'])
 @Entity('permissions')
 export class Permission {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // Módulo (documents, events, content, portal, etc.)
-  @Column({ type: 'text' })
-  resource: string;
+  @Column({ type: 'varchar', length: 50 })
+  resource: Resource;
 
-  // Acción (create, update, delete, publish, upload…)
-  @Column({ type: 'text' })
+  @Column({ type: 'varchar', length: 50 })
   action: string;
 
-  // N:N con roles
   @ManyToMany(() => Role, (role) => role.permissions)
   roles: Role[];
 }

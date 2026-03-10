@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, Repository } from 'typeorm';
 
-import { CreateRoleDto, UpdateRoleDto } from '../dtos';
 import { PaginationParamsDto } from 'src/modules/common';
+import { CreateRoleDto, UpdateRoleDto } from '../dtos';
 import { Permission, Role } from '../entities';
 
 @Injectable()

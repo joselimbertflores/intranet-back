@@ -10,7 +10,9 @@ export class RoleController {
 
   @Get('permissions')
   getPermissions() {
-    return this.roleService.getGroupedPermissions();
+    const result = this.roleService.getGroupedPermissions();
+    console.log(result);
+    return result;
   }
 
   @Post()
