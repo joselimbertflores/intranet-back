@@ -11,8 +11,8 @@ export enum Resource {
 @Unique(['resource', 'action'])
 @Entity('permissions')
 export class Permission {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ type: 'varchar', length: 50 })
   resource: Resource;

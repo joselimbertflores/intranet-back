@@ -1,20 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Query } from '@nestjs/common';
+import { Controller, Get, Body, Patch, Param, Query } from '@nestjs/common';
 import { PaginationParamsDto } from 'src/modules/common';
 
-import { CreateUserDto, UpdateUserDto } from '../dtos';
+import { ProtectedResource } from 'src/modules/auth/decorators';
 import { RoleService, UsersService } from '../services';
-
+import { UpdateUserDto } from '../dtos';
+import { Resource } from '../entities';
+@ProtectedResource(Resource.USERS)
 @Controller('users')
 export class UsersController {
   constructor(
-    private readonly userService: UsersService,
     private readonly roleService: RoleService,
+    private readonly userService: UsersService,
   ) {}
-
-  @Get('seed/permissions')
-  executePermissionsSeed() {
-    return this.userService.executePermissionsSeed();
-  }
 
   @Get('roles')
   getRoles() {

@@ -1,7 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { TutorialCategoryService } from '../services';
-import { CreateTutorialCategoryDto, UpdateTutorialCategoryDto } from '../dtos';
 
+import { CreateTutorialCategoryDto, UpdateTutorialCategoryDto } from '../dtos';
+import { ProtectedResource } from 'src/modules/auth/decorators';
+import { Resource } from 'src/modules/users/entities';
+import { TutorialCategoryService } from '../services';
+@ProtectedResource(Resource.TUTORIALS)
 @Controller('tutorial-categories')
 export class TutorialCategoryController {
   constructor(private tutorialCategory: TutorialCategoryService) {}

@@ -8,7 +8,10 @@ import {
   UpdateTutorialDto,
 } from '../dtos';
 import { PaginationParamsDto } from 'src/modules/common';
+import { ProtectedResource } from 'src/modules/auth/decorators';
+import { Resource } from 'src/modules/users/entities';
 
+@ProtectedResource(Resource.TUTORIALS)
 @Controller('tutorials')
 export class TutorialController {
   constructor(

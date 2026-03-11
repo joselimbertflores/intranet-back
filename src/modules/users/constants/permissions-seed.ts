@@ -1,20 +1,24 @@
-export enum SystemResource {
-  COMMUNICATIONS = 'communications',
-  USERS = 'users',
-  DOCUMENTS = 'documents',
-}
+import { Resource } from '../entities';
 
 export const PERMISSIONS_SEED = [
   {
-    resource: SystemResource.COMMUNICATIONS,
+    resource: Resource.COMMUNICATIONS,
     actions: ['create', 'read', 'update', 'delete'],
   },
   {
-    resource: SystemResource.USERS,
+    resource: Resource.USERS,
     actions: ['create', 'read', 'update', 'delete'],
   },
   {
-    resource: SystemResource.DOCUMENTS,
+    resource: Resource.DOCUMENTS,
+    actions: ['create', 'read', 'update', 'delete'],
+  },
+  {
+    resource: Resource.TUTORIALS,
+    actions: ['create', 'read', 'update', 'delete'],
+  },
+  {
+    resource: Resource.CONTENT,
     actions: ['create', 'read', 'update', 'delete'],
   },
 ];

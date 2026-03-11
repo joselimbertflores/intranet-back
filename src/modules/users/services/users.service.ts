@@ -3,26 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, Repository } from 'typeorm';
 
 import { AccessTokenPayload } from 'src/modules/auth/interfaces';
-import { Permission, Role, User } from '../entities';
 import { PaginationParamsDto } from 'src/modules/common';
-import { PERMISSIONS_SEED } from '../constants';
+import { Role, User } from '../entities';
 import { UpdateUserDto } from '../dtos';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(Permission) private permissionRepository: Repository<Permission>,
     @InjectRepository(Role) private roleRepository: Repository<Role>,
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
-
-  async executePermissionsSeed() {
-    const permissions = PERMISSIONS_SEED.map(({ resource, actions }) =>
-      actions.map((action) => ({ resource, action })),
-    ).flat();
-    await this.permissionRepository.save(permissions);
-    return { ok: true, message: 'Permissions seeded successfully' };
-  }
 
   async findAll({ limit, offset, term }: PaginationParamsDto) {
     const [users, total] = await this.userRepository.findAndCount({

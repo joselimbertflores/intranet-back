@@ -5,6 +5,7 @@ import { ILike, In, Repository } from 'typeorm';
 import { PaginationParamsDto } from 'src/modules/common';
 import { CreateRoleDto, UpdateRoleDto } from '../dtos';
 import { Permission, Role } from '../entities';
+import { PERMISSIONS_SEED } from '../constants';
 
 @Injectable()
 export class RoleService {
@@ -12,6 +13,24 @@ export class RoleService {
     @InjectRepository(Permission) private permissionRepository: Repository<Permission>,
     @InjectRepository(Role) private roleRepository: Repository<Role>,
   ) {}
+
+  async findAll(paginatioDto: PaginationParamsDto) {
+    const { limit, offset, term } = paginatioDto;
+    const [roles, total] = await this.roleRepository.findAndCount({
+      relations: { permissions: true },
+      skip: offset,
+      take: limit,
+      ...(term && {
+        where: {
+          name: ILike(`%${term}%`),
+        },
+      }),
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+    return { roles, total };
+  }
 
   async create(roleDto: CreateRoleDto) {
     const { permissionIds, ...toCreateProps } = roleDto;
@@ -48,46 +67,39 @@ export class RoleService {
   }
 
   async getGroupedPermissions() {
-    const permissions = await this.permissionRepository.find();
-    const grouped = permissions.reduce(
-      (acc, perm) => {
-        if (!acc[perm.resource]) {
-          acc[perm.resource] = [];
-        }
-        acc[perm.resource].push({
-          id: perm.id,
-          action: perm.action,
-        });
-        return acc;
-      },
-      {} as Record<string, { id: string; action: string }[]>,
-    );
+    const permissions = await this.permissionRepository.find({});
 
-    return Object.entries(grouped).map(([resource, actions]) => ({
+    const grouped: Record<string, { id: number; action: string }[]> = {};
+
+    for (const perm of permissions) {
+      if (!grouped[perm.resource]) {
+        grouped[perm.resource] = [];
+      }
+      grouped[perm.resource].push({
+        id: perm.id,
+        action: perm.action,
+      });
+    }
+
+    return Object.entries(grouped).map(([resource, permissions]) => ({
       resource,
-      actions,
+      permissions,
     }));
-  }
-
-  async findAll(paginatioDto: PaginationParamsDto) {
-    const { limit, offset, term } = paginatioDto;
-    const [roles, total] = await this.roleRepository.findAndCount({
-      relations: { permissions: true },
-      skip: offset,
-      take: limit,
-      ...(term && {
-        where: {
-          name: ILike(`%${term}%`),
-        },
-      }),
-      order: {
-        createdAt: 'DESC',
-      },
-    });
-    return { roles, total };
   }
 
   async getRolesToUser() {
     return this.roleRepository.find({ select: { name: true, id: true, description: true } });
+  }
+
+  async executePermissionsSeed() {
+    const permissions = PERMISSIONS_SEED.flatMap(({ resource, actions }) =>
+      actions.map((action) => ({ resource, action })),
+    );
+    await this.permissionRepository.upsert(permissions, {
+      conflictPaths: ['resource', 'action'],
+      skipUpdateIfNoValuesChanged: true,
+    });
+
+    return { ok: true, message: 'Permissions seeded successfully' };
   }
 }

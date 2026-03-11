@@ -4,6 +4,7 @@ import {
   Ip,
   Param,
   ParseFilePipeBuilder,
+  ParseUUIDPipe,
   Post,
   Query,
   Res,
@@ -105,7 +106,7 @@ export class FilesController {
   async serveFile(
     @Res({ passthrough: true }) res: Response,
     @Ip() ip: string,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download') download?: string,
   ) {
     const file = await this.filesService.findFileOrFail(id);
