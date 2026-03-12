@@ -22,7 +22,7 @@ export class AuthController {
 
     return {
       ok: true,
-      message: 'Logged out',
+    message: 'Logged out from this system'
     };
   }
 }
