@@ -4,7 +4,7 @@ import type { Response } from 'express';
 
 import { User } from 'src/modules/users/entities';
 import { IdentityService } from '../services';
-import { GetAuthUser } from '../decorators';
+import { GetAuthUser, Public } from '../decorators';
 
 @Controller('auth')
 export class AuthController {
@@ -15,6 +15,8 @@ export class AuthController {
     return { user };
   }
 
+  // Borrar siempre la session
+  @Public()
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie('intranet_access');
@@ -22,7 +24,7 @@ export class AuthController {
 
     return {
       ok: true,
-    message: 'Logged out from this system'
+      message: 'Logged out from this system',
     };
   }
 }

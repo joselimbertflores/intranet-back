@@ -37,6 +37,10 @@ export class OAuthController {
 
     res.clearCookie('oauth_state');
 
+    // Borrar siempre los access y refresh antes de hacer set de los nuevos
+    res.clearCookie('intranet_access');
+    res.clearCookie('intranet_refresh');
+
     res.cookie('intranet_access', result.accessToken, {
       httpOnly: true,
       sameSite: 'lax',

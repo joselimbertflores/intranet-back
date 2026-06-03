@@ -50,7 +50,7 @@ export class OAuthGuard implements CanActivate {
       const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(accessToken);
       return this.identityService.loadUser(payload.externalKey);
     } catch (error: unknown) {
-      if (error instanceof HttpException) throw error;
+      // if (error instanceof HttpException) throw error;
       return null;
     }
   }

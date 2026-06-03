@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 
@@ -26,6 +26,9 @@ export class OAuthuthService {
       await this.userService.syncUserFromIdentity(decoded);
       return { result: data, url: this.configService.getOrThrow<string>('LOGIN_SUCCESS_REDIRECT') };
     } catch (error) {
+      console.error('Error during authorization code exchange:', error);
+      if (error instanceof HttpException) throw error;
+
       if (error instanceof AxiosError && error.response?.status === 401) {
         throw new UnauthorizedException(error.response.data);
       }

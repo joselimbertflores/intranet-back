@@ -20,7 +20,8 @@ export class TokenVerifierService {
     return jwt.verify(token, publicKey, {
       algorithms: ['RS256'],
       issuer: 'identity-hub',
-      audience: 'sso-clients',
+      // audience: 'sso-clients',
+      audience: 'intranet',
     }) as AccessTokenPayload;
   }
 }
