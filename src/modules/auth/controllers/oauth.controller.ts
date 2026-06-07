@@ -1,59 +1,75 @@
-import { Controller, Get, Query, Res, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Logger, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
 import { AuthCallbackParamsDto } from '../dtos';
-import { OAuthuthService } from '../services';
-import { Cookies, Public } from '../decorators';
+import { AuthCookieService, AuthRedirectService, OAuthService } from '../services';
+import { Public } from '../decorators';
 
 @Controller('auth')
 export class OAuthController {
-  constructor(private oAuthService: OAuthuthService) {}
+  private readonly logger = new Logger(OAuthController.name);
+
+  constructor(
+    private readonly oauthService: OAuthService,
+    private readonly authCookieService: AuthCookieService,
+    private readonly authRedirectService: AuthRedirectService,
+  ) {}
 
   @Get('login')
   @Public()
   login(@Res() response: Response) {
-    const { url, state } = this.oAuthService.buildAuthorizeUrl();
-    response.cookie('oauth_state', state, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: 5 * 60 * 1000,
-    });
+    const { url, state } = this.oauthService.buildAuthorizeUrl();
+    this.authCookieService.setOAuthStateCookie(response, state);
     return response.redirect(url);
   }
 
   @Get('callback')
   @Public()
   async callback(
+    @Req() request: Request,
     @Query() queryParams: AuthCallbackParamsDto,
-    @Cookies('oauth_state') cookieState: string,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    if (!queryParams.state || queryParams.state !== cookieState) {
-      throw new UnauthorizedException('Invalid OAuth state');
+    if (queryParams.error) {
+      return this.redirectToError(response, queryParams.error);
     }
 
-    const { result, url } = await this.oAuthService.exchangeAuthorizationCode(queryParams.code);
+    if (!this.validateCallbackState(request, queryParams.state)) {
+      return this.redirectToError(response, 'invalid_state');
+    }
 
-    res.clearCookie('oauth_state');
+    if (!queryParams.code) {
+      return this.redirectToError(response, 'missing_code');
+    }
 
-    // Borrar siempre los access y refresh antes de hacer set de los nuevos
-    res.clearCookie('intranet_access');
-    res.clearCookie('intranet_refresh');
+    try {
+      const tokens = await this.oauthService.completeAuthorizationCodeFlow(queryParams.code);
+      this.clearTemporaryOAuthState(response);
+      this.authCookieService.clearAuthCookies(response);
+      this.authCookieService.setAuthCookies(response, tokens);
 
-    res.cookie('intranet_access', result.accessToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.accessTokenExpiresIn * 1000,
-    });
+      return response.redirect(this.authRedirectService.buildSuccessRedirectUrl());
+    } catch (error: unknown) {
+      this.logger.error(
+        'OAuth callback failed during token exchange or user synchronization',
+        error instanceof Error ? error.stack : String(error),
+      );
 
-    res.cookie('intranet_refresh', result.refreshToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.refreshTokenExpiresIn * 1000,
-    });
-    return res.redirect(url);
+      return this.redirectToError(response, 'token_exchange_failed');
+    }
+  }
+
+  private redirectToError(response: Response, error: string) {
+    this.clearTemporaryOAuthState(response);
+    return response.redirect(this.authRedirectService.buildErrorRedirectUrl(error));
+  }
+
+  private validateCallbackState(request: Request, state?: string): boolean {
+    const cookieState = this.authCookieService.getOAuthState(request);
+    return Boolean(state && state === cookieState);
+  }
+
+  private clearTemporaryOAuthState(response: Response): void {
+    this.authCookieService.clearOAuthStateCookie(response);
   }
 }

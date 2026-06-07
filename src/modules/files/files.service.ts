@@ -6,7 +6,6 @@ import { ConfigService } from '@nestjs/config';
 import { access, mkdir, writeFile } from 'fs/promises';
 import { dirname, join, parse } from 'path';
 import { Repository } from 'typeorm';
-import { v4 as uuid } from 'uuid';
 import { constants, existsSync } from 'fs';
 import sharp from 'sharp';
 import mime from 'mime-types';
@@ -175,7 +174,7 @@ export class FilesService {
       throw new Error(`Unsupported mime type: ${mimeType}`);
     }
 
-    const storedName = `${uuid()}.${extension}`;
+    const storedName = `${crypto.randomUUID()}.${extension}`;
     const storageKey = `${context}/${storedName}`;
     const finalPath = join(this.BASE_UPLOAD_PATH, storageKey);
 

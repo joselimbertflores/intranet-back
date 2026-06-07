@@ -1,5 +1,5 @@
-import { plainToInstance } from 'class-transformer';
-import { IsNumber, IsString, validateSync } from 'class-validator';
+import { plainToInstance, Transform } from 'class-transformer';
+import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
   @IsNumber()
@@ -7,6 +7,13 @@ export class EnvironmentVariables {
 
   @IsString()
   HOST: string;
+
+  @IsIn(['development', 'production'])
+  NODE_ENV: 'development' | 'production';
+
+  @IsOptional()
+  @IsString()
+  CORS_ORIGIN?: string;
 
   @IsString()
   DATABASE_HOST: string;
@@ -21,23 +28,49 @@ export class EnvironmentVariables {
   DATABASE_USER: string;
 
   @IsString()
-  DATABASE_PASSWORD: StreamPipeOptions;
+  DATABASE_PASSWORD: string;
 
   @IsString()
   IDENTITY_HUB_URL: string;
 
   @IsString()
-  CLIENT_KEY: string;
+  IDENTITY_HUB_INTERNAL_URL: string;
+
+  @IsOptional()
+  @IsString()
+  IDENTITY_HUB_JWKS_URL?: string;
 
   @IsString()
-  CLIENT_SECRET: string;
+  @IsNotEmpty()
+  OAUTH_CLIENT_ID: string;
+
+  @IsString()
+  @IsNotEmpty()
+  OAUTH_CLIENT_SECRET: string;
 
   @IsString()
   OAUTH_REDIRECT_URI: string;
 
+  @IsOptional()
   @IsString()
-  LOGIN_SUCCESS_REDIRECT: string;
+  @IsNotEmpty()
+  INTRANET_UI_BASE_URL?: string;
 
+  @IsString()
+  @IsNotEmpty()
+  OAUTH_ISSUER: string;
+
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  AUTH_COOKIE_SECURE: boolean;
+
+  @IsOptional()
+  @IsIn(['lax', 'strict', 'none'])
+  AUTH_COOKIE_SAME_SITE?: 'lax' | 'strict' | 'none';
+
+  @IsOptional()
+  @IsString()
+  BOOTSTRAP_ADMIN_EXTERNAL_KEY?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

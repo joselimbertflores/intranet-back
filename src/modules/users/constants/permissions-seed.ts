@@ -2,15 +2,27 @@ import { Resource } from '../entities';
 
 export const PERMISSIONS_SEED = [
   {
-    resource: Resource.COMMUNICATIONS,
-    actions: ['create', 'read', 'update', 'delete'],
+    resource: Resource.USERS,
+    actions: ['create', 'read', 'update'],
   },
   {
-    resource: Resource.USERS,
+    resource: Resource.ROLES,
     actions: ['create', 'read', 'update', 'delete'],
   },
   {
     resource: Resource.DOCUMENTS,
+    actions: ['create', 'read', 'update', 'delete'],
+  },
+  {
+    resource: Resource.COMMUNICATIONS,
+    actions: ['create', 'read', 'update', 'delete'],
+  },
+  {
+    resource: Resource.CALENDAR,
+    actions: ['create', 'read', 'update', 'delete'],
+  },
+  {
+    resource: Resource.DIRECTORY,
     actions: ['create', 'read', 'update', 'delete'],
   },
   {
@@ -21,4 +33,4 @@ export const PERMISSIONS_SEED = [
     resource: Resource.CONTENT,
     actions: ['create', 'read', 'update', 'delete'],
   },
-];
+] as const;

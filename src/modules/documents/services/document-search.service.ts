@@ -121,7 +121,7 @@ export class DocumentSearchService {
     if (dto.section) {
       const section = await this.docSectionRepository.findOne({
         where: { slug: dto.section },
-        select: ['id'],
+        select: { id: true },
       });
       if (section) filters.sectionId = section.id;
     }
@@ -129,7 +129,7 @@ export class DocumentSearchService {
     if (dto.type) {
       const type = await this.docTypeRepository.findOne({
         where: { slug: dto.type },
-        select: ['id'],
+        select: { id: true },
       });
       if (type) filters.typeId = type.id;
     }
@@ -137,7 +137,7 @@ export class DocumentSearchService {
     if (dto.subtype) {
       const subtype = await this.docSubtypeRepository.findOne({
         where: { slug: dto.subtype },
-        select: ['id'],
+        select: { id: true },
       });
       if (subtype) filters.subtypeId = subtype.id;
     }
@@ -155,7 +155,7 @@ export class DocumentSearchService {
 
       const children = await this.docSectionRepository.find({
         where: { parent: { id: parentId } },
-        select: ['id'],
+        select: { id: true },
       });
 
       for (const child of children) {

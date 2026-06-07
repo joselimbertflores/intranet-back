@@ -9,11 +9,34 @@ export class LoginDto {
 }
 
 export class AuthCallbackParamsDto {
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  code: string;
+  code?: string;
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   state?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  error?: string;
+
+  @IsOptional()
+  @IsString()
+  error_description?: string;
+
+  @IsOptional()
+  @IsString()
+  error_uri?: string;
+
+  @IsOptional()
+  @IsString()
+  client_name?: string;
+
+  @IsOptional()
+  @IsString()
+  iss?: string;
 }

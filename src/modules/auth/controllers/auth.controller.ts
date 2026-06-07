@@ -3,24 +3,39 @@ import { Controller, Get, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
 import { User } from 'src/modules/users/entities';
-import { IdentityService } from '../services';
 import { GetAuthUser, Public } from '../decorators';
+import { AuthCookieService } from '../services';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private indetityService: IdentityService) {}
+  constructor(private readonly authCookieService: AuthCookieService) {}
 
-  @Get('status')
-  checkAuthStatus(@GetAuthUser() user: User) {
-    return { user };
+  @Get('me')
+  getMe(@GetAuthUser() user: User) {
+    return {
+      user: {
+        id: user.id,
+        externalKey: user.externalKey,
+        fullName: user.fullName,
+        isActive: user.isActive,
+        roles: (user.roles ?? []).map((role) => ({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          permissions: (role.permissions ?? []).map((permission) => ({
+            id: permission.id,
+            resource: permission.resource,
+            action: permission.action,
+          })),
+        })),
+      },
+    };
   }
 
-  // Borrar siempre la session
   @Public()
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('intranet_access');
-    res.clearCookie('intranet_refresh');
+    this.authCookieService.clearSessionCookies(res);
 
     return {
       ok: true,

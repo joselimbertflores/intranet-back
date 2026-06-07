@@ -5,14 +5,23 @@ import { Module } from '@nestjs/common';
 import { UsersModule } from '../users/users.module';
 import { OAuthGuard } from './guards/auth.guard';
 
-import { OAuthuthService, IdentityService, JwksService, TokenVerifierService } from './services';
+import {
+  AuthCookieService,
+  AuthRedirectService,
+  IdentityService,
+  JwksService,
+  OAuthService,
+  TokenVerifierService,
+} from './services';
 import { OAuthController } from './controllers';
 import { AuthController } from './controllers/auth.controller';
 @Module({
   controllers: [OAuthController, AuthController],
   providers: [
-    OAuthuthService,
+    OAuthService,
     IdentityService,
+    AuthCookieService,
+    AuthRedirectService,
     {
       provide: APP_GUARD,
       useClass: OAuthGuard,

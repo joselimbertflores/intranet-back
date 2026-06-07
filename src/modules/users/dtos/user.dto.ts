@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsEnum, IsOptional, IsBoolean, ArrayMinSize, IsArray, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -27,4 +27,22 @@ export class UpdateUserDto {
   @IsArray()
   @ArrayMinSize(1)
   roleIds: string[];
+}
+
+export class SearchIdentityCandidatesDto {
+  @IsOptional()
+  @IsString()
+  term = '';
+}
+
+export class ImportUserFromIdentityDto {
+  @IsNotEmpty()
+  @IsString()
+  externalKey: string;
+
+  @IsOptional()
+  @IsString({ each: true })
+  @IsArray()
+  @ArrayMinSize(1)
+  roleIds?: string[];
 }

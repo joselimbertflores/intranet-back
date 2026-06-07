@@ -1,18 +1,35 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwksClient } from 'jwks-rsa';
+
+import { EnvironmentVariables } from 'src/config';
+
 @Injectable()
 export class JwksService {
-  private client = new JwksClient({
-    jwksUri: process.env.IDENTITY_HUB_URL + '/.well-known/jwks.json',
-    cache: true,
-    cacheMaxEntries: 5,
-    cacheMaxAge: 10 * 60 * 1000,
-    rateLimit: true,
-    jwksRequestsPerMinute: 5,
-  });
+  private readonly client: JwksClient;
+
+  constructor(private readonly configService: ConfigService<EnvironmentVariables>) {
+    const configuredJwksUri = this.configService.get<string>('IDENTITY_HUB_JWKS_URL');
+    const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
+    const jwksUri =
+      configuredJwksUri ?? new URL('.well-known/jwks.json', this.ensureTrailingSlash(identityHubUrl)).toString();
+
+    this.client = new JwksClient({
+      jwksUri,
+      cache: true,
+      cacheMaxEntries: 5,
+      cacheMaxAge: 10 * 60 * 1000,
+      rateLimit: true,
+      jwksRequestsPerMinute: 5,
+    });
+  }
 
   async getPublicKey(kid: string): Promise<string> {
     const key = await this.client.getSigningKey(kid);
     return key.getPublicKey();
+  }
+
+  private ensureTrailingSlash(value: string): string {
+    return value.endsWith('/') ? value : `${value}/`;
   }
 }

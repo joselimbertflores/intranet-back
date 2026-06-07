@@ -1,42 +1,49 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 
-import { Repository } from 'typeorm';
 import { lastValueFrom } from 'rxjs';
 
 import { TokenRequestResponse } from '../interfaces';
 import { EnvironmentVariables } from 'src/config';
-import { User } from 'src/modules/users/entities';
 
 @Injectable()
 export class IdentityService {
   constructor(
-    private http: HttpService,
-    private configService: ConfigService<EnvironmentVariables>,
-    @InjectRepository(User) private userRepository: Repository<User>,
+    private readonly http: HttpService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
-  async refreshTokens(refreshToken: string) {
-    const url = `${this.configService.get('IDENTITY_HUB_URL')}/oauth/token`;
-    const response = await lastValueFrom(
-      this.http.post<TokenRequestResponse>(url, {
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: this.configService.getOrThrow<string>('CLIENT_KEY'),
-        client_secret: this.configService.getOrThrow<string>('CLIENT_SECRET'),
-      }),
-    );
+  exchangeCodeForTokens(code: string): Promise<TokenRequestResponse> {
+    return this.requestTokens({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI'),
+      client_id: this.configService.getOrThrow<string>('OAUTH_CLIENT_ID'),
+      client_secret: this.configService.getOrThrow<string>('OAUTH_CLIENT_SECRET'),
+    });
+  }
+
+  refreshTokens(refreshToken: string): Promise<TokenRequestResponse> {
+    return this.requestTokens({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: this.configService.getOrThrow<string>('OAUTH_CLIENT_ID'),
+      client_secret: this.configService.getOrThrow<string>('OAUTH_CLIENT_SECRET'),
+    });
+  }
+
+  private async requestTokens(payload: Record<string, string>): Promise<TokenRequestResponse> {
+    const response = await lastValueFrom(this.http.post<TokenRequestResponse>(this.getTokenUrl(), payload));
     return response.data;
   }
 
-  async loadUser(externalKey: string) {
-    const user = await this.userRepository.findOne({
-      where: { externalKey },
-      relations: { roles: { permissions: true } },
-    });
-    if (!user) throw new ForbiddenException('Not user fount.');
-    return user;
+  private getTokenUrl(): string {
+    const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
+    return new URL('oauth/token', this.ensureTrailingSlash(identityHubUrl)).toString();
+  }
+
+  private ensureTrailingSlash(value: string): string {
+    return value.endsWith('/') ? value : `${value}/`;
   }
 }

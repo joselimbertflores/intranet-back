@@ -1,9 +1,9 @@
-import { Controller, Get, Body, Patch, Param, Query } from '@nestjs/common';
+import { Controller, Get, Body, Patch, Param, Query, Post } from '@nestjs/common';
 import { PaginationParamsDto } from 'src/modules/common';
 
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { RoleService, UsersService } from '../services';
-import { UpdateUserDto } from '../dtos';
+import { ImportUserFromIdentityDto, SearchIdentityCandidatesDto, UpdateUserDto } from '../dtos';
 import { Resource } from '../entities';
 @ProtectedResource(Resource.USERS)
 @Controller('users')
@@ -21,6 +21,21 @@ export class UsersController {
   @Get()
   findAll(@Query() queryParams: PaginationParamsDto) {
     return this.userService.findAll(queryParams);
+  }
+
+  @Get('identity-candidates')
+  searchIdentityCandidates(@Query() queryParams: SearchIdentityCandidatesDto) {
+    return this.userService.searchIdentityCandidates(queryParams.term);
+  }
+
+  @Get('identity-candidates/:externalKey')
+  findIdentityCandidateByExternalKey(@Param('externalKey') externalKey: string) {
+    return this.userService.findIdentityCandidateByExternalKey(externalKey);
+  }
+
+  @Post('import-from-identity')
+  importFromIdentity(@Body() body: ImportUserFromIdentityDto) {
+    return this.userService.importFromIdentity(body);
   }
 
   @Patch(':id')

@@ -1,18 +1,36 @@
-import { Injectable, CanActivate, HttpException, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import type { Request, Response } from 'express';
 
-import { AccessTokenPayload, TokenRequestResponse } from '../interfaces';
-import { IdentityService, TokenVerifierService } from '../services';
+import { AccessTokenPayload } from '../interfaces';
+import { AccessTokenVerificationError, AuthCookieService, IdentityService, TokenVerifierService } from '../services';
 import { IS_PUBLIC_KEY } from '../decorators';
+import { UsersService } from 'src/modules/users/services';
+import { User } from 'src/modules/users/entities';
+
+interface AccessTokenAttemptResult {
+  user: User | null;
+  failure: AccessTokenVerificationError | null;
+}
 
 @Injectable()
 export class OAuthGuard implements CanActivate {
+  private readonly logger = new Logger(OAuthGuard.name);
+
   constructor(
-    private reflector: Reflector,
-    private identityService: IdentityService,
-    private tokenVerifierService: TokenVerifierService,
+    private readonly reflector: Reflector,
+    private readonly identityService: IdentityService,
+    private readonly usersService: UsersService,
+    private readonly authCookieService: AuthCookieService,
+    private readonly tokenVerifierService: TokenVerifierService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -25,66 +43,98 @@ export class OAuthGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const accessToken = request.cookies['intranet_access'] as string | undefined;
-    const refreshToken = request.cookies['intranet_refresh'] as string | undefined;
-
-    const user = await this.authenticate(accessToken, refreshToken, response);
+    const user = await this.authenticate(request, response);
     request['user'] = user;
     return true;
   }
 
-  private async authenticate(accessToken: string | undefined, refreshToken: string | undefined, res: Response) {
+  private async authenticate(request: Request, response: Response) {
+    const accessToken = this.authCookieService.getAccessToken(request);
+    const refreshToken = this.authCookieService.getRefreshToken(request);
+    let accessTokenFailure: AccessTokenVerificationError | null = null;
+
     if (accessToken) {
-      const user = await this.tryAccess(accessToken);
-      if (user) return user;
+      const result = await this.loadLocalUserFromAccessToken(accessToken);
+
+      if (result.user) {
+        return result.user;
+      }
+
+      accessTokenFailure = result.failure;
+
+      if (accessTokenFailure && !accessTokenFailure.canAttemptRefresh) {
+        this.logger.warn(`Rejecting request due to access token failure: ${accessTokenFailure.reason}`);
+        this.authCookieService.clearAuthCookies(response);
+        throw new UnauthorizedException('Session is no longer valid. Please login again.');
+      }
     }
+
     if (refreshToken) {
-      const user = await this.tryRefresh(refreshToken, res);
-      return user;
+      if (accessTokenFailure?.canAttemptRefresh) {
+        this.logger.debug(`Attempting refresh after access token failure: ${accessTokenFailure.reason}`);
+      }
+
+      return this.refreshSessionAndLoadLocalUser(refreshToken, response);
     }
+
+    if (accessTokenFailure) {
+      this.authCookieService.clearAuthCookies(response);
+      throw new UnauthorizedException('Session expired. Please login again.');
+    }
+
     throw new UnauthorizedException('Authentication required. Please login.');
   }
 
-  private async tryAccess(accessToken: string) {
+  private async loadLocalUserFromAccessToken(accessToken: string): Promise<AccessTokenAttemptResult> {
+    let payload: AccessTokenPayload;
+
     try {
-      const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(accessToken);
-      return this.identityService.loadUser(payload.externalKey);
-    } catch (error: unknown) {
-      // if (error instanceof HttpException) throw error;
-      return null;
+      payload = await this.tokenVerifierService.verifyAccessToken(accessToken);
+    } catch (error) {
+      if (error instanceof AccessTokenVerificationError) {
+        return { user: null, failure: error };
+      }
+
+      throw error;
     }
+
+    const user = await this.usersService.findByExternalKey(payload.externalKey);
+    this.assertAuthenticatedUser(user);
+
+    return { user, failure: null };
   }
 
-  private async tryRefresh(refreshToken: string, response: Response) {
+  private async refreshSessionAndLoadLocalUser(refreshToken: string, response: Response) {
     try {
-      const result = await this.identityService.refreshTokens(refreshToken);
-      this.setCookies(response, result);
-      const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(result.accessToken);
-      return await this.identityService.loadUser(payload.externalKey);
+      const tokens = await this.identityService.refreshTokens(refreshToken);
+      const payload: AccessTokenPayload = await this.tokenVerifierService.verifyAccessToken(tokens.accessToken);
+      const user = await this.usersService.findByExternalKey(payload.externalKey);
+      this.assertAuthenticatedUser(user);
+
+      this.authCookieService.setAuthCookies(response, tokens);
+
+      return user;
     } catch (error: unknown) {
-      this.clearCookies(response);
+      this.authCookieService.clearAuthCookies(response);
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
+
+      if (error instanceof UnauthorizedException && !(error instanceof AccessTokenVerificationError)) {
+        throw error;
+      }
+
       throw new UnauthorizedException('Token expired or invalid. Please login again.');
     }
   }
 
-  private setCookies(res: Response, result: TokenRequestResponse) {
-    res.cookie('intranet_access', result.accessToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.accessTokenExpiresIn * 1000,
-    });
+  private assertAuthenticatedUser(user: User | null): asserts user is User {
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
 
-    res.cookie('intranet_refresh', result.refreshToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: false,
-      maxAge: result.refreshTokenExpiresIn * 1000,
-    });
-  }
-
-  private clearCookies(res: Response) {
-    res.clearCookie('intranet_access');
-    res.clearCookie('intranet_refresh');
+    if (!user.isActive) {
+      throw new ForbiddenException('User is inactive');
+    }
   }
 }

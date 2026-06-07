@@ -3,13 +3,16 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { CreateRoleDto, UpdateRoleDto } from '../dtos';
 import { PaginationParamsDto } from 'src/modules/common';
-import { RoleService } from '../services';
+import { RoleService, SecurityBootstrapService } from '../services';
 import { Resource } from '../entities';
 
 @ProtectedResource(Resource.USERS)
 @Controller('roles')
 export class RoleController {
-  constructor(private roleService: RoleService) {}
+  constructor(
+    private roleService: RoleService,
+    private securityBootstrapService: SecurityBootstrapService,
+  ) {}
 
   @Get('permissions')
   getPermissions() {
@@ -18,8 +21,8 @@ export class RoleController {
 
   // @Public()
   @Get('seed/permissions')
-  executePermissionsSeed() {
-    return this.roleService.executePermissionsSeed();
+  seedPermissions() {
+    return this.securityBootstrapService.seedPermissions();
   }
 
   @Post()

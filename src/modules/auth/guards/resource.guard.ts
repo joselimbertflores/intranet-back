@@ -28,8 +28,8 @@ export class ResourceGuard implements CanActivate {
 
     if (!resource) return true;
 
-    const req: Request = context.switchToHttp().getRequest();
-    const user = req.user as User | undefined;
+    const req: Request & { user?: User } = context.switchToHttp().getRequest();
+    const user = req.user;
     if (!user) throw new InternalServerErrorException('User not authenticated');
 
     const action = methodToActionMap[req.method];

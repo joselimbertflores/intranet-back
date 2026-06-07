@@ -1,12 +1,23 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
+import { EnvironmentVariables } from './config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService<EnvironmentVariables>);
+
+  app.setGlobalPrefix('api', {
+    exclude: [
+      { path: 'auth/login', method: RequestMethod.GET },
+      { path: 'auth/callback', method: RequestMethod.GET },
+    ],
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -14,12 +25,16 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  app.enableCors({
-    origin: ['http://localhost:4200', 'http://localhost:5000'],
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
-  });
+
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const nodeEnv = configService.getOrThrow<'development' | 'production'>('NODE_ENV');
+
+  if (nodeEnv === 'development' && corsOrigin) {
+    console.log(`Enabling CORS for origin: ${corsOrigin}`);
+    app.enableCors({ origin: corsOrigin, credentials: true });
+  }
+
   app.use(cookieParser());
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(configService.get<number>('PORT') || 3000);
 }
-bootstrap();
+void bootstrap();

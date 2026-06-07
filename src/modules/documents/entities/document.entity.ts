@@ -92,7 +92,7 @@ export class DocumentRecord {
   file: StoredFile;
 
   @Column()
-  fileId: number;
+  fileId: string;
 
   @Column({ default: true })
   isActive: boolean;

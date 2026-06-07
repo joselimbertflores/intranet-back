@@ -5,7 +5,6 @@ import { ILike, In, Repository } from 'typeorm';
 import { PaginationParamsDto } from 'src/modules/common';
 import { CreateRoleDto, UpdateRoleDto } from '../dtos';
 import { Permission, Role } from '../entities';
-import { PERMISSIONS_SEED } from '../constants';
 
 @Injectable()
 export class RoleService {
@@ -53,7 +52,7 @@ export class RoleService {
   async update(id: string, roleDto: UpdateRoleDto) {
     const role = await this.roleRepository.findOne({
       where: { id },
-      relations: ['permissions'],
+      relations: { permissions: true },
     });
     if (!role) throw new NotFoundException(`Role with id ${id} not found`);
 
@@ -89,17 +88,5 @@ export class RoleService {
 
   async getRolesToUser() {
     return this.roleRepository.find({ select: { name: true, id: true, description: true } });
-  }
-
-  async executePermissionsSeed() {
-    const permissions = PERMISSIONS_SEED.flatMap(({ resource, actions }) =>
-      actions.map((action) => ({ resource, action })),
-    );
-    await this.permissionRepository.upsert(permissions, {
-      conflictPaths: ['resource', 'action'],
-      skipUpdateIfNoValuesChanged: true,
-    });
-
-    return { ok: true, message: 'Permissions seeded successfully' };
   }
 }

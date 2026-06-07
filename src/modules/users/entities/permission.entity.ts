@@ -3,6 +3,9 @@ import { Role } from './role.entity';
 
 export enum Resource {
   USERS = 'users',
+  ROLES = 'roles',
+  DIRECTORY = 'directory',
+  CALENDAR = 'calendar',
   COMMUNICATIONS = 'communications',
   DOCUMENTS = 'documents',
   TUTORIALS = 'tutorials',

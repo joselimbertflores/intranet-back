@@ -16,7 +16,7 @@ export class DocumentSectionService {
 
   async findAll(): Promise<DocumentSection[]> {
     return this.sectionRepository.find({
-      relations: ['parent'],
+      relations: { parent: true },
       order: {
         level: 'ASC',
         name: 'ASC',
