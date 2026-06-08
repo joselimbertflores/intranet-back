@@ -11,6 +11,7 @@ import {
   IdentityService,
   JwksService,
   OAuthService,
+  PkceService,
   TokenVerifierService,
 } from './services';
 import { OAuthController } from './controllers';
@@ -22,6 +23,7 @@ import { AuthController } from './controllers/auth.controller';
     IdentityService,
     AuthCookieService,
     AuthRedirectService,
+    PkceService,
     {
       provide: APP_GUARD,
       useClass: OAuthGuard,

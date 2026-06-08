@@ -16,15 +16,19 @@ async function bootstrap() {
 
     const result = await securityBootstrapService.bootstrapInitialAdmin(externalKey);
 
-    console.log('Permisos base sembrados correctamente.');
-    console.log('Rol ADMIN asegurado con todos los permisos existentes.');
+    console.log(
+      `Permisos base sincronizados: ${result.permissions.totalBasePermissions} total, ${result.permissions.createdPermissions} nuevos, ${result.permissions.existingPermissions} existentes.`,
+    );
+    console.log(
+      `Rol ADMIN sincronizado: ${result.adminRole.createdRole ? 'creado' : 'existente'}, ${result.adminRole.addedPermissions} permisos agregados, ${result.adminRole.totalPermissions} permisos asociados.`,
+    );
 
     if (result.status === 'admin-already-exists') {
       console.log('Ya existe al menos un ADMIN local. No se creo ningun usuario.');
       return;
     }
 
-    console.log(`ADMIN local creado correctamente para ${result.user.externalKey}.`);
+    console.log('Primer ADMIN local creado correctamente.');
   } catch (error) {
     process.exitCode = 1;
 

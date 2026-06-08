@@ -8,9 +8,6 @@ export class EnvironmentVariables {
   @IsString()
   HOST: string;
 
-  @IsIn(['development', 'production'])
-  NODE_ENV: 'development' | 'production';
-
   @IsOptional()
   @IsString()
   CORS_ORIGIN?: string;
@@ -29,6 +26,9 @@ export class EnvironmentVariables {
 
   @IsString()
   DATABASE_PASSWORD: string;
+
+  @IsIn(['true', 'false'])
+  DB_SYNCHRONIZE: 'true' | 'false';
 
   @IsString()
   IDENTITY_HUB_URL: string;

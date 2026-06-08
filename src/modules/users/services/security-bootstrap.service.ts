@@ -1,12 +1,38 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
 
 import { PERMISSIONS_SEED } from '../constants';
 import { Permission, Role, User } from '../entities';
 import { IdentityHubUsersClientService } from './identity-hub-users-client.service';
 
 const ADMIN_ROLE_NAME = 'ADMIN';
+type PermissionDefinition = Pick<Permission, 'resource' | 'action'>;
+
+export interface PermissionSyncResult {
+  totalBasePermissions: number;
+  createdPermissions: number;
+  existingPermissions: number;
+}
+
+export interface AdminRoleSyncResult {
+  createdRole: boolean;
+  totalPermissions: number;
+  addedPermissions: number;
+}
+
+export type InitialAdminBootstrapResult =
+  | {
+      status: 'admin-already-exists';
+      permissions: PermissionSyncResult;
+      adminRole: AdminRoleSyncResult;
+    }
+  | {
+      status: 'created';
+      permissions: PermissionSyncResult;
+      adminRole: AdminRoleSyncResult;
+      user: User;
+    };
 
 @Injectable()
 export class SecurityBootstrapService {
@@ -14,30 +40,120 @@ export class SecurityBootstrapService {
     @InjectRepository(Permission) private readonly permissionRepository: Repository<Permission>,
     @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    private readonly dataSource: DataSource,
     private readonly identityHubUsersClient: IdentityHubUsersClientService,
   ) {}
 
   async seedPermissions() {
-    const permissions = PERMISSIONS_SEED.flatMap(({ resource, actions }) =>
-      actions.map((action: string) => ({ resource, action })),
-    );
+    const result = await this.syncBasePermissions();
 
-    await this.permissionRepository.upsert(permissions, {
+    return { ok: true, message: 'Permissions synced successfully', ...result };
+  }
+
+  async ensureAdminRole(): Promise<Role> {
+    return this.syncAdminRole().then(({ role }) => role);
+  }
+
+  async bootstrapInitialAdmin(externalKey: string): Promise<InitialAdminBootstrapResult> {
+    const localBootstrap = await this.dataSource.transaction(async (manager) => {
+      const permissions = await this.syncBasePermissions(manager);
+      const adminRole = await this.syncAdminRole(manager);
+
+      if (await this.hasLocalAdmin(manager)) {
+        return { status: 'admin-already-exists' as const, permissions, adminRole };
+      }
+
+      const existingUser = await this.findLocalUserByExternalKey(externalKey, manager);
+
+      if (existingUser) {
+        throw new Error('El usuario local indicado ya existe y no es ADMIN. No fue promovido.');
+      }
+
+      return { status: 'needs-admin' as const, permissions, adminRole };
+    });
+
+    if (localBootstrap.status === 'admin-already-exists') {
+      return localBootstrap;
+    }
+
+    const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
+
+    if (identityUser.externalKey !== externalKey) {
+      throw new Error('El servicio de usuarios devolvio un identificador externo diferente al solicitado.');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      if (await this.hasLocalAdmin(manager)) {
+        return {
+          status: 'admin-already-exists' as const,
+          permissions: localBootstrap.permissions,
+          adminRole: localBootstrap.adminRole,
+        };
+      }
+
+      const existingUser = await this.findLocalUserByExternalKey(externalKey, manager);
+
+      if (existingUser) {
+        throw new Error('El usuario local indicado ya existe y no es ADMIN. No fue promovido.');
+      }
+
+      const adminRole = await manager.getRepository(Role).findOneOrFail({
+        where: { name: ADMIN_ROLE_NAME },
+      });
+      const user = manager.getRepository(User).create({
+        externalKey: identityUser.externalKey,
+        fullName: identityUser.fullName,
+        roles: [adminRole],
+        isActive: true,
+      });
+
+      try {
+        return {
+          status: 'created' as const,
+          permissions: localBootstrap.permissions,
+          adminRole: localBootstrap.adminRole,
+          user: await manager.getRepository(User).save(user),
+        };
+      } catch (error) {
+        if (this.isUniqueViolation(error)) {
+          throw new Error('El usuario ya existe en este cliente.', { cause: error });
+        }
+        throw error;
+      }
+    });
+  }
+
+  private async syncBasePermissions(manager?: EntityManager): Promise<PermissionSyncResult> {
+    const permissionRepository = this.getPermissionRepository(manager);
+    const permissions = this.getBasePermissionDefinitions();
+    const existingPermissions = await permissionRepository.find();
+    const existingKeys = new Set(existingPermissions.map((permission) => this.getPermissionKey(permission)));
+    const createdPermissions = permissions.filter((permission) => !existingKeys.has(this.getPermissionKey(permission)));
+
+    await permissionRepository.upsert(permissions, {
       conflictPaths: ['resource', 'action'],
       skipUpdateIfNoValuesChanged: true,
     });
 
-    return { ok: true, message: 'Permissions seeded successfully' };
+    return {
+      totalBasePermissions: permissions.length,
+      createdPermissions: createdPermissions.length,
+      existingPermissions: permissions.length - createdPermissions.length,
+    };
   }
 
-  async ensureAdminRole(): Promise<Role> {
-    const permissions = await this.permissionRepository.find();
+  private async syncAdminRole(
+    manager?: EntityManager,
+  ): Promise<{ role: Role; createdRole: boolean } & AdminRoleSyncResult> {
+    const permissionRepository = this.getPermissionRepository(manager);
+    const roleRepository = this.getRoleRepository(manager);
+    const permissions = await permissionRepository.find();
 
     if (permissions.length === 0) {
       throw new Error('No hay permisos base sembrados. Ejecuta seedPermissions() antes de asegurar el rol ADMIN.');
     }
 
-    const existingRole = await this.roleRepository.findOne({
+    const existingRole = await roleRepository.findOne({
       where: { name: ADMIN_ROLE_NAME },
       relations: { permissions: true },
     });
@@ -47,73 +163,78 @@ export class SecurityBootstrapService {
       const missingPermissions = permissions.filter((permission) => !existingPermissionIds.has(permission.id));
 
       if (missingPermissions.length === 0) {
-        return existingRole;
+        return {
+          role: existingRole,
+          createdRole: false,
+          totalPermissions: permissions.length,
+          addedPermissions: 0,
+        };
       }
 
       existingRole.permissions = [...(existingRole.permissions ?? []), ...missingPermissions];
-      return this.roleRepository.save(existingRole);
+      return {
+        role: await roleRepository.save(existingRole),
+        createdRole: false,
+        totalPermissions: permissions.length,
+        addedPermissions: missingPermissions.length,
+      };
     }
 
-    const adminRole = this.roleRepository.create({
+    const adminRole = roleRepository.create({
       name: ADMIN_ROLE_NAME,
       description: 'Administrador local de Intranet',
       permissions,
     });
 
-    return this.roleRepository.save(adminRole);
+    return {
+      role: await roleRepository.save(adminRole),
+      createdRole: true,
+      totalPermissions: permissions.length,
+      addedPermissions: permissions.length,
+    };
   }
 
-  async bootstrapInitialAdmin(externalKey: string) {
-    await this.seedPermissions();
-    const adminRole = await this.ensureAdminRole();
-
-    const hasLocalAdmin = await this.hasLocalAdmin();
-
-    if (hasLocalAdmin) {
-      return { status: 'admin-already-exists' as const };
-    }
-
-    const existingUser = await this.findLocalUserByExternalKey(externalKey);
-
-    if (existingUser) {
-      throw new Error(`El usuario local con externalKey ${externalKey} ya existe y no es ADMIN. No fue promovido.`);
-    }
-
-    const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
-
-    if (identityUser.externalKey !== externalKey) {
-      throw new Error('El servicio de usuarios devolvio un identificador externo diferente al solicitado.');
-    }
-
-    const user = this.userRepository.create({
-      externalKey: identityUser.externalKey,
-      fullName: identityUser.fullName,
-      roles: [adminRole],
-      isActive: true,
-    });
-
-    try {
-      return { status: 'created' as const, user: await this.userRepository.save(user) };
-    } catch (error) {
-      if (this.isUniqueViolation(error)) {
-        throw new Error('El usuario ya existe en este cliente.', { cause: error });
-      }
-      throw error;
-    }
-  }
-
-  private async hasLocalAdmin(): Promise<boolean> {
-    return this.userRepository
+  private async hasLocalAdmin(manager?: EntityManager): Promise<boolean> {
+    return this.getUserRepository(manager)
       .createQueryBuilder('user')
       .innerJoin('user.roles', 'role', 'role.name = :roleName', { roleName: ADMIN_ROLE_NAME })
       .getExists();
   }
 
-  private findLocalUserByExternalKey(externalKey: string) {
-    return this.userRepository.findOne({
+  private findLocalUserByExternalKey(externalKey: string, manager?: EntityManager) {
+    return this.getUserRepository(manager).findOne({
       where: { externalKey },
       relations: { roles: true },
     });
+  }
+
+  private getBasePermissionDefinitions(): PermissionDefinition[] {
+    const permissions = PERMISSIONS_SEED.flatMap(({ resource, actions }) =>
+      actions.map((action: string) => ({ resource, action })),
+    );
+    const uniquePermissions = new Map<string, PermissionDefinition>();
+
+    for (const permission of permissions) {
+      uniquePermissions.set(this.getPermissionKey(permission), permission);
+    }
+
+    return [...uniquePermissions.values()];
+  }
+
+  private getPermissionKey(permission: PermissionDefinition): string {
+    return `${permission.resource}:${permission.action}`;
+  }
+
+  private getPermissionRepository(manager?: EntityManager): Repository<Permission> {
+    return manager?.getRepository(Permission) ?? this.permissionRepository;
+  }
+
+  private getRoleRepository(manager?: EntityManager): Repository<Role> {
+    return manager?.getRepository(Role) ?? this.roleRepository;
+  }
+
+  private getUserRepository(manager?: EntityManager): Repository<User> {
+    return manager?.getRepository(User) ?? this.userRepository;
   }
 
   private isUniqueViolation(error: unknown): boolean {

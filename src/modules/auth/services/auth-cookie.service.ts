@@ -11,16 +11,22 @@ export class AuthCookieService {
   private readonly accessCookieName = 'intranet_access';
   private readonly refreshCookieName = 'intranet_refresh';
   private readonly stateCookieName = 'intranet_oauth_state';
+  private readonly pkceVerifierCookieName = 'intranet_pkce_verifier';
   private readonly oauthStateMaxAgeMs = 5 * 60 * 1000;
 
   constructor(private readonly configService: ConfigService<EnvironmentVariables>) {}
 
-  setOAuthStateCookie(response: Response, state: string) {
-    response.cookie(this.stateCookieName, state, this.getCookieOptions(this.oauthStateMaxAgeMs));
+  setOAuthTransactionCookies(response: Response, state: string, codeVerifier: string) {
+    // Short-lived OAuth transaction cookies correlate callback state and keep the PKCE verifier out of readable frontend state.
+    const options = this.getOAuthTransactionCookieOptions();
+    response.cookie(this.stateCookieName, state, options);
+    response.cookie(this.pkceVerifierCookieName, codeVerifier, options);
   }
 
-  clearOAuthStateCookie(response: Response) {
-    response.clearCookie(this.stateCookieName, this.getBaseCookieOptions());
+  clearOAuthTransactionCookies(response: Response) {
+    const options = this.getOAuthTransactionBaseCookieOptions();
+    response.clearCookie(this.stateCookieName, options);
+    response.clearCookie(this.pkceVerifierCookieName, options);
   }
 
   setAuthCookies(response: Response, tokens: TokenRequestResponse) {
@@ -43,7 +49,7 @@ export class AuthCookieService {
 
   clearSessionCookies(response: Response): void {
     this.clearAuthCookies(response);
-    this.clearOAuthStateCookie(response);
+    this.clearOAuthTransactionCookies(response);
   }
 
   getAccessToken(request: Request): string | undefined {
@@ -58,12 +64,30 @@ export class AuthCookieService {
     return request.cookies[this.stateCookieName] as string | undefined;
   }
 
+  getPkceVerifier(request: Request): string | undefined {
+    return request.cookies[this.pkceVerifierCookieName] as string | undefined;
+  }
+
   private getBaseCookieOptions(): CookieOptions {
     return {
       httpOnly: true,
       sameSite: this.getSameSite(),
       secure: this.configService.getOrThrow<boolean>('AUTH_COOKIE_SECURE'),
       path: '/',
+    };
+  }
+
+  private getOAuthTransactionBaseCookieOptions(): CookieOptions {
+    return {
+      ...this.getBaseCookieOptions(),
+      path: '/auth',
+    };
+  }
+
+  private getOAuthTransactionCookieOptions(): CookieOptions {
+    return {
+      ...this.getOAuthTransactionBaseCookieOptions(),
+      maxAge: this.oauthStateMaxAgeMs,
     };
   }
 

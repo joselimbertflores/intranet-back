@@ -14,10 +14,11 @@ export class IdentityService {
     private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
-  exchangeCodeForTokens(code: string): Promise<TokenRequestResponse> {
+  exchangeCodeForTokens(code: string, codeVerifier: string): Promise<TokenRequestResponse> {
     return this.requestTokens({
       grant_type: 'authorization_code',
       code,
+      code_verifier: codeVerifier,
       redirect_uri: this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI'),
       client_id: this.configService.getOrThrow<string>('OAUTH_CLIENT_ID'),
       client_secret: this.configService.getOrThrow<string>('OAUTH_CLIENT_SECRET'),
