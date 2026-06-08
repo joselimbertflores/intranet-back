@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { DocumentRecord, DocumentSection, DocumentType, DocumentSubtype } from './entities';
 import { DocumentTypeService, DocumentService, DocumentSectionService } from './services';
-import { DocumentCategoryController, DocumentController, SectionController } from './controllers';
+import { DocumentController, DocumentTypeController, SectionController } from './controllers';
 import { FilesModule } from '../files/files.module';
 import { StoredFile } from '../files/entities/stored-file.entity';
 import { DocumentSearchService } from './services/document-search.service';
@@ -14,7 +14,7 @@ import { DocumentSearchService } from './services/document-search.service';
     FilesModule,
   ],
   providers: [DocumentTypeService, DocumentService, DocumentSectionService, DocumentSearchService],
-  controllers: [DocumentController, DocumentCategoryController, SectionController],
+  controllers: [DocumentController, DocumentTypeController, SectionController],
   exports: [DocumentSearchService, DocumentService, DocumentSectionService, DocumentTypeService],
 })
 export class DocumentModule {}

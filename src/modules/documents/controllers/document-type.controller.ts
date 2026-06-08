@@ -1,9 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos';
+import { ProtectedResource } from 'src/modules/auth/decorators';
 import { DocumentTypeService } from '../services';
+import { Resource } from 'src/modules/users/entities';
 
+@ProtectedResource(Resource.DOCUMENTS)
 @Controller('document-types')
-export class DocumentCategoryController {
+export class DocumentTypeController {
   constructor(private documentTypeService: DocumentTypeService) {}
 
   @Get()

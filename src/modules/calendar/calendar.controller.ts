@@ -3,9 +3,12 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@
 import { CalendarService } from './calendar.service';
 import { CreateCalendarEventDto, GetCalendarRangeDto, UpdateCalendarEventDto } from './dtos';
 import { PaginationParamsDto } from '../common';
+import { ProtectedResource } from '../auth/decorators';
+import { Resource } from '../users/entities';
 
+@ProtectedResource(Resource.CALENDAR)
 @Controller('calendar')
-export class EventController {
+export class CalendarController {
   constructor(private readonly eventService: CalendarService) {}
 
   @Get()

@@ -6,7 +6,7 @@ import { PaginationParamsDto } from 'src/modules/common';
 import { RoleService, SecurityBootstrapService } from '../services';
 import { Resource } from '../entities';
 
-@ProtectedResource(Resource.USERS)
+@ProtectedResource(Resource.ROLES)
 @Controller('roles')
 export class RoleController {
   constructor(
@@ -19,7 +19,6 @@ export class RoleController {
     return this.roleService.getGroupedPermissions();
   }
 
-  // @Public()
   @Get('seed/permissions')
   seedPermissions() {
     return this.securityBootstrapService.seedPermissions();

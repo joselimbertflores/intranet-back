@@ -2,9 +2,10 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 
 import { DocumentTypeService, DocumentService, DocumentSectionService } from '../services';
 import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
-import { GetAuthUser } from 'src/modules/auth/decorators';
-import { User } from 'src/modules/users/entities';
+import { GetAuthUser, ProtectedResource } from 'src/modules/auth/decorators';
+import { Resource, User } from 'src/modules/users/entities';
 
+@ProtectedResource(Resource.DOCUMENTS)
 @Controller('documents')
 export class DocumentController {
   constructor(

@@ -109,7 +109,7 @@ export class FilesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download') download?: string,
   ) {
-    const file = await this.filesService.findFileOrFail(id);
+    const file = await this.filesService.findActiveFileOrFail(id);
 
     const isDownload = download === 'true';
 

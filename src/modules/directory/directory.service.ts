@@ -3,11 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { CreateDirectoryEntryDto, UpdateDirectoryEntryDto } from './dtos';
+import { DirectoryEntryTreeDto } from './dtos/directory-entry-tree.dto';
 import { DirectoryEntry } from './entities';
-
-export interface TreeItem extends DirectoryEntry {
-  children: TreeItem[];
-}
 
 @Injectable()
 export class DirectoryService {
@@ -43,7 +40,15 @@ export class DirectoryService {
     return { deleted: true };
   }
 
-  async getTree() {
+  findAllAdmin() {
+    return this.findDirectoryTree();
+  }
+
+  findAllPublic() {
+    return this.findDirectoryTree();
+  }
+
+  private async findDirectoryTree(): Promise<DirectoryEntryTreeDto[]> {
     const entries = await this.repo.find({
       select: {
         id: true,
@@ -61,9 +66,9 @@ export class DirectoryService {
     return this.buildTree(entries);
   }
 
-  private buildTree(entries: DirectoryEntry[]) {
-    const map = new Map<number, TreeItem>();
-    const roots: TreeItem[] = [];
+  private buildTree(entries: DirectoryEntry[]): DirectoryEntryTreeDto[] {
+    const map = new Map<number, DirectoryEntryTreeDto>();
+    const roots: DirectoryEntryTreeDto[] = [];
 
     entries.forEach((entry) =>
       map.set(entry.id, {

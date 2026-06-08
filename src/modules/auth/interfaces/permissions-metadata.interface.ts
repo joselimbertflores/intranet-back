@@ -1,6 +1,6 @@
 import { Resource } from 'src/modules/users/entities';
 
-export interface PermissionMetadata {
+export interface PermissionsMetadata {
   resource: Resource;
   actions: string[];
   match?: 'every' | 'some';

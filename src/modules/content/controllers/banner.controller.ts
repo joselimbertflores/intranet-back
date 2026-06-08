@@ -1,9 +1,12 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Put } from '@nestjs/common';
 import { BannerService } from '../services';
 import { ReplaceBannersDto } from '../dtos';
+import { ProtectedResource } from 'src/modules/auth/decorators';
+import { Resource } from 'src/modules/users/entities';
 
+@ProtectedResource(Resource.CONTENT)
 @Controller('banner')
-export class HeroSlideController {
+export class BannerController {
   constructor(private readonly heroSlideService: BannerService) {}
 
   @Put()

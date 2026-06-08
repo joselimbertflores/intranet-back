@@ -1,2 +1,2 @@
-export * from "./hero-slide.controller"
-export * from "./quick-access.controller"
+export * from './banner.controller';
+export * from './quick-access.controller';

@@ -3,7 +3,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
@@ -30,13 +30,13 @@ export class ResourceGuard implements CanActivate {
 
     const req: Request & { user?: User } = context.switchToHttp().getRequest();
     const user = req.user;
-    if (!user) throw new InternalServerErrorException('User not authenticated');
+    if (!user) throw new UnauthorizedException('Authentication required');
 
     const action = methodToActionMap[req.method];
 
     if (!action) return true;
 
-    const permissions = user.roles.flatMap((role) => role.permissions);
+    const permissions = (user.roles ?? []).flatMap((role) => role.permissions ?? []);
 
     const hasPermission = permissions.some((perm) => perm.resource === resource && perm.action === action);
 

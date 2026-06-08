@@ -4,6 +4,7 @@ import type { Response } from 'express';
 
 import { User } from 'src/modules/users/entities';
 import { GetAuthUser, Public } from '../decorators';
+import { CurrentUserResponseDto } from '../dtos';
 import { AuthCookieService } from '../services';
 
 @Controller('auth')
@@ -11,25 +12,24 @@ export class AuthController {
   constructor(private readonly authCookieService: AuthCookieService) {}
 
   @Get('me')
-  getMe(@GetAuthUser() user: User) {
+  getMe(@GetAuthUser() user: User): CurrentUserResponseDto {
     return {
       user: {
         id: user.id,
         externalKey: user.externalKey,
         fullName: user.fullName,
         isActive: user.isActive,
-        roles: (user.roles ?? []).map((role) => ({
-          id: role.id,
-          name: role.name,
-          description: role.description,
-          permissions: (role.permissions ?? []).map((permission) => ({
-            id: permission.id,
-            resource: permission.resource,
-            action: permission.action,
-          })),
-        })),
+        permissions: this.getEffectivePermissions(user),
       },
     };
+  }
+
+  private getEffectivePermissions(user: User): string[] {
+    const permissions = (user.roles ?? []).flatMap((role) =>
+      (role.permissions ?? []).map((permission) => `${permission.resource}:${permission.action}`),
+    );
+
+    return [...new Set(permissions)].sort();
   }
 
   @Public()

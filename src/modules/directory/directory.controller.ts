@@ -1,23 +1,17 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { DirectoryService } from './directory.service';
 import { CreateDirectoryEntryDto, UpdateDirectoryEntryDto } from './dtos';
-import { Public } from '../auth/decorators';
+import { ProtectedResource } from '../auth/decorators';
+import { Resource } from '../users/entities';
 
-@Public()
+@ProtectedResource(Resource.DIRECTORY)
 @Controller('directory')
 export class DirectoryController {
   constructor(private directoryService: DirectoryService) {}
 
-  // 🌐 Público
-  // @Get()
-  // getPublicDirectory() {
-  //   return this.directoryService.findTree();
-  // }
-
-  // 🔐 Admin
   @Get()
   getTree() {
-    return this.directoryService.getTree();
+    return this.directoryService.findAllAdmin();
   }
 
   @Post()

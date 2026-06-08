@@ -3,7 +3,10 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos';
 import { CommunicationService } from './communication.service';
 import { PaginationParamsDto } from '../common';
+import { ProtectedResource } from '../auth/decorators';
+import { Resource } from '../users/entities';
 
+@ProtectedResource(Resource.COMMUNICATIONS)
 @Controller('communications')
 export class CommunicationController {
   constructor(private communicationService: CommunicationService) {}

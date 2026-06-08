@@ -138,6 +138,12 @@ export class FilesService {
     return file;
   }
 
+  async findActiveFileOrFail(id: string): Promise<StoredFile> {
+    const file = await this.fileRepository.findOne({ where: { id } });
+    if (!file || file.status !== FileStatus.ACTIVE) throw new NotFoundException('File not found');
+    return file;
+  }
+
   async getAbsolutePathOrFail(file: StoredFile): Promise<string> {
     const path = join(this.BASE_UPLOAD_PATH, file.storageKey);
 
