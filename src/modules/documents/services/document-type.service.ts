@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 
-import { CreateDocumentTypeDto, DocumentSubTypeDto, UpdateDocumentTypeDto } from '../dtos';
+import { CreateDocumentTypeDto, DocumentSubtypeDto, UpdateDocumentTypeDto } from '../dtos';
 import { DocumentType, DocumentRecord, DocumentSubtype } from '../entities';
 
 @Injectable()
@@ -58,7 +58,7 @@ export class DocumentTypeService {
   }
 
   async removeSubtype(id: number) {
-    const documentsCountUsingSubtype = await this.documentRepository.count({ where: { subtype: { id } } });
+    const documentsCountUsingSubtype = await this.documentRepository.count({ where: { documentSubtype: { id } } });
     if (documentsCountUsingSubtype > 0) {
       throw new BadRequestException(`Cannot delete document subtype ${id} because it is in use.`);
     }
@@ -68,7 +68,7 @@ export class DocumentTypeService {
       : { ok: false, message: `Document subtype ${id} not found.` };
   }
 
-  private mergeSubtypes(existingSubtypes: DocumentSubtype[], subtypes: DocumentSubTypeDto[]) {
+  private mergeSubtypes(existingSubtypes: DocumentSubtype[], subtypes: DocumentSubtypeDto[]) {
     for (const subtype of subtypes) {
       if (subtype.id) {
         const index = existingSubtypes.findIndex((e) => e.id === subtype.id);
@@ -87,10 +87,14 @@ export class DocumentTypeService {
     if (error instanceof QueryFailedError && error['code'] === '23505') {
       throw new ConflictException('Duplicate slug detected');
     }
-    throw new InternalServerErrorException(`Failed create cagory`);
+    throw new InternalServerErrorException('Failed to modify document type');
   }
 
   async getActiveTypesWithSubtypes() {
-    return this.documentTypeRepository.find({ where: { isActive: true }, relations: { subtypes: true } });
+    const types = await this.documentTypeRepository.find({ where: { isActive: true }, relations: { subtypes: true } });
+    return types.map((type) => ({
+      ...type,
+      subtypes: type.subtypes.filter((subtype) => subtype.isActive),
+    }));
   }
 }

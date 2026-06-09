@@ -1,6 +1,6 @@
 import { Controller, Get, Ip, Param, Patch } from '@nestjs/common';
 
-import { DocumentService, DocumentSectionService, DocumentSearchService } from '../../documents/services';
+import { DocumentSearchService } from '../../documents/services';
 import { BannerService, QuickAccessItemService } from '../../content/services';
 import { Public } from '../../auth/decorators';
 import { CommunicationService } from 'src/modules/communications/communication.service';

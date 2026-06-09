@@ -6,63 +6,17 @@ import {
   UpdateDateColumn,
   PrimaryGeneratedColumn,
   JoinColumn,
-  BeforeInsert,
-  BeforeUpdate,
 } from 'typeorm';
 
 import { DocumentType } from './document-type.entity';
-import { DocumentSection } from './document-section.entity';
+import { OrganizationalUnit } from './organizational-unit.entity';
 import { DocumentSubtype } from './document-subtype.entity';
-import { User } from 'src/modules/users/entities';
 import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 
-// @Entity('documents')
-// export class InstitutionalDocument {
-//   @PrimaryGeneratedColumn('uuid')
-//   id: string;
-
-//   @Column()
-//   displayName: string;
-
-//   @Column()
-//   fileName: string;
-
-//   @Column()
-//   originalName: string;
-
-//   @Column()
-//   mimeType: string;
-
-//   @Column()
-//   sizeBytes: number;
-
-//   @Column({ type: 'int' })
-//   fiscalYear: number;
-
-//   @Column({ default: 0 })
-//   downloadCount: number;
-
-//   @Column({ type: 'enum', enum: DocumentStatus, default: DocumentStatus.PUBLISHED })
-//   status: DocumentStatus;
-
-//   @ManyToOne(() => DocumentSection)
-//   section: DocumentSection;
-
-//   @ManyToOne(() => InstitutionalDocumentType)
-//   type: InstitutionalDocumentType;
-
-//   @ManyToOne(() => DocumentSubType, { nullable: true })
-//   subtype?: DocumentSubType;
-
-//   @ManyToOne(() => User)
-//   createdBy: User;
-
-//   @CreateDateColumn({ type: 'timestamptz' })
-//   createdAt: Date;
-
-//   @UpdateDateColumn({ type: 'timestamptz' })
-//   updatedAt: Date;
-// }
+export enum DocumentStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
 
 @Entity('documents')
 export class DocumentRecord {
@@ -72,39 +26,47 @@ export class DocumentRecord {
   @Column({ length: 255 })
   title: string;
 
-  @Column({ type: 'int' })
-  fiscalYear: number;
+  @Column({ name: 'fiscal_year', type: 'int', nullable: true })
+  fiscalYear: number | null;
 
-  @ManyToOne(() => DocumentSection)
-  @JoinColumn({ name: 'section_id' })
-  section: DocumentSection;
+  @Column({ name: 'organizational_unit_id', type: 'uuid' })
+  organizationalUnitId: string;
 
-  @ManyToOne(() => DocumentType)
-  @JoinColumn({ name: 'type_id' })
-  type: DocumentType;
+  @ManyToOne(() => OrganizationalUnit, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'organizational_unit_id' })
+  organizationalUnit: OrganizationalUnit;
 
-  @ManyToOne(() => DocumentSubtype, { nullable: true })
-  @JoinColumn({ name: 'subtype_id' })
-  subtype?: DocumentSubtype;
+  @Column({ name: 'document_type_id', type: 'int' })
+  documentTypeId: number;
+
+  @ManyToOne(() => DocumentType, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'document_type_id' })
+  documentType: DocumentType;
+
+  @Column({ name: 'document_subtype_id', type: 'int', nullable: true })
+  documentSubtypeId: number | null;
+
+  @ManyToOne(() => DocumentSubtype, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'document_subtype_id' })
+  documentSubtype: DocumentSubtype | null;
 
   @ManyToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'fileId' })
+  @JoinColumn({ name: 'file_id' })
   file: StoredFile;
 
-  @Column()
+  @Column({ name: 'file_id', type: 'uuid' })
   fileId: string;
 
-  @Column({ default: true })
-  isActive: boolean;
+  @Column({
+    type: 'enum',
+    enum: DocumentStatus,
+    default: DocumentStatus.ACTIVE,
+  })
+  status: DocumentStatus;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  @BeforeInsert()
-  setDefaultFiscalYear() {
-    this.fiscalYear = new Date().getFullYear();
-  }
 }

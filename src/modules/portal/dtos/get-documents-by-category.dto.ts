@@ -22,6 +22,5 @@ export class FilterDocsByCategoryDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsInt()
   @IsOptional()
-  sectionId?: number;
-
+  documentTypeId?: number;
 }

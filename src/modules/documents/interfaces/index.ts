@@ -1,1 +1,1 @@
-export * from "./section-tree-node.interface"
+export * from './organizational-unit-tree-node.interface';

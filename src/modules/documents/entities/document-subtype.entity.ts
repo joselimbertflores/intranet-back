@@ -12,24 +12,8 @@ import {
 import { DocumentType } from './document-type.entity';
 import { generateSlug } from 'src/helpers';
 
-// @Entity('document_subtypes')
-// // @Unique(['type', 'name'])
-// export class DocumentSubType {
-//   @PrimaryGeneratedColumn()
-//   id: number;
-
-//   @ManyToOne(() => DocumentType, (t) => t.subtypes)
-//   type: DocumentType;
-
-//   @Column()
-//   name: string; // FUNCIONES, PROCEDIMIENTOS
-
-//   @Column({ default: true })
-//   isActive: boolean;
-// }
-
 @Entity('document_subtypes')
-@Unique(['type', 'slug'])
+@Unique(['documentType', 'slug'])
 export class DocumentSubtype {
   @PrimaryGeneratedColumn()
   id: number;
@@ -43,11 +27,12 @@ export class DocumentSubtype {
   @Column({ default: true })
   isActive: boolean;
 
-  @ManyToOne(() => DocumentType, (type) => type.subtypes, {
+  @ManyToOne(() => DocumentType, (documentType) => documentType.subtypes, {
     nullable: false,
+    onDelete: 'RESTRICT',
   })
-  @JoinColumn({ name: 'type_id' })
-  type: DocumentType;
+  @JoinColumn({ name: 'document_type_id' })
+  documentType: DocumentType;
 
   @CreateDateColumn()
   createdAt: Date;

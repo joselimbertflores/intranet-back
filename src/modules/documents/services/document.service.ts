@@ -1,44 +1,43 @@
-import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 
-import { DocumentRecord, DocumentSection, DocumentType, DocumentSubtype } from '../entities';
-import { CreateDocumentsDto, FilterDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
-import { FilesService } from 'src/modules/files/files.service';
-import { FileGroup } from 'src/modules/files/file-group.enum';
+import { DocumentRecord, DocumentStatus, OrganizationalUnit, DocumentType, DocumentSubtype } from '../entities';
+import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { User } from 'src/modules/users/entities';
 import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
-import { DocumentSectionService } from './document-section.service';
+import { OrganizationalUnitService } from './organizational-unit.service';
 
 @Injectable()
 export class DocumentService {
   constructor(
     @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,
-    @InjectRepository(DocumentSection) private docSectionRepository: Repository<DocumentSection>,
+    @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
     @InjectRepository(StoredFile) private fileRepository: Repository<StoredFile>,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private sectionService: DocumentSectionService,
-    private fileService: FilesService,
+    private organizationalUnitService: OrganizationalUnitService,
     private dataSource: DataSource,
   ) {}
 
-  async findAll(filterParamsDto: NewFilterDocumentsDto, authUser: User) {
-    const { limit, offset, term, fiscalYear, sectionId, typeId, subtypeId } = filterParamsDto;
-    const sectionIds = sectionId ? await this.sectionService.getSectionAndDescendantIds(sectionId) : undefined;
+  async findAll(filterParamsDto: NewFilterDocumentsDto, _authUser: User) {
+    const { limit, offset, term, fiscalYear, organizationalUnitId, documentTypeId, documentSubtypeId, status } =
+      filterParamsDto;
+    const organizationalUnitIds = organizationalUnitId
+      ? await this.organizationalUnitService.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
+      : undefined;
     const where: FindOptionsWhere<DocumentRecord> = {
       ...(term && { title: ILike(`%${term}%`) }),
-      ...(sectionIds && { section: { id: In(sectionIds) } }),
-      ...(typeId && { type: { id: typeId } }),
-      ...(subtypeId && { subtype: { id: subtypeId } }),
+      ...(organizationalUnitIds && { organizationalUnit: { id: In(organizationalUnitIds) } }),
+      ...(documentTypeId && { documentType: { id: documentTypeId } }),
+      ...(documentSubtypeId && { documentSubtype: { id: documentSubtypeId } }),
       ...(fiscalYear && { fiscalYear }),
+      ...(status && { status }),
     };
     const [documents, total] = await this.docRepository.findAndCount({
       where,
-      relations: { section: true, type: true, subtype: true, file: true },
+      relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: true },
       order: { createdAt: 'desc' },
       take: limit,
       skip: offset,
@@ -47,8 +46,12 @@ export class DocumentService {
   }
 
   async create(dto: CreateDocumentsDto, _authUser: User) {
-    const { documents, sectionId, typeId, subtypeId, fiscalYear } = dto;
-    const { section, type, subtype } = await this.getValidDocumentProps(sectionId, typeId, subtypeId);
+    const { documents, organizationalUnitId, documentTypeId, documentSubtypeId, fiscalYear } = dto;
+    const { organizationalUnit, documentType, documentSubtype } = await this.getValidDocumentProps(
+      organizationalUnitId,
+      documentTypeId,
+      documentSubtypeId,
+    );
     const fileIds = documents.map((doc) => doc.fileId);
 
     const files = await this.fileRepository.find({ where: { id: In(fileIds) } });
@@ -70,10 +73,10 @@ export class DocumentService {
         if (!file) throw new BadRequestException(`File ${doc.fileId} not found`);
 
         return manager.create(DocumentRecord, {
-          fiscalYear,
-          section,
-          type,
-          subtype,
+          fiscalYear: fiscalYear ?? null,
+          organizationalUnit,
+          documentType,
+          documentSubtype,
           file,
           title: doc.title ?? file.originalName,
         });
@@ -85,107 +88,72 @@ export class DocumentService {
   }
 
   async update(id: string, dto: UpdateDocumentDto) {
-    // const documentDB = await this.docRepository.findOne({
-    //   where: { id },
-    //   relations: { section: true, type: true, subtype: true },
-    // });
-    // if (!documentDB) {
-    //   throw new NotFoundException(`Document ${id} not found`);
-    // }
-    // const oldFileName = documentDB.fileName;
-    // const fileChanged = dto.fileName && dto.fileName !== oldFileName;
-    // try {
-    //   if (fileChanged) {
-    //     await this.fileService.finalizeFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
-    //   }
-    //   // ** “Nunca apuntes la BD a un archivo que aún no existe”.
-    //   this.docRepository.merge(documentDB, dto);
-    //   const updatedDocument = await this.docRepository.save(documentDB);
-    //   if (fileChanged) {
-    //     await this.fileService.deleteFile(oldFileName, FileGroup.INSTITUTIONAL_DOCUMENTS);
-    //   }
-    //   return updatedDocument;
-    // } catch (error) {
-    //   if (fileChanged) {
-    //     await this.fileService.deleteFile(dto.fileName!, FileGroup.INSTITUTIONAL_DOCUMENTS);
-    //   }
-    //   throw error;
-    // }
+    const document = await this.docRepository.findOne({
+      where: { id },
+      relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: true },
+    });
+    if (!document) throw new NotFoundException(`Document ${id} not found`);
+
+    if (this.hasClassificationChanges(dto)) {
+      const { organizationalUnit, documentType, documentSubtype } = await this.getValidDocumentProps(
+        dto.organizationalUnitId ?? document.organizationalUnitId,
+        dto.documentTypeId ?? document.documentTypeId,
+        dto.documentSubtypeId === undefined
+          ? (document.documentSubtypeId ?? undefined)
+          : (dto.documentSubtypeId ?? undefined),
+      );
+      document.organizationalUnit = organizationalUnit;
+      document.documentType = documentType;
+      document.documentSubtype = documentSubtype ?? null;
+    }
+
+    if (dto.title !== undefined) document.title = dto.title;
+    if (Object.prototype.hasOwnProperty.call(dto, 'fiscalYear')) document.fiscalYear = dto.fiscalYear ?? null;
+    if (dto.status !== undefined) document.status = dto.status;
+
+    return this.docRepository.save(document);
   }
 
-  private async getValidDocumentProps(sectionId: string, typeId: number, subtypeId: number | undefined) {
-    const section = await this.docSectionRepository.findOneBy({ id: sectionId });
-    if (!section) {
-      throw new BadRequestException(`Document section ${sectionId} not found`);
+  private async getValidDocumentProps(
+    organizationalUnitId: string,
+    documentTypeId: number,
+    documentSubtypeId: number | undefined,
+  ) {
+    const organizationalUnit = await this.organizationalUnitRepository.findOneBy({
+      id: organizationalUnitId,
+      isActive: true,
+    });
+    if (!organizationalUnit) {
+      throw new BadRequestException(`Organizational unit ${organizationalUnitId} not found or inactive`);
     }
-    const type = await this.docTypeRepository.findOneBy({ id: typeId });
-    if (!type) {
-      throw new BadRequestException(`Document type ${typeId} not found`);
+    const documentType = await this.docTypeRepository.findOneBy({ id: documentTypeId, isActive: true });
+    if (!documentType) {
+      throw new BadRequestException(`Document type ${documentTypeId} not found or inactive`);
     }
 
-    let subtype: DocumentSubtype | null = null;
-    if (subtypeId) {
-      subtype = await this.docSubtypeRepository.findOne({
+    let documentSubtype: DocumentSubtype | null = null;
+    if (documentSubtypeId) {
+      documentSubtype = await this.docSubtypeRepository.findOne({
         where: {
-          id: subtypeId,
-          type: { id: type.id },
+          id: documentSubtypeId,
+          documentType: { id: documentType.id },
+          isActive: true,
         },
       });
-      if (!subtype) {
-        throw new BadRequestException(`Document subtype ${subtypeId} not found or does not belong to type ${typeId}`);
+      if (!documentSubtype) {
+        throw new BadRequestException(
+          `Document subtype ${documentSubtypeId} not found, inactive, or does not belong to type ${documentTypeId}`,
+        );
       }
     }
-    return { section, type, ...(subtype && { subtype }) };
+    return { organizationalUnit, documentType, documentSubtype };
   }
 
-  async filterDocuments(filter: FilterDocumentsDto) {
-    // const { limit, offset, term, sectionId, typeId, subtypeId, fiscalYear, orderDirection } = filter;
-    // const where: FindOptionsWhere<DocumentRecord> = {
-    //   ...(term && { displayName: ILike(`%${term}%`) }),
-    //   ...(sectionId && { section: { id: sectionId } }),
-    //   ...(typeId && { type: { id: typeId } }),
-    //   ...(subtypeId && { subtype: { id: subtypeId } }),
-    //   ...(fiscalYear && { fiscalYear }),
-    // };
-    // const [documents, total] = await this.docRepository.findAndCount({
-    //   where: where,
-    //   order: {
-    //     downloadCount: 'DESC',
-    //     ...(orderDirection && { originalName: orderDirection }),
-    //   },
-    //   relations: { section: true, type: true, subtype: true },
-    //   take: limit,
-    //   skip: offset,
-    // });
-    // return { documents: documents.map((doc) => this.plainDocument(doc)), total };
-  }
-
-  async getMostDownloaded() {
-    // const docs = await this.docRepository.find({
-    //   relations: { section: true, type: true },
-    //   order: { downloadCount: 'DESC' },
-    //   take: 8,
-    // });
-    // return docs.map((doc) => this.plainDocument(doc));
-  }
-
-  async incrementDownloadCount(id: string, userIp: string) {
-    // const cacheKey = `download:${id}:${userIp}`;
-    // const alreadyCounted = await this.cacheManager.get<boolean>(cacheKey);
-    // if (alreadyCounted) return { skipped: true, message: 'Too frequent' };
-    // const doc = await this.docRepository.findOneBy({ id });
-    // if (!doc) throw new NotFoundException(`Document ${id} not found - download count`);
-    // doc.downloadCount++;
-    // await this.docRepository.save(doc);
-    // await this.cacheManager.set(cacheKey, true, 300000);
-    // return { skippend: false, message: 'Document downloaded count updated', newCount: doc.downloadCount };
-  }
-
-  private plainDocument(item: DocumentRecord) {
-    // const { fileName, ...pros } = item;
-    // return {
-    //   ...pros,
-    //   fileName: this.fileService.buildFileUrl(fileName, FileGroup.INSTITUTIONAL_DOCUMENTS),
-    // };
+  private hasClassificationChanges(dto: UpdateDocumentDto) {
+    return (
+      dto.organizationalUnitId !== undefined ||
+      dto.documentTypeId !== undefined ||
+      Object.prototype.hasOwnProperty.call(dto, 'documentSubtypeId')
+    );
   }
 }

@@ -1,9 +1,8 @@
-export interface SectionTreeNode {
+export interface OrganizationalUnitTreeNode {
   id: string;
   name: string;
   slug: string;
-  level: number;
   isActive: boolean;
   parentId: string | null;
-  children: SectionTreeNode[];
+  children: OrganizationalUnitTreeNode[];
 }

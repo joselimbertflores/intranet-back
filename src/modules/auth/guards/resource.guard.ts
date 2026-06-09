@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
@@ -36,7 +30,7 @@ export class ResourceGuard implements CanActivate {
 
     if (!action) return true;
 
-    const permissions = (user.roles ?? []).flatMap((role) => role.permissions ?? []);
+    const permissions = user.roles.flatMap((role) => role.permissions);
 
     const hasPermission = permissions.some((perm) => perm.resource === resource && perm.action === action);
 

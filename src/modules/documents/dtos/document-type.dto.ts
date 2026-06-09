@@ -12,7 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-export class DocumentSubTypeDto {
+export class DocumentSubtypeDto {
   @IsOptional()
   @IsInt()
   id?: number;
@@ -35,8 +35,8 @@ export class CreateDocumentTypeDto {
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => DocumentSubTypeDto)
-  subtypes: DocumentSubTypeDto[];
+  @Type(() => DocumentSubtypeDto)
+  subtypes: DocumentSubtypeDto[];
 
   @IsBoolean()
   @IsOptional()

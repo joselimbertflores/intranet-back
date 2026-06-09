@@ -57,16 +57,19 @@ export class RoleService {
     if (!role) throw new NotFoundException(`Role with id ${id} not found`);
 
     if (roleDto.permissionIds !== undefined) {
-      const newPermissions = await this.permissionRepository.findBy({
-        id: In(roleDto.permissionIds),
-      });
+      const newPermissions = await this.permissionRepository.findBy({ id: In(roleDto.permissionIds) });
       role.permissions = newPermissions;
     }
     return await this.roleRepository.save({ ...role, ...roleDto });
   }
 
   async getGroupedPermissions() {
-    const permissions = await this.permissionRepository.find({});
+    const permissions = await this.permissionRepository.find({
+      order: {
+        resource: 'ASC',
+        action: 'ASC',
+      },
+    });
 
     const grouped: Record<string, { id: number; action: string }[]> = {};
 
@@ -80,10 +83,7 @@ export class RoleService {
       });
     }
 
-    return Object.entries(grouped).map(([resource, permissions]) => ({
-      resource,
-      permissions,
-    }));
+    return Object.entries(grouped).map(([resource, permissions]) => ({ resource, permissions }));
   }
 
   async getRolesToUser() {

@@ -6,17 +6,17 @@ export class SearchPortalDocumentsDto extends PaginationParamsDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  section?: string;
+  organizationalUnit?: string;
 
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  type?: string;
+  documentType?: string;
 
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  subtype?: string;
+  documentSubtype?: string;
 
   @Type(() => Number)
   @IsInt()

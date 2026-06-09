@@ -11,11 +11,11 @@ export class PortalDocumentsController {
 
   @Get('filters')
   async getDocumentFilters() {
-    const [sections, types] = await Promise.all([
-      this.documentSearchService.getSections(),
+    const [organizationalUnits, types] = await Promise.all([
+      this.documentSearchService.getOrganizationalUnits(),
       this.documentSearchService.getTypes(),
     ]);
-    return { sections, types };
+    return { organizationalUnits, types };
   }
 
   @Get()

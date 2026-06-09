@@ -1,7 +1,7 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
-export class CreateSectionDto {
+export class CreateOrganizationalUnitDto {
   @IsString()
   @MaxLength(150)
   name: string;
@@ -15,4 +15,6 @@ export class CreateSectionDto {
   isActive?: boolean;
 }
 
-export class UpdateSectionDto extends PartialType(OmitType(CreateSectionDto, ['parentId'] as const)) {}
+export class UpdateOrganizationalUnitDto extends PartialType(
+  OmitType(CreateOrganizationalUnitDto, ['parentId'] as const),
+) {}

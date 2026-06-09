@@ -1,18 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { extname } from 'path';
 
-import { DocumentType, DocumentSection, DocumentSubtype, DocumentRecord } from '../entities';
+import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
 import { SearchPortalDocumentsDto } from '../dtos';
 import { EnvironmentVariables } from 'src/config';
+import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
 
-export interface PortalDocumentSections {
+export interface PortalOrganizationalUnit {
   id: string;
   name: string;
   slug: string;
-  children: PortalDocumentSections[];
+  children: PortalOrganizationalUnit[];
   parentId: string | null;
 }
 
@@ -22,17 +23,17 @@ export class DocumentSearchService {
     @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
-    @InjectRepository(DocumentSection) private docSectionRepository: Repository<DocumentSection>,
+    @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
     private configService: ConfigService<EnvironmentVariables>,
   ) {}
 
-  async getSections() {
-    const sections = await this.docSectionRepository.find({
+  async getOrganizationalUnits() {
+    const organizationalUnits = await this.organizationalUnitRepository.find({
       where: { isActive: true },
       relations: { parent: true },
-      order: { level: 'ASC' },
+      order: { name: 'ASC' },
     });
-    return this.buildTreeSections(sections);
+    return this.buildTreeOrganizationalUnits(organizationalUnits);
   }
 
   async getTypes() {
@@ -41,57 +42,58 @@ export class DocumentSearchService {
       id: type.id,
       name: type.name,
       slug: type.slug,
-      subtypes: type.subtypes.map((subtype) => ({
-        id: subtype.id,
-        name: subtype.name,
-        slug: subtype.slug,
-      })),
+      subtypes: type.subtypes
+        .filter((subtype) => subtype.isActive)
+        .map((subtype) => ({
+          id: subtype.id,
+          name: subtype.name,
+          slug: subtype.slug,
+        })),
     }));
   }
 
   async searchDocuments(searchParamsDto: SearchPortalDocumentsDto) {
     const { limit, offset, term, ...props } = searchParamsDto;
-    const { sectionId, typeId, subtypeId, fiscalYear } = await this.resolveFilters(props);
-    const sectionsIds = sectionId ? await this.getSectionAndDescendantIds(sectionId) : [];
+    const { organizationalUnitId, documentTypeId, documentSubtypeId, fiscalYear } = await this.resolveFilters(props);
+    const organizationalUnitIds = organizationalUnitId
+      ? await this.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
+      : [];
 
-    const where: FindOptionsWhere<DocumentRecord> = {
-      ...(term && { title: ILike(`%${term}%`) }),
-      ...(sectionsIds.length > 0 && { section: { id: In(sectionsIds) } }),
-      ...(typeId && { type: { id: typeId } }),
-      ...(subtypeId && { subtype: { id: subtypeId } }),
-      ...(fiscalYear && { fiscalYear }),
-    };
-    const [documents, total] = await this.documentRepository.findAndCount({
-      where,
-      relations: { section: true, type: true, subtype: true, file: true },
-      order: { file: { downloadCount: 'desc' } },
-      take: limit,
-      skip: offset,
-    });
+    const query = this.createVisibleDocumentsQuery();
+
+    if (term) query.andWhere('document.title ILIKE :term', { term: `%${term}%` });
+    if (organizationalUnitIds.length > 0) {
+      query.andWhere('organizational_unit.id IN (:...organizationalUnitIds)', { organizationalUnitIds });
+    }
+    if (documentTypeId) query.andWhere('document_type.id = :documentTypeId', { documentTypeId });
+    if (documentSubtypeId) query.andWhere('document_subtype.id = :documentSubtypeId', { documentSubtypeId });
+    if (fiscalYear) query.andWhere('document.fiscal_year = :fiscalYear', { fiscalYear });
+
+    const [documents, total] = await query
+      .orderBy('file.downloadCount', 'DESC')
+      .take(limit)
+      .skip(offset)
+      .getManyAndCount();
+
     return { documents: this.plainDocuments(documents), total };
   }
 
   async getMostDownloaded() {
-    const documents = await this.documentRepository.find({
-      where: { isActive: true },
-      relations: { file: true, section: true, type: true, subtype: true },
-      order: { file: { downloadCount: 'desc' } },
-      take: 8,
-    });
+    const documents = await this.createVisibleDocumentsQuery().orderBy('file.downloadCount', 'DESC').take(8).getMany();
 
     return this.plainDocuments(documents);
   }
 
-  private buildTreeSections(sections: DocumentSection[]): PortalDocumentSections[] {
-    const map = new Map<string, PortalDocumentSections>();
-    const roots: PortalDocumentSections[] = [];
+  private buildTreeOrganizationalUnits(organizationalUnits: OrganizationalUnit[]): PortalOrganizationalUnit[] {
+    const map = new Map<string, PortalOrganizationalUnit>();
+    const roots: PortalOrganizationalUnit[] = [];
 
-    for (const section of sections) {
-      map.set(section.id, {
-        id: section.id,
-        name: section.name,
-        slug: section.slug,
-        parentId: section.parent?.id ?? null,
+    for (const organizationalUnit of organizationalUnits) {
+      map.set(organizationalUnit.id, {
+        id: organizationalUnit.id,
+        name: organizationalUnit.name,
+        slug: organizationalUnit.slug,
+        parentId: organizationalUnit.parentId,
         children: [],
       });
     }
@@ -112,34 +114,34 @@ export class DocumentSearchService {
 
   private async resolveFilters(dto: SearchPortalDocumentsDto) {
     const filters: {
-      sectionId?: string;
-      typeId?: number;
-      subtypeId?: number;
+      organizationalUnitId?: string;
+      documentTypeId?: number;
+      documentSubtypeId?: number;
       fiscalYear?: number;
     } = {};
 
-    if (dto.section) {
-      const section = await this.docSectionRepository.findOne({
-        where: { slug: dto.section },
+    if (dto.organizationalUnit) {
+      const organizationalUnit = await this.organizationalUnitRepository.findOne({
+        where: { slug: dto.organizationalUnit },
         select: { id: true },
       });
-      if (section) filters.sectionId = section.id;
+      if (organizationalUnit) filters.organizationalUnitId = organizationalUnit.id;
     }
 
-    if (dto.type) {
+    if (dto.documentType) {
       const type = await this.docTypeRepository.findOne({
-        where: { slug: dto.type },
+        where: { slug: dto.documentType },
         select: { id: true },
       });
-      if (type) filters.typeId = type.id;
+      if (type) filters.documentTypeId = type.id;
     }
 
-    if (dto.subtype) {
+    if (dto.documentSubtype) {
       const subtype = await this.docSubtypeRepository.findOne({
-        where: { slug: dto.subtype },
+        where: { slug: dto.documentSubtype },
         select: { id: true },
       });
-      if (subtype) filters.subtypeId = subtype.id;
+      if (subtype) filters.documentSubtypeId = subtype.id;
     }
 
     if (dto.year) filters.fiscalYear = dto.year;
@@ -147,14 +149,14 @@ export class DocumentSearchService {
     return filters;
   }
 
-  private async getSectionAndDescendantIds(id: string): Promise<string[]> {
+  private async getOrganizationalUnitAndDescendantIds(id: string): Promise<string[]> {
     const ids: string[] = [];
 
     const collect = async (parentId: string) => {
       ids.push(parentId);
 
-      const children = await this.docSectionRepository.find({
-        where: { parent: { id: parentId } },
+      const children = await this.organizationalUnitRepository.find({
+        where: { parentId },
         select: { id: true },
       });
 
@@ -167,6 +169,17 @@ export class DocumentSearchService {
     return ids;
   }
 
+  private createVisibleDocumentsQuery() {
+    return this.documentRepository
+      .createQueryBuilder('document')
+      .innerJoinAndSelect('document.file', 'file', 'file.status = :fileStatus', { fileStatus: FileStatus.ACTIVE })
+      .innerJoinAndSelect('document.documentType', 'document_type', 'document_type."isActive" = true')
+      .leftJoinAndSelect('document.documentSubtype', 'document_subtype')
+      .innerJoinAndSelect('document.organizationalUnit', 'organizational_unit')
+      .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE })
+      .andWhere('(document.document_subtype_id IS NULL OR document_subtype."isActive" = true)');
+  }
+
   private plainDocuments(documents: DocumentRecord[]) {
     const host = this.configService.getOrThrow<string>('HOST');
     return documents.map((doc) => ({
@@ -174,9 +187,9 @@ export class DocumentSearchService {
       title: doc.title,
       fiscalYear: doc.fiscalYear,
       createdAt: doc.createdAt,
-      section: doc.section.name,
-      type: doc.type.name,
-      subtype: doc.subtype?.name,
+      organizationalUnit: doc.organizationalUnit.name,
+      documentType: doc.documentType.name,
+      documentSubtype: doc.documentSubtype?.name,
       file: {
         id: doc.file.id,
         url: `${host}/files/${doc.file.id}?download=true`,

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
-import { DocumentTypeService, DocumentService, DocumentSectionService } from '../services';
+import { DocumentTypeService, DocumentService, OrganizationalUnitService } from '../services';
 import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { GetAuthUser, ProtectedResource } from 'src/modules/auth/decorators';
 import { Resource, User } from 'src/modules/users/entities';
@@ -9,7 +9,7 @@ import { Resource, User } from 'src/modules/users/entities';
 @Controller('documents')
 export class DocumentController {
   constructor(
-    private sectionService: DocumentSectionService,
+    private organizationalUnitService: OrganizationalUnitService,
     private documentService: DocumentService,
     private documentTypeService: DocumentTypeService,
   ) {}
@@ -29,13 +29,13 @@ export class DocumentController {
     return this.documentService.update(id, body);
   }
 
-  @Get('sections/tree')
-  getCategories() {
-    return this.sectionService.getTree({ onlyActive: true });
+  @Get('organizational-units/tree')
+  getOrganizationalUnits() {
+    return this.organizationalUnitService.getTree({ onlyActive: true });
   }
 
   @Get('types')
-  getTypesBySection() {
+  getDocumentTypes() {
     return this.documentTypeService.getActiveTypesWithSubtypes();
   }
 }
