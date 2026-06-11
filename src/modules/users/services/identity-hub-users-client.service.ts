@@ -27,9 +27,7 @@ export class IdentityHubUsersClientService {
 
     try {
       const response = await lastValueFrom(
-        this.http.get<IdentityHubAssignableUser[]>(url.toString(), {
-          auth: this.getBasicAuth(),
-        }),
+        this.http.get<IdentityHubAssignableUser[]>(url.toString(), { auth: this.getBasicAuth() }),
       );
       return response.data;
     } catch {

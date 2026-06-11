@@ -37,6 +37,26 @@ export class UsersService {
     return { users, total };
   }
 
+  async importFromIdentity(dto: ImportUserFromIdentityDto) {
+    await this.ensureExternalKeyIsAvailable(dto.externalKey);
+
+    const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(dto.externalKey);
+    const roles = dto.roleIds ? await this.resolveRoles(dto.roleIds) : [];
+    const user = this.userRepository.create({
+      externalKey: identityUser.externalKey,
+      fullName: identityUser.fullName,
+      roles,
+    });
+    try {
+      return await this.userRepository.save(user);
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException('El usuario ya existe en este cliente.');
+      }
+      throw error;
+    }
+  }
+
   async update(id: string, dto: UpdateUserDto) {
     const { roleIds } = dto;
     const userDB = await this.userRepository.findOneBy({ id });
@@ -58,44 +78,6 @@ export class UsersService {
       where: { externalKey },
       relations: { roles: { permissions: true } },
     });
-  }
-
-  searchIdentityCandidates(term: string) {
-    return this.identityHubUsersClient.searchAssignableUsers(term);
-  }
-
-  findIdentityCandidateByExternalKey(externalKey: string) {
-    return this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
-  }
-
-  async importFromIdentity(dto: ImportUserFromIdentityDto) {
-    await this.ensureExternalKeyIsAvailable(dto.externalKey);
-
-    const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(dto.externalKey);
-
-    if (identityUser.externalKey !== dto.externalKey) {
-      throw new BadGatewayException(
-        'El servicio de usuarios devolvio un identificador externo diferente al solicitado.',
-      );
-    }
-
-    const roles = dto.roleIds ? await this.resolveRoles(dto.roleIds) : [];
-    const user = this.userRepository.create({
-      externalKey: identityUser.externalKey,
-      fullName: identityUser.fullName,
-      roles,
-      isActive: true,
-    });
-
-    try {
-      return await this.userRepository.save(user);
-    } catch (error) {
-      if (this.isUniqueViolation(error)) {
-        throw new ConflictException('El usuario ya existe en este cliente.');
-      }
-
-      throw error;
-    }
   }
 
   async syncUserFromIdentity(payload: AccessTokenPayload) {
@@ -136,6 +118,14 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  searchIdentityCandidates(term: string) {
+    return this.identityHubUsersClient.searchAssignableUsers(term);
+  }
+
+  findIdentityCandidateByExternalKey(externalKey: string) {
+    return this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
   }
 
   private async resolveRoles(roleIds: string[]) {
