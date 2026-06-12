@@ -2,14 +2,14 @@ import { Controller, Get, Body, Patch, Param, Query, Post } from '@nestjs/common
 import { PaginationParamsDto } from 'src/modules/common';
 
 import { ProtectedResource } from 'src/modules/auth/decorators';
-import { RoleService, UsersService } from '../services';
+import { RolesService, UsersService } from '../services';
 import { ImportUserFromIdentityDto, SearchIdentityCandidatesDto, UpdateUserDto } from '../dtos';
 import { Resource } from '../entities';
 @ProtectedResource(Resource.USERS)
 @Controller('users')
 export class UsersController {
   constructor(
-    private readonly roleService: RoleService,
+    private readonly roleService: RolesService,
     private readonly userService: UsersService,
   ) {}
 

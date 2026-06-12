@@ -7,7 +7,7 @@ import { CreateRoleDto, UpdateRoleDto } from '../dtos';
 import { Permission, Role } from '../entities';
 
 @Injectable()
-export class RoleService {
+export class RolesService {
   constructor(
     @InjectRepository(Permission) private permissionRepository: Repository<Permission>,
     @InjectRepository(Role) private roleRepository: Repository<Role>,

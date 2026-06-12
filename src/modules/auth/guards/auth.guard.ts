@@ -1,9 +1,9 @@
 import {
+  Logger,
   Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -14,7 +14,7 @@ import { AccessTokenPayload } from '../interfaces';
 import { AccessTokenVerificationError, AuthCookieService, IdentityService, TokenVerifierService } from '../services';
 import { IS_PUBLIC_KEY } from '../decorators';
 import { UsersService } from 'src/modules/users/services';
-import { User } from 'src/modules/users/entities';
+import type { User } from 'src/modules/users/entities';
 
 interface AccessTokenAttemptResult {
   user: User | null;
@@ -27,8 +27,8 @@ export class OAuthGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly identityService: IdentityService,
     private readonly usersService: UsersService,
+    private readonly identityService: IdentityService,
     private readonly authCookieService: AuthCookieService,
     private readonly tokenVerifierService: TokenVerifierService,
   ) {}

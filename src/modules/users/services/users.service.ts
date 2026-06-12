@@ -2,17 +2,17 @@ import {
   BadGatewayException,
   BadRequestException,
   ConflictException,
-  Injectable,
   NotFoundException,
+  Injectable,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, QueryFailedError, Repository } from 'typeorm';
 
-import { AccessTokenPayload } from 'src/modules/auth/interfaces';
-import { PaginationParamsDto } from 'src/modules/common';
-import { Role, User } from '../entities';
-import { ImportUserFromIdentityDto, UpdateUserDto } from '../dtos';
 import { IdentityHubUsersClientService } from './identity-hub-users-client.service';
+import { ImportUserFromIdentityDto, UpdateUserDto } from '../dtos';
+import type { AccessTokenPayload } from 'src/modules/auth/interfaces';
+import type { PaginationParamsDto } from 'src/modules/common';
+import { Role, User } from '../entities';
 
 @Injectable()
 export class UsersService {
@@ -45,6 +45,7 @@ export class UsersService {
     const user = this.userRepository.create({
       externalKey: identityUser.externalKey,
       fullName: identityUser.fullName,
+      isActive: true,
       roles,
     });
     try {
@@ -58,19 +59,22 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto) {
-    const { roleIds } = dto;
+    const { roleIds, isActive } = dto;
     const userDB = await this.userRepository.findOneBy({ id });
 
     if (!userDB) throw new NotFoundException(`El usuario editado no existe`);
 
-    const newRoles = await this.roleRepository.findBy({ id: In(roleIds) });
+    let newRoles: Role[] | undefined;
 
-    if (newRoles.length !== roleIds.length) {
-      const invalid = roleIds.filter((id) => !newRoles.some((role) => role.id === id));
-      throw new BadRequestException(`Invalid roles: ${invalid.join(', ')}`);
+    if (roleIds) {
+      newRoles = await this.resolveRoles(roleIds);
     }
 
-    return await this.userRepository.save({ ...userDB, roles: newRoles });
+    return await this.userRepository.save({
+      ...userDB,
+      ...(newRoles && { roles: newRoles }),
+      ...(isActive !== undefined && { isActive }),
+    });
   }
 
   async findByExternalKey(externalKey: string) {
@@ -113,8 +117,8 @@ export class UsersService {
 
     const fullName = identityUser.fullName || payload.name;
     if (fullName && user.fullName !== fullName) {
+      await this.userRepository.update({ id: user.id }, { fullName });
       user.fullName = fullName;
-      return await this.userRepository.save(user);
     }
 
     return user;

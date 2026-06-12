@@ -23,10 +23,15 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto {
+  @IsOptional()
   @IsString({ each: true })
   @IsArray()
   @ArrayMinSize(1)
-  roleIds: string[];
+  roleIds?: string[];
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class SearchIdentityCandidatesDto {

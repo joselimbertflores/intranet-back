@@ -5,9 +5,9 @@ import { Repository } from 'typeorm';
 import { extname } from 'path';
 
 import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
+import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { SearchPortalDocumentsDto } from '../dtos';
 import { EnvironmentVariables } from 'src/config';
-import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
 
 export interface PortalOrganizationalUnit {
   id: string;

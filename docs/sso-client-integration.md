@@ -2,7 +2,7 @@
 
 ## Alcance
 
-La Intranet actua como cliente OAuth de Identity Hub. Identity Hub autentica la identidad global; Intranet autoriza con usuarios shadow, roles locales y permisos locales. El frontend Angular no intercambia tokens directamente y no llama a Identity Hub para importar usuarios.
+La Intranet actua como cliente OAuth de Identity Hub. Identity Hub autentica la identidad global, administra `user.isActive` central y controla el acceso usuario-aplicacion. Intranet autoriza con usuarios shadow, roles locales, permisos locales y `users.isActive` local. El frontend Angular no intercambia tokens directamente y no llama a Identity Hub para importar usuarios.
 
 ## Responsabilidades del backend
 
@@ -14,7 +14,7 @@ La Intranet actua como cliente OAuth de Identity Hub. Identity Hub autentica la 
 - `TokenVerifierService` y `JwksService`: validan JWT RS256 con JWKS, issuer y audience.
 - `OAuthGuard`: protege APIs, carga el usuario local por `externalKey` y refresca tokens cuando el access token expira.
 
-No hay canje de authorization code en el frontend. No se usan roles de Identity Hub para autorizar en Intranet.
+No hay canje de authorization code en el frontend. No se usan roles de Identity Hub para autorizar en Intranet, y no se registran roles internos de Intranet en Identity Hub.
 
 ## Flujo OAuth
 
@@ -103,7 +103,11 @@ El guard diferencia access token expirado de token invalido. Solo intenta refres
 
 ## Shadow user local
 
-La clave de integracion es `externalKey`. Durante login, Intranet consulta el usuario asignable en Identity Hub, crea el usuario local si no existe y actualiza solo datos seguros de identidad como `fullName`. No sobrescribe roles locales y no asigna `ADMIN` durante login.
+La clave de integracion es `externalKey`. Durante login, Intranet consulta el usuario asignable en Identity Hub, crea el usuario local si no existe y actualiza solo datos seguros de identidad como `fullName`. No sobrescribe roles locales, no sobrescribe `users.isActive` local y no asigna `ADMIN` durante login.
+
+`users.isActive` es un bloqueo local de Intranet: significa que el shadow user esta habilitado para operar dentro de Intranet. No es una copia de `user.isActive` central de Identity Hub y no se sincroniza desde el Hub en cada login. Si `users.isActive` local es `false`, el usuario puede seguir autenticandose en Identity Hub, pero Intranet debe bloquearlo con `403 Forbidden` porque ya esta autenticado y no esta autorizado localmente.
+
+Los usuarios shadow no deben borrarse automaticamente cuando Identity Hub desactiva un usuario o le quita acceso a la aplicacion, porque pueden tener historial local. Para quitar acceso central se usa Identity Hub. Para suspender solo en Intranet se usa `users.isActive = false`.
 
 ## Importacion administrativa
 
@@ -111,7 +115,7 @@ La UI administrativa llama al backend de Intranet. El navegador no llama directa
 
 `IDENTITY_HUB_URL` es la URL publica/navegable del Hub y se usa para construir la redireccion del navegador a `/oauth/authorize`; tambien es la base para JWKS cuando `IDENTITY_HUB_JWKS_URL` no esta definida. `IDENTITY_HUB_INTERNAL_URL` es la URL server-to-server para endpoints `/internal/*`. En local pueden ser iguales, pero en Docker, produccion o una red privada pueden apuntar a hosts distintos.
 
-La importacion evita duplicados por `externalKey`. Si el usuario ya existe, devuelve conflicto. Los roles locales se asignan solo si el endpoint recibe `roleIds`.
+La importacion evita duplicados por `externalKey`. Si el usuario ya existe, devuelve conflicto. Los roles locales se asignan solo si el endpoint recibe `roleIds`. Los usuarios creados por importacion nacen con `users.isActive = true` local por defecto.
 
 ## Bootstrap del primer admin
 
