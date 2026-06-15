@@ -20,14 +20,14 @@ jest.mock(
   { virtual: true },
 );
 
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
 
 import { OAuthGuard } from './auth.guard';
 import type { User } from 'src/modules/users/entities';
 
 describe('OAuthGuard', () => {
-  it('rejects authenticated requests with an inactive local shadow user as forbidden', async () => {
-    const request = {};
+  it('accepts authenticated requests when the local shadow user exists without checking local isActive', async () => {
+    const request: Record<string, unknown> = {};
     const response = {};
     const context = {
       getHandler: jest.fn(),
@@ -56,19 +56,22 @@ describe('OAuthGuard', () => {
       findByExternalKey: jest.fn(() =>
         Promise.resolve({
           externalKey: 'IDH-U-1',
-          isActive: false,
           roles: [],
         } as User),
       ),
     };
     const guard = new OAuthGuard(
       reflector as any,
-      {} as any,
       usersService as any,
+      {} as any,
       authCookieService as any,
       tokenVerifierService as any,
     );
 
-    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request['user']).toEqual({
+      externalKey: 'IDH-U-1',
+      roles: [],
+    });
   });
 });

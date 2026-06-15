@@ -14,6 +14,9 @@ export class Role {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  @Column({ type: 'boolean', default: false })
+  isAutoAssigned: boolean;
+
   // N:N → un rol tiene muchos permisos
   @ManyToMany(() => Permission, (perm) => perm.roles)
   @JoinTable({ name: 'role_permissions' })

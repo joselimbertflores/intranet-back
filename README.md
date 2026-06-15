@@ -32,7 +32,7 @@ Renombra `.env.template` a `.env` en la raiz del proyecto y configura las variab
 
 ### SSO con Identity Hub
 
-La Intranet funciona como cliente OAuth de Identity Hub. Identity Hub autentica la identidad global y la Intranet conserva el usuario local, roles y permisos locales.
+La Intranet funciona como cliente OAuth de Identity Hub. Identity Hub autentica la identidad global y controla el acceso global a la aplicacion mediante `user.isActive` central, `application.isActive` y la relacion `user_applications`. La Intranet conserva usuarios shadow locales con `externalKey`, `fullName`, roles/permisos locales e historial interno; no tiene `isActive` local para usuarios.
 
 Variables principales:
 
@@ -61,7 +61,7 @@ Rutas auth finales:
 
 - `GET /auth/login`: inicia el flujo OAuth.
 - `GET /auth/callback`: recibe el callback de Identity Hub.
-- `GET /api/auth/me`: devuelve el usuario autenticado, roles y permisos.
+- `GET /api/auth/me`: devuelve el usuario autenticado y permisos efectivos.
 - `POST /api/auth/logout`: limpia cookies locales.
 
 Intranet usa prefijo global `api` para APIs REST. Solo `GET /auth/login` y `GET /auth/callback` quedan fuera del prefijo porque son rutas OAuth de navegador.
@@ -70,11 +70,21 @@ Importacion de usuarios:
 
 - `GET /api/users/identity-candidates?term=...` busca usuarios asignables en Identity Hub.
 - `GET /api/users/identity-candidates/:externalKey` obtiene un candidato exacto.
-- `POST /api/users/import-from-identity` crea el usuario local por `externalKey` y puede recibir `roleIds` para asignar roles locales.
+- `POST /api/users/import-from-identity` crea el usuario local por `externalKey` y puede recibir `roleIds` para asignar roles locales elegidos manualmente por el administrador.
 
 El navegador no llama directamente a Identity Hub. Intranet usa el cliente interno service-to-service contra `/internal/users/assignable` con Basic Auth usando `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`.
 
 En local `IDENTITY_HUB_URL` e `IDENTITY_HUB_INTERNAL_URL` normalmente tienen el mismo valor. En Docker, produccion o redes internas pueden diferir: la primera debe ser accesible por el navegador y la segunda por el backend de Intranet.
+
+Usuarios shadow y acceso:
+
+- `syncUserFromIdentity` se ejecuta despues de un login/callback SSO exitoso, usa el access token ya verificado, crea el shadow user si no existe y actualiza solo `fullName` cuando cambio.
+- Cuando crea un usuario shadow nuevo, asigna todos los roles locales con `isAutoAssigned = true`; si no existe ninguno, crea el usuario sin roles y registra un warning.
+- `syncUserFromIdentity` no autoriza acceso global, no consulta usuarios asignables en Identity Hub, no corre en cada request, no sobrescribe roles locales existentes y no toca permisos locales.
+- `importFromIdentity` no aplica roles autoasignables; usa solo los `roleIds` seleccionados manualmente.
+- Para quitar acceso a Intranet se revoca la aplicacion desde Identity Hub; el shadow user local no se borra.
+- Para cambiar lo que el usuario puede hacer dentro de Intranet se modifican roles/permisos locales.
+- Si se vuelve a dar acceso desde Identity Hub, la Intranet reutiliza el shadow user existente y conserva sus roles locales.
 
 PKCE S256:
 
@@ -95,9 +105,9 @@ En produccion, copia el build Angular a `public/browser`. NestJS sirve esa carpe
 
 ### Bootstrap local de seguridad
 
-Las migraciones o `synchronize` de TypeORM definen estructura de base de datos. El bootstrap crea datos base locales de Intranet: permisos, rol `ADMIN` y, solo si aun no existe ningun admin local, el primer usuario shadow asociado a un `externalKey` de Identity Hub.
+Las migraciones o `synchronize` de TypeORM definen estructura de base de datos. El bootstrap crea datos base locales de Intranet: permisos, rol `ADMIN`, roles base autoasignables y, solo si aun no existe ningun admin local, el primer usuario shadow asociado a un `externalKey` de Identity Hub.
 
-El bootstrap no crea usuarios globales en Identity Hub, no registra aplicaciones OAuth, no asigna roles del Hub y no mezcla permisos locales con permisos globales. Identity Hub autentica; Intranet autoriza con sus propias tablas de roles y permisos.
+El bootstrap no crea usuarios globales en Identity Hub, no registra aplicaciones OAuth, no asigna roles del Hub y no mezcla permisos locales con permisos globales. Identity Hub autentica y controla el acceso global a la aplicacion; Intranet autoriza acciones internas con sus propias tablas de roles y permisos.
 
 Ejecuta el bootstrap despues de tener la base de datos disponible, la aplicacion cliente configurada en Identity Hub y el usuario asignable creado/asignado en el Hub:
 
@@ -105,19 +115,19 @@ Ejecuta el bootstrap despues de tener la base de datos disponible, la aplicacion
 BOOTSTRAP_ADMIN_EXTERNAL_KEY=IDH-U-... npm run bootstrap:admin
 ```
 
-El comando es idempotente: sincroniza `PERMISSIONS_SEED` sin duplicar permisos, asegura el rol local `ADMIN` sin duplicar el rol ni relaciones rol-permiso, y crea el primer admin local solo cuando no existe ningun admin local. Si ya existe un `ADMIN`, no crea ni promueve usuarios adicionales. Si el `externalKey` ya existe localmente sin ser admin, falla para evitar una promocion accidental.
+El comando es idempotente: ejecuta `ensurePermissions()` para sincronizar `PERMISSIONS_SEED`, `ensureAdminRole()` para asegurar el rol local `ADMIN` con todos los permisos y `isAutoAssigned = false`, `ensureAutoAssignedRoles()` para asegurar el rol base `Funcionario` con `isAutoAssigned = true`, y crea el primer admin local solo cuando no existe ningun admin local. Si ya existe un `ADMIN`, no crea ni promueve usuarios adicionales. Si el `externalKey` ya existe localmente sin ser admin, falla para evitar una promocion accidental.
 
-Actualmente no hay rol base `USER` sembrado por el bootstrap. Los roles operativos posteriores se crean y asignan desde la UI administrativa. El login normal no asigna `ADMIN` ni usa roles internos de Identity Hub.
+El rol base autoasignable no depende de IDs en `.env` ni de roles de Identity Hub; solo define roles iniciales locales para usuarios creados por SSO/JIT. Los roles operativos posteriores se crean y asignan desde la UI administrativa. El login normal no asigna `ADMIN` ni usa roles internos de Identity Hub.
 
 ### Migraciones TypeORM
 
-El proyecto esta preparado para migraciones TypeORM, pero la migracion inicial definitiva aun no se genero porque el esquema sigue en revision.
+El proyecto esta preparado para migraciones TypeORM. Ya existe una migracion incremental para `roles.isAutoAssigned`; la migracion inicial definitiva aun no se genero porque el esquema sigue en revision.
 
 - En desarrollo local puede usarse `DB_SYNCHRONIZE=true` para iterar rapidamente.
 - En staging y produccion usa siempre `DB_SYNCHRONIZE=false`.
 - El runtime de Nest lee `DB_SYNCHRONIZE` para decidir `synchronize`.
 - El DataSource para CLI esta en `src/database/data-source.ts` y usa `synchronize: false` fijo.
-- Las migraciones se guardaran en `src/database/migrations` y deben versionarse en Git.
+- Las migraciones se guardan en `src/database/migrations` y deben versionarse en Git.
 - `bootstrap-admin` no reemplaza migraciones: las migraciones cambian estructura; el bootstrap crea datos base locales.
 
 Comandos:
@@ -129,6 +139,15 @@ npm run migration:revert
 ```
 
 `migration:generate` crea un archivo de migracion comparando entidades contra la base configurada. `migration:run` aplica migraciones pendientes. `migration:revert` revierte la ultima migracion aplicada.
+
+Mientras no exista una migracion de esquema versionada para retirar el campo historico de usuarios, aplica este SQL operativo en la base de Intranet si la columna existe. La columna `roles.isAutoAssigned` ya esta cubierta por migracion:
+
+```sql
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS "isAutoAssigned" boolean NOT NULL DEFAULT false;
+ALTER TABLE users DROP COLUMN IF EXISTS "isActive";
+```
+
+No borres usuarios shadow locales ni modifiques tablas de Identity Hub desde este cliente.
 
 ## Ejecucion del proyecto
 

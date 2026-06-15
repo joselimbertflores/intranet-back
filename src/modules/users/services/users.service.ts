@@ -1,10 +1,4 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, QueryFailedError, Repository } from 'typeorm';
 
@@ -16,6 +10,8 @@ import { Role, User } from '../entities';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(Role) private roleRepository: Repository<Role>,
     @InjectRepository(User) private userRepository: Repository<User>,
@@ -45,7 +41,6 @@ export class UsersService {
     const user = this.userRepository.create({
       externalKey: identityUser.externalKey,
       fullName: identityUser.fullName,
-      isActive: true,
       roles,
     });
     try {
@@ -59,7 +54,7 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto) {
-    const { roleIds, isActive } = dto;
+    const { roleIds } = dto;
     const userDB = await this.userRepository.findOneBy({ id });
 
     if (!userDB) throw new NotFoundException(`El usuario editado no existe`);
@@ -73,7 +68,6 @@ export class UsersService {
     return await this.userRepository.save({
       ...userDB,
       ...(newRoles && { roles: newRoles }),
-      ...(isActive !== undefined && { isActive }),
     });
   }
 
@@ -87,20 +81,20 @@ export class UsersService {
   async syncUserFromIdentity(payload: AccessTokenPayload) {
     const externalKey = payload.externalKey;
     let user = await this.findByExternalKey(externalKey);
-    const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
-
-    if (identityUser.externalKey !== externalKey) {
-      throw new BadGatewayException(
-        'El servicio de usuarios devolvio un identificador externo diferente al solicitado.',
-      );
-    }
 
     if (!user) {
+      const autoAssignedRoles = await this.roleRepository.find({ where: { isAutoAssigned: true } });
+
+      if (autoAssignedRoles.length === 0) {
+        this.logger.warn(
+          `No auto-assigned roles found for new shadow user ${externalKey}. Creating user without roles.`,
+        );
+      }
+
       user = this.userRepository.create({
-        fullName: identityUser.fullName || payload.name,
+        fullName: payload.name,
         externalKey,
-        roles: [],
-        isActive: true,
+        roles: autoAssignedRoles,
       });
 
       try {
@@ -115,7 +109,7 @@ export class UsersService {
       }
     }
 
-    const fullName = identityUser.fullName || payload.name;
+    const fullName = payload.name;
     if (fullName && user.fullName !== fullName) {
       await this.userRepository.update({ id: user.id }, { fullName });
       user.fullName = fullName;

@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ArrayMinSize, IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -15,11 +15,7 @@ export class CreateUserDto {
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
-  roleIds: string;
-
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
+  roleIds: string[];
 }
 
 export class UpdateUserDto {
@@ -28,10 +24,6 @@ export class UpdateUserDto {
   @IsArray()
   @ArrayMinSize(1)
   roleIds?: string[];
-
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
 }
 
 export class SearchIdentityCandidatesDto {

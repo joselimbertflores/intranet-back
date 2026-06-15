@@ -1,11 +1,4 @@
-import {
-  Logger,
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Logger, Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import type { Request, Response } from 'express';
@@ -116,10 +109,6 @@ export class OAuthGuard implements CanActivate {
       return user;
     } catch (error: unknown) {
       this.authCookieService.clearAuthCookies(response);
-      if (error instanceof ForbiddenException) {
-        throw error;
-      }
-
       if (error instanceof UnauthorizedException && !(error instanceof AccessTokenVerificationError)) {
         throw error;
       }
@@ -131,10 +120,6 @@ export class OAuthGuard implements CanActivate {
   private assertAuthenticatedUser(user: User | null): asserts user is User {
     if (!user) {
       throw new UnauthorizedException('User not found');
-    }
-
-    if (!user.isActive) {
-      throw new ForbiddenException('User is inactive');
     }
   }
 }

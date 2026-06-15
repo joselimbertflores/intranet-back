@@ -22,6 +22,9 @@ async function bootstrap() {
     console.log(
       `Rol ADMIN sincronizado: ${result.adminRole.createdRole ? 'creado' : 'existente'}, ${result.adminRole.addedPermissions} permisos agregados, ${result.adminRole.totalPermissions} permisos asociados.`,
     );
+    console.log(
+      `Rol base autoasignable sincronizado: ${result.autoAssignedRoles.roleName} ${result.autoAssignedRoles.createdRole ? 'creado' : 'existente'}, ${result.autoAssignedRoles.totalAutoAssignedRoles} rol(es) autoasignable(s).`,
+    );
 
     if (result.status === 'admin-already-exists') {
       console.log('Ya existe al menos un ADMIN local. No se creo ningun usuario.');

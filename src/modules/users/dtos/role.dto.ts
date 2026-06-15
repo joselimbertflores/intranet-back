@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { ArrayMinSize, IsArray, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateRoleDto {
   @IsString()
@@ -9,6 +9,10 @@ export class CreateRoleDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isAutoAssigned?: boolean;
 
   @IsArray()
   @ArrayMinSize(1)

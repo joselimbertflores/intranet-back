@@ -18,7 +18,6 @@ export class AuthController {
         id: user.id,
         externalKey: user.externalKey,
         fullName: user.fullName,
-        isActive: user.isActive,
         permissions: this.getEffectivePermissions(user),
       },
     };
