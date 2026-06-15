@@ -71,7 +71,7 @@ export class TutorialService {
       if (!tutorial) throw new NotFoundException();
       for (const block of tutorial.blocks) {
         if (block.file) {
-          await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
+          await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.ORPHANED });
         }
       }
       await manager.delete(TutorialBlock, { tutorial: { id } });

@@ -5,12 +5,12 @@ import { ConfigService } from '@nestjs/config';
 
 import { access, mkdir, writeFile } from 'fs/promises';
 import { dirname, join, parse } from 'path';
-import { Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { constants, existsSync } from 'fs';
 import sharp from 'sharp';
 import mime from 'mime-types';
 
-import { FileStatus, StoredFile } from './entities/stored-file.entity';
+import { FileStatus, StoredFile, StoredFileKind } from './entities/stored-file.entity';
 import { FileContext } from './enums/file-context.enum';
 import { EnvironmentVariables } from 'src/config';
 import { generatePdfPreview } from 'src/helpers';
@@ -21,6 +21,8 @@ interface SaveFileParams {
   originalName: string;
   mimeType: string;
   context: FileContext;
+  kind?: StoredFileKind;
+  sourceFile?: StoredFile;
 }
 
 @Injectable()
@@ -119,7 +121,7 @@ export class FilesService {
   async getFilePath(fileId: string): Promise<string> {
     const file = await this.fileRepository.findOneBy({ id: fileId });
 
-    if (!file || file.status === FileStatus.REMOVED) {
+    if (!file || file.status === FileStatus.ORPHANED) {
       throw new NotFoundException('File not found');
     }
 
@@ -172,8 +174,78 @@ export class FilesService {
     await this.cacheManager.set(cacheKey, true, 300000);
   }
 
+  async claimPendingFile(fileId: string, manager?: EntityManager): Promise<StoredFile> {
+    const fileRepository = this.getFileRepository(manager);
+    const file = await fileRepository.findOne({ where: { id: fileId } });
+
+    if (!file) throw new NotFoundException('File not found');
+    if (file.status !== FileStatus.PENDING) {
+      throw new BadRequestException('File is not available for use');
+    }
+
+    file.status = FileStatus.ACTIVE;
+    return fileRepository.save(file);
+  }
+
+  async claimPendingFileWithDerivedFiles(fileId: string, manager?: EntityManager): Promise<StoredFile> {
+    const fileRepository = this.getFileRepository(manager);
+    const file = await fileRepository.findOne({
+      where: { id: fileId },
+      relations: { derivedFiles: true },
+    });
+
+    if (!file) throw new NotFoundException('File not found');
+    if (file.status !== FileStatus.PENDING) {
+      throw new BadRequestException('File is not available for use');
+    }
+
+    const fileIds = this.getFileAndDerivedIds(file);
+    await fileRepository.update({ id: In(fileIds) }, { status: FileStatus.ACTIVE });
+
+    file.status = FileStatus.ACTIVE;
+    file.derivedFiles?.forEach((derivedFile) => {
+      derivedFile.status = FileStatus.ACTIVE;
+    });
+
+    return file;
+  }
+
+  async markFileAsOrphaned(fileId: string, manager?: EntityManager): Promise<void> {
+    const fileRepository = this.getFileRepository(manager);
+    const result = await fileRepository.update({ id: fileId }, { status: FileStatus.ORPHANED });
+
+    if (!result.affected) throw new NotFoundException('File not found');
+  }
+
+  async markFileWithDerivedFilesAsOrphaned(fileId: string, manager?: EntityManager): Promise<void> {
+    const fileRepository = this.getFileRepository(manager);
+    const file = await fileRepository.findOne({
+      where: { id: fileId },
+      relations: { derivedFiles: true },
+    });
+
+    if (!file) throw new NotFoundException('File not found');
+
+    await fileRepository.update({ id: In(this.getFileAndDerivedIds(file)) }, { status: FileStatus.ORPHANED });
+  }
+
+  async replaceActiveFile(oldFileId: string, newPendingFileId: string, manager?: EntityManager): Promise<StoredFile> {
+    const fileRepository = this.getFileRepository(manager);
+    const oldFile = await fileRepository.findOne({ where: { id: oldFileId } });
+
+    if (!oldFile) throw new NotFoundException('File not found');
+    if (oldFile.status !== FileStatus.ACTIVE) {
+      throw new BadRequestException('Current file is not active');
+    }
+
+    const newFile = await this.claimPendingFileWithDerivedFiles(newPendingFileId, manager);
+    await this.markFileWithDerivedFilesAsOrphaned(oldFileId, manager);
+
+    return newFile;
+  }
+
   private async saveFile(params: SaveFileParams): Promise<StoredFile> {
-    const { mimeType, context, buffer, originalName } = params;
+    const { mimeType, context, buffer, originalName, kind = StoredFileKind.ORIGINAL, sourceFile } = params;
     const extension = mime.extension(mimeType);
 
     if (!extension) {
@@ -195,6 +267,8 @@ export class FilesService {
       storageKey,
       mimeType,
       sizeBytes: buffer.length,
+      kind,
+      sourceFile,
     });
     return this.fileRepository.save(entity);
   }
@@ -202,16 +276,22 @@ export class FilesService {
   private async saveDerivedPreview(buffer: Buffer, parent: StoredFile, context: FileContext) {
     const { name } = parse(parent.originalName);
 
-    const saved = await this.saveFile({
+    await this.saveFile({
       buffer,
       originalName: `${name}-preview.png`,
       mimeType: 'image/png',
       context,
+      kind: StoredFileKind.PREVIEW,
+      sourceFile: parent,
     });
+  }
 
-    saved.parentFile = parent;
+  private getFileRepository(manager?: EntityManager): Repository<StoredFile> {
+    return manager ? manager.getRepository(StoredFile) : this.fileRepository;
+  }
 
-    await this.fileRepository.save(saved);
+  private getFileAndDerivedIds(file: StoredFile): string[] {
+    return [file.id, ...(file.derivedFiles?.map((derivedFile) => derivedFile.id) ?? [])];
   }
 
   private async ensureFolderExists(folderPath: string) {

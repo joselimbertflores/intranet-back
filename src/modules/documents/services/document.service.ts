@@ -6,8 +6,8 @@ import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { DocumentRecord, DocumentStatus, OrganizationalUnit, DocumentType, DocumentSubtype } from '../entities';
 import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { User } from 'src/modules/users/entities';
-import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import { OrganizationalUnitService } from './organizational-unit.service';
+import { FilesService } from 'src/modules/files/files.service';
 
 @Injectable()
 export class DocumentService {
@@ -16,8 +16,8 @@ export class DocumentService {
     @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,
     @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
-    @InjectRepository(StoredFile) private fileRepository: Repository<StoredFile>,
     private organizationalUnitService: OrganizationalUnitService,
+    private filesService: FilesService,
     private dataSource: DataSource,
   ) {}
 
@@ -52,37 +52,24 @@ export class DocumentService {
       documentTypeId,
       documentSubtypeId,
     );
-    const fileIds = documents.map((doc) => doc.fileId);
-
-    const files = await this.fileRepository.find({ where: { id: In(fileIds) } });
-
-    if (files.length !== fileIds.length) {
-      throw new BadRequestException('One or more files do not exist');
-    }
-
-    const filesById = new Map(files.map((file) => [file.id, file]));
-    const invalidFiles = files.filter((file) => file.status !== FileStatus.PENDING);
-
-    if (invalidFiles.length > 0) {
-      throw new BadRequestException('One or more files are not available');
-    }
-
     return this.dataSource.transaction(async (manager) => {
-      const models = documents.map((doc) => {
-        const file = filesById.get(doc.fileId);
-        if (!file) throw new BadRequestException(`File ${doc.fileId} not found`);
+      const models: DocumentRecord[] = [];
 
-        return manager.create(DocumentRecord, {
-          fiscalYear: fiscalYear ?? null,
-          organizationalUnit,
-          documentType,
-          documentSubtype,
-          file,
-          title: doc.title ?? file.originalName,
-        });
-      });
+      for (const doc of documents) {
+        const file = await this.filesService.claimPendingFileWithDerivedFiles(doc.fileId, manager);
 
-      await manager.update(StoredFile, { id: In(fileIds) }, { status: FileStatus.ACTIVE });
+        models.push(
+          manager.create(DocumentRecord, {
+            fiscalYear: fiscalYear ?? null,
+            organizationalUnit,
+            documentType,
+            documentSubtype,
+            file,
+            title: doc.title ?? file.originalName,
+          }),
+        );
+      }
+
       return manager.save(models);
     });
   }
@@ -110,6 +97,17 @@ export class DocumentService {
     if (dto.title !== undefined) document.title = dto.title;
     if (Object.prototype.hasOwnProperty.call(dto, 'fiscalYear')) document.fiscalYear = dto.fiscalYear ?? null;
     if (dto.status !== undefined) document.status = dto.status;
+
+    const newFileId = dto.fileId;
+    if (newFileId && newFileId !== document.fileId) {
+      return this.dataSource.transaction(async (manager) => {
+        const newFile = await this.filesService.replaceActiveFile(document.fileId, newFileId, manager);
+        document.file = newFile;
+        document.fileId = newFile.id;
+
+        return manager.save(DocumentRecord, document);
+      });
+    }
 
     return this.docRepository.save(document);
   }

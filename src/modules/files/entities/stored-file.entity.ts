@@ -13,8 +13,13 @@ import {
 export enum FileStatus {
   PENDING = 'PENDING', // subido pero aún no asociado
   ACTIVE = 'ACTIVE', // en uso por alguna entidad
-  ORPHAN = 'ORPHAN', // perdió su referencia
-  REMOVED = 'REMOVED', // eliminado lógico
+  ORPHANED = 'ORPHANED', // perdió su referencia
+}
+
+export enum StoredFileKind {
+  ORIGINAL = 'ORIGINAL',
+  PREVIEW = 'PREVIEW',
+  THUMBNAIL = 'THUMBNAIL',
 }
 
 @Entity('files')
@@ -50,19 +55,26 @@ export class StoredFile {
   })
   status: FileStatus;
 
+  @Column({
+    type: 'enum',
+    enum: StoredFileKind,
+    default: StoredFileKind.ORIGINAL,
+  })
+  kind: StoredFileKind;
+
   /**
    * Relación self-reference
    * - null  → archivo original
    * - value → archivo derivado (preview, thumbnail, etc.)
    */
-  @Column({ nullable: true })
-  parentFileId?: number;
+  @Column({ type: 'uuid', nullable: true })
+  sourceFileId?: string | null;
 
   @ManyToOne(() => StoredFile, (file) => file.derivedFiles, { nullable: true })
-  @JoinColumn({ name: 'parentFileId' })
-  parentFile?: StoredFile;
+  @JoinColumn({ name: 'sourceFileId' })
+  sourceFile?: StoredFile | null;
 
-  @OneToMany(() => StoredFile, (file) => file.parentFile)
+  @OneToMany(() => StoredFile, (file) => file.sourceFile)
   derivedFiles?: StoredFile[];
 
   // auditoría básica

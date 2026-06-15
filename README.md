@@ -105,7 +105,7 @@ En produccion, copia el build Angular a `public/browser`. NestJS sirve esa carpe
 
 ### Bootstrap local de seguridad
 
-Las migraciones o `synchronize` de TypeORM definen estructura de base de datos. El bootstrap crea datos base locales de Intranet: permisos, rol `ADMIN`, roles base autoasignables y, solo si aun no existe ningun admin local, el primer usuario shadow asociado a un `externalKey` de Identity Hub.
+Las migraciones o `synchronize` de TypeORM definen estructura de base de datos. El bootstrap crea datos base locales de Intranet: permisos, rol `ADMIN` y, solo si aun no existe ningun admin local, el primer usuario shadow asociado a un `externalKey` de Identity Hub.
 
 El bootstrap no crea usuarios globales en Identity Hub, no registra aplicaciones OAuth, no asigna roles del Hub y no mezcla permisos locales con permisos globales. Identity Hub autentica y controla el acceso global a la aplicacion; Intranet autoriza acciones internas con sus propias tablas de roles y permisos.
 
@@ -115,9 +115,9 @@ Ejecuta el bootstrap despues de tener la base de datos disponible, la aplicacion
 BOOTSTRAP_ADMIN_EXTERNAL_KEY=IDH-U-... npm run bootstrap:admin
 ```
 
-El comando es idempotente: ejecuta `ensurePermissions()` para sincronizar `PERMISSIONS_SEED`, `ensureAdminRole()` para asegurar el rol local `ADMIN` con todos los permisos y `isAutoAssigned = false`, `ensureAutoAssignedRoles()` para asegurar el rol base `Funcionario` con `isAutoAssigned = true`, y crea el primer admin local solo cuando no existe ningun admin local. Si ya existe un `ADMIN`, no crea ni promueve usuarios adicionales. Si el `externalKey` ya existe localmente sin ser admin, falla para evitar una promocion accidental.
+El comando es idempotente: ejecuta `ensurePermissions()` para sincronizar `PERMISSIONS_SEED`, ejecuta `ensureAdminRole()` para asegurar el rol local `ADMIN` con todos los permisos y `isAutoAssigned = false`, y crea el primer admin local solo cuando no existe ningun admin local. Si ya existe un `ADMIN`, no crea ni promueve usuarios adicionales. Si el `externalKey` ya existe localmente sin ser admin, falla para evitar una promocion accidental.
 
-El rol base autoasignable no depende de IDs en `.env` ni de roles de Identity Hub; solo define roles iniciales locales para usuarios creados por SSO/JIT. Los roles operativos posteriores se crean y asignan desde la UI administrativa. El login normal no asigna `ADMIN` ni usa roles internos de Identity Hub.
+El bootstrap no crea roles autoasignables normales. Los roles con `isAutoAssigned = true` se configuran desde el CRUD de roles; si no existe ninguno, los usuarios nuevos por SSO/JIT se crean sin roles y se registra un warning. El login normal no asigna `ADMIN` ni usa roles internos de Identity Hub.
 
 ### Migraciones TypeORM
 

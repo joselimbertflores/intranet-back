@@ -12,7 +12,7 @@ import { FileStatus, StoredFile } from '../files/entities/stored-file.entity';
 export interface PortalCommunication {
   id: string;
   reference: string;
-  code:string
+  code: string;
   type: string;
   createdAt: Date;
   previewImageUrl?: string | null;
@@ -69,7 +69,7 @@ export class CommunicationService {
 
     const createdCommunication = await this.dataSource.transaction(async (manager) => {
       const communication = manager.create(Communication, { ...props, code: normalizedCode, type, file });
-      await manager.update(StoredFile, [{ id: file.id }, { parentFileId: file.id }], { status: FileStatus.ACTIVE });
+      await manager.update(StoredFile, [{ id: file.id }, { sourceFileId: file.id }], { status: FileStatus.ACTIVE });
       return await manager.save(communication);
     });
     return this.toAdminDto(createdCommunication);
@@ -103,10 +103,10 @@ export class CommunicationService {
     const updatedCommunication = await this.dataSource.transaction(async (manager) => {
       manager.merge(Communication, communicationDB, toUpdate);
       if (newFile) {
-        await manager.update(StoredFile, [{ id: communicationDB.file.id }, { parentFileId: communicationDB.id }], {
-          status: FileStatus.REMOVED,
+        await manager.update(StoredFile, [{ id: communicationDB.file.id }, { sourceFileId: communicationDB.file.id }], {
+          status: FileStatus.ORPHANED,
         });
-        await manager.update(StoredFile, [{ id: newFile.id }, { parentFileId: newFile.id }], {
+        await manager.update(StoredFile, [{ id: newFile.id }, { sourceFileId: newFile.id }], {
           status: FileStatus.ACTIVE,
         });
         communicationDB.file = newFile;

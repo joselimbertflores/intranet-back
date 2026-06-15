@@ -91,14 +91,14 @@ export class BannerService {
       if (!banner) throw new NotFoundException('Banner not found');
       await bannerRepo.delete(id);
 
-      await manager.getRepository(StoredFile).update({ id: banner.image.id }, { status: FileStatus.REMOVED });
+      await manager.getRepository(StoredFile).update({ id: banner.image.id }, { status: FileStatus.ORPHANED });
 
       return { ok: true, message: 'Banner removed successfully' };
     });
   }
 
   private async markFilesRemoved(manager: EntityManager, fileIds: string[]) {
-    await manager.getRepository(StoredFile).update({ id: In(fileIds) }, { status: FileStatus.REMOVED });
+    await manager.getRepository(StoredFile).update({ id: In(fileIds) }, { status: FileStatus.ORPHANED });
   }
 
   private async markFilesActive(manager: EntityManager, fileIds: string[]) {

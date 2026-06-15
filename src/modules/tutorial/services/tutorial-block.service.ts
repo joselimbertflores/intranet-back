@@ -64,7 +64,7 @@ export class TutorialBlockService {
 
       if (dto.fileId && dto.fileId !== block.file?.id) {
         if (block.file) {
-          await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
+          await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.ORPHANED });
         }
         block.file = await this.activateFile(manager, dto.fileId);
       }
@@ -91,7 +91,7 @@ export class TutorialBlockService {
       if (!block) throw new NotFoundException();
 
       if (block.file) {
-        await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.REMOVED });
+        await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.ORPHANED });
       }
 
       await manager.delete(TutorialBlock, { id: blockId });

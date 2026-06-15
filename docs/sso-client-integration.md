@@ -138,7 +138,6 @@ El comando:
 - lee `BOOTSTRAP_ADMIN_EXTERNAL_KEY`;
 - ejecuta `ensurePermissions()` para sembrar permisos base desde `PERMISSIONS_SEED`;
 - ejecuta `ensureAdminRole()` para asegurar que el rol local `ADMIN` exista con todos los permisos locales y `isAutoAssigned = false`;
-- ejecuta `ensureAutoAssignedRoles()` para asegurar al menos un rol base local, actualmente `Funcionario`, con `isAutoAssigned = true`;
 - consulta Identity Hub por el usuario asignable;
 - crea el shadow user local con rol `ADMIN` solo si no existe ningun admin local;
 - no hace nada si ya existe al menos un `ADMIN` local;
@@ -147,7 +146,7 @@ El comando:
 - no depende de endpoints HTTP publicos;
 - no se mezcla con el login normal.
 
-Si despues de sembrar permisos no existe ningun permiso, el bootstrap falla con error claro y no crea un rol `ADMIN` vacio. Cuando el rol `ADMIN` existe, el bootstrap agrega permisos faltantes sin eliminar permisos ya asignados y fuerza `isAutoAssigned = false` para evitar asignarlo por JIT. El rol base `Funcionario` no depende de IDs en `.env` ni de roles de Identity Hub; solo sirve como rol inicial local para nuevos usuarios creados por SSO. Los roles no-admin posteriores se gestionan desde la UI administrativa.
+Si despues de sembrar permisos no existe ningun permiso, el bootstrap falla con error claro y no crea un rol `ADMIN` vacio. Cuando el rol `ADMIN` existe, el bootstrap agrega permisos faltantes sin eliminar permisos ya asignados y fuerza `isAutoAssigned = false` para evitar asignarlo por JIT. El bootstrap no crea roles autoasignables normales; los roles con `isAutoAssigned = true` se configuran desde el CRUD de roles. Si no hay roles autoasignables, los usuarios nuevos por SSO/JIT se crean sin roles y se registra un warning.
 
 Los admins posteriores se gestionan desde la UI administrativa mediante roles locales.
 

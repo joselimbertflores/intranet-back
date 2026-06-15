@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { INestApplicationContext, NotFoundException } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
-import { AppModule } from 'src/app.module';
 import { SecurityBootstrapService } from 'src/modules/users/services';
+import { AppModule } from 'src/app.module';
 
 async function bootstrap() {
   let app: INestApplicationContext | undefined;
@@ -13,24 +13,14 @@ async function bootstrap() {
     app = await NestFactory.createApplicationContext(AppModule);
 
     const securityBootstrapService = app.get(SecurityBootstrapService);
-
     const result = await securityBootstrapService.bootstrapInitialAdmin(externalKey);
 
-    console.log(
-      `Permisos base sincronizados: ${result.permissions.totalBasePermissions} total, ${result.permissions.createdPermissions} nuevos, ${result.permissions.existingPermissions} existentes.`,
-    );
-    console.log(
-      `Rol ADMIN sincronizado: ${result.adminRole.createdRole ? 'creado' : 'existente'}, ${result.adminRole.addedPermissions} permisos agregados, ${result.adminRole.totalPermissions} permisos asociados.`,
-    );
-    console.log(
-      `Rol base autoasignable sincronizado: ${result.autoAssignedRoles.roleName} ${result.autoAssignedRoles.createdRole ? 'creado' : 'existente'}, ${result.autoAssignedRoles.totalAutoAssignedRoles} rol(es) autoasignable(s).`,
-    );
+    console.log('Permisos y rol ADMIN sincronizados correctamente.');
 
     if (result.status === 'admin-already-exists') {
-      console.log('Ya existe al menos un ADMIN local. No se creo ningun usuario.');
+      console.log('Ya existe al menos un ADMIN local. No se creó ningún usuario.');
       return;
     }
-
     console.log('Primer ADMIN local creado correctamente.');
   } catch (error) {
     process.exitCode = 1;
