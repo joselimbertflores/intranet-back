@@ -27,10 +27,6 @@ export class StoredFile {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // nombre físico (uuid.ext)
-  @Column()
-  storedName: string;
-
   // nombre original (para UI / descargas)
   @Column()
   originalName: string;
@@ -38,15 +34,12 @@ export class StoredFile {
   @Column()
   mimeType: string;
 
-  @Column('bigint')
+  @Column({ type: 'integer' })
   sizeBytes: number;
 
   // ej: communications/uuid.pdf
-  @Column()
+  @Column({ unique: true })
   storageKey: string;
-
-  @Column({ default: 0 })
-  downloadCount: number;
 
   @Column({
     type: 'enum',
@@ -76,10 +69,6 @@ export class StoredFile {
 
   @OneToMany(() => StoredFile, (file) => file.sourceFile)
   derivedFiles?: StoredFile[];
-
-  // auditoría básica
-  @Column({ nullable: true })
-  createdBy?: number;
 
   @CreateDateColumn()
   createdAt: Date;

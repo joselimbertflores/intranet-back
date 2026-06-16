@@ -53,9 +53,9 @@ export class OrganizationalUnitService {
     return this.organizationalUnitRepository.save({ ...organizationalUnit, ...dto });
   }
 
-  async getTree(params?: { onlyActive: boolean }) {
+  async getTree(params?: { onlyActive?: boolean }) {
     const organizationalUnits = await this.organizationalUnitRepository.find({
-      ...(params && { where: { isActive: params.onlyActive } }),
+      ...(params?.onlyActive && { where: { isActive: true } }),
       relations: { parent: true },
       order: {
         name: 'ASC',
@@ -77,7 +77,6 @@ export class OrganizationalUnitService {
         where: { parentId },
         select: { id: true },
       });
-
       for (const child of children) {
         await collect(child.id);
       }

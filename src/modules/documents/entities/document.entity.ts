@@ -2,16 +2,16 @@ import {
   Column,
   Entity,
   ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
   PrimaryGeneratedColumn,
-  JoinColumn,
 } from 'typeorm';
 
-import { DocumentType } from './document-type.entity';
+import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import { OrganizationalUnit } from './organizational-unit.entity';
 import { DocumentSubtype } from './document-subtype.entity';
-import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
+import { DocumentType } from './document-type.entity';
 
 export enum DocumentStatus {
   ACTIVE = 'ACTIVE',
@@ -26,8 +26,8 @@ export class DocumentRecord {
   @Column({ length: 255 })
   title: string;
 
-  @Column({ name: 'fiscal_year', type: 'int', nullable: true })
-  fiscalYear: number | null;
+  @Column({ type: 'int', nullable: true })
+  year: number | null;
 
   @Column({ name: 'organizational_unit_id', type: 'uuid' })
   organizationalUnitId: string;

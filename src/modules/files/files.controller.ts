@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  Ip,
   Param,
   ParseFilePipeBuilder,
   ParseUUIDPipe,
@@ -105,7 +104,6 @@ export class FilesController {
   @Get(':id')
   async serveFile(
     @Res({ passthrough: true }) res: Response,
-    @Ip() ip: string,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download') download?: string,
   ) {
@@ -128,9 +126,6 @@ export class FilesController {
 
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 
-    if (isDownload) {
-      await this.filesService.tryIncrementDownloadCount(file.id, ip);
-    }
     return new StreamableFile(createReadStream(filePath));
   }
 }

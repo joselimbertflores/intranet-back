@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
@@ -29,9 +30,10 @@ export class DocumentTypeService {
   async create(dto: CreateDocumentTypeDto) {
     try {
       const { subtypes, ...props } = dto;
+      const subtypeDtos = subtypes ?? [];
       const model = this.documentTypeRepository.create({
         ...props,
-        subtypes: subtypes.length > 0 ? subtypes.map((st) => this.documentSubTypeRepository.create(st)) : [],
+        subtypes: subtypeDtos.length > 0 ? subtypeDtos.map((st) => this.documentSubTypeRepository.create(st)) : [],
       });
       return await this.documentTypeRepository.save(model);
     } catch (error: unknown) {
@@ -84,6 +86,9 @@ export class DocumentTypeService {
   }
 
   private handleModifyException(error: unknown): void {
+    if (error instanceof HttpException) {
+      throw error;
+    }
     if (error instanceof QueryFailedError && error['code'] === '23505') {
       throw new ConflictException('Duplicate slug detected');
     }

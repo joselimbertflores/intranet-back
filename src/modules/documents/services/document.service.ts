@@ -4,154 +4,241 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 
 import { DocumentRecord, DocumentStatus, OrganizationalUnit, DocumentType, DocumentSubtype } from '../entities';
-import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
-import { User } from 'src/modules/users/entities';
+import {
+  CreateDocumentBatchDto,
+  DocumentAdminResponseDto,
+  DocumentFileResponseDto,
+  FilterDocumentsDto,
+  UpdateDocumentDto,
+} from '../dtos';
 import { OrganizationalUnitService } from './organizational-unit.service';
 import { FilesService } from 'src/modules/files/files.service';
+import { FileStatus, StoredFile, StoredFileKind } from 'src/modules/files/entities/stored-file.entity';
 
 @Injectable()
 export class DocumentService {
   constructor(
     @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,
-    @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
+    @InjectRepository(OrganizationalUnit) private orgUnitRepository: Repository<OrganizationalUnit>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
     private organizationalUnitService: OrganizationalUnitService,
     private filesService: FilesService,
     private dataSource: DataSource,
   ) {}
 
-  async findAll(filterParamsDto: NewFilterDocumentsDto, _authUser: User) {
-    const { limit, offset, term, fiscalYear, organizationalUnitId, documentTypeId, documentSubtypeId, status } =
+  async findAll(filterParamsDto: FilterDocumentsDto) {
+    const { term, limit, offset, status, fiscalYear, documentTypeId, documentSubtypeId, organizationalUnitId } =
       filterParamsDto;
+
     const organizationalUnitIds = organizationalUnitId
       ? await this.organizationalUnitService.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
       : undefined;
+
     const where: FindOptionsWhere<DocumentRecord> = {
       ...(term && { title: ILike(`%${term}%`) }),
       ...(organizationalUnitIds && { organizationalUnit: { id: In(organizationalUnitIds) } }),
       ...(documentTypeId && { documentType: { id: documentTypeId } }),
       ...(documentSubtypeId && { documentSubtype: { id: documentSubtypeId } }),
-      ...(fiscalYear && { fiscalYear }),
+      ...(fiscalYear && { year: fiscalYear }),
       ...(status && { status }),
     };
     const [documents, total] = await this.docRepository.findAndCount({
       where,
       relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: true },
-      order: { createdAt: 'desc' },
+      order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
     });
-    return { documents, total };
+    return { documents: documents.map((document) => this.toAdminResponse(document)), total };
   }
 
-  async create(dto: CreateDocumentsDto, _authUser: User) {
-    const { documents, organizationalUnitId, documentTypeId, documentSubtypeId, fiscalYear } = dto;
-    const { organizationalUnit, documentType, documentSubtype } = await this.getValidDocumentProps(
-      organizationalUnitId,
-      documentTypeId,
-      documentSubtypeId,
-    );
+  async findOne(id: string) {
+    const document = await this.docRepository.findOne({
+      where: { id },
+      relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: { derivedFiles: true } },
+    });
+
+    if (!document) throw new NotFoundException(`Document ${id} not found`);
+
+    return this.toAdminResponse(document);
+  }
+
+  async createBatch(dto: CreateDocumentBatchDto) {
+    const { organizationalUnitId, documentTypeId, documentSubtypeId, documents, year } = dto;
+
+    const fileIds = documents.map(({ fileId }) => fileId);
+    const uniqueFileIds = new Set(fileIds);
+
+    if (uniqueFileIds.size !== fileIds.length) {
+      throw new BadRequestException('Duplicate files are not allowed in the same batch');
+    }
+
+    const [organizationalUnit, { documentType, documentSubtype }] = await Promise.all([
+      this.getActiveOrganizationalUnitOrFail(organizationalUnitId),
+      this.getActiveDocumentTypeWithSubtypeOrFail(documentTypeId, documentSubtypeId),
+    ]);
+
     return this.dataSource.transaction(async (manager) => {
-      const models: DocumentRecord[] = [];
-
-      for (const doc of documents) {
-        const file = await this.filesService.claimPendingFileWithDerivedFiles(doc.fileId, manager);
-
-        models.push(
-          manager.create(DocumentRecord, {
-            fiscalYear: fiscalYear ?? null,
-            organizationalUnit,
-            documentType,
-            documentSubtype,
-            file,
-            title: doc.title ?? file.originalName,
-          }),
-        );
+      const records: DocumentRecord[] = [];
+      for (const item of documents) {
+        const file = await this.filesService.claimPendingFile(item.fileId, manager);
+        const record = manager.create(DocumentRecord, {
+          organizationalUnit,
+          documentType,
+          documentSubtype,
+          title: item.title,
+          year: year ?? null,
+          file,
+        });
+        records.push(record);
       }
 
-      return manager.save(models);
+      const savedDocuments = await manager.save(records);
+      return savedDocuments.map((document) => this.toAdminResponse(document));
     });
   }
 
   async update(id: string, dto: UpdateDocumentDto) {
+    const { fileId, organizationalUnitId, documentTypeId, documentSubtypeId, ...toUpdate } = dto;
+
     const document = await this.docRepository.findOne({
       where: { id },
-      relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: true },
+      relations: {
+        organizationalUnit: true,
+        documentSubtype: true,
+        documentType: true,
+        file: true,
+      },
     });
+
     if (!document) throw new NotFoundException(`Document ${id} not found`);
 
-    if (this.hasClassificationChanges(dto)) {
-      const { organizationalUnit, documentType, documentSubtype } = await this.getValidDocumentProps(
-        dto.organizationalUnitId ?? document.organizationalUnitId,
-        dto.documentTypeId ?? document.documentTypeId,
-        dto.documentSubtypeId === undefined
-          ? (document.documentSubtypeId ?? undefined)
-          : (dto.documentSubtypeId ?? undefined),
+    if (organizationalUnitId) {
+      document.organizationalUnit = await this.getActiveOrganizationalUnitOrFail(organizationalUnitId);
+    }
+
+    if (documentTypeId || documentSubtypeId) {
+      const { documentType, documentSubtype } = await this.getActiveDocumentTypeWithSubtypeOrFail(
+        documentTypeId ?? document.documentType.id,
+        documentSubtypeId,
       );
-      document.organizationalUnit = organizationalUnit;
       document.documentType = documentType;
-      document.documentSubtype = documentSubtype ?? null;
+      document.documentSubtype = documentSubtype;
     }
 
-    if (dto.title !== undefined) document.title = dto.title;
-    if (Object.prototype.hasOwnProperty.call(dto, 'fiscalYear')) document.fiscalYear = dto.fiscalYear ?? null;
-    if (dto.status !== undefined) document.status = dto.status;
+    return this.dataSource.transaction(async (manager) => {
+      if (fileId && fileId !== document.fileId) {
+        await this.filesService.markActiveFileAsOrphaned(document.fileId, manager);
+        document.file = await this.filesService.claimPendingFile(fileId, manager);
+      }
+      const savedDocument = await manager.save(document);
 
-    const newFileId = dto.fileId;
-    if (newFileId && newFileId !== document.fileId) {
-      return this.dataSource.transaction(async (manager) => {
-        const newFile = await this.filesService.replaceActiveFile(document.fileId, newFileId, manager);
-        document.file = newFile;
-        document.fileId = newFile.id;
-
-        return manager.save(DocumentRecord, document);
-      });
-    }
-
-    return this.docRepository.save(document);
+      return this.toAdminResponse(savedDocument);
+    });
   }
 
-  private async getValidDocumentProps(
-    organizationalUnitId: string,
-    documentTypeId: number,
-    documentSubtypeId: number | undefined,
-  ) {
-    const organizationalUnit = await this.organizationalUnitRepository.findOneBy({
+  private async getValidDocumentRelations({
+    organizationalUnitId,
+    documentTypeId,
+    documentSubtypeId,
+  }: CreateDocumentBatchDto) {
+    const organizationalUnit = await this.orgUnitRepository.findOneBy({
       id: organizationalUnitId,
       isActive: true,
     });
     if (!organizationalUnit) {
       throw new BadRequestException(`Organizational unit ${organizationalUnitId} not found or inactive`);
     }
+
     const documentType = await this.docTypeRepository.findOneBy({ id: documentTypeId, isActive: true });
     if (!documentType) {
       throw new BadRequestException(`Document type ${documentTypeId} not found or inactive`);
     }
 
     let documentSubtype: DocumentSubtype | null = null;
-    if (documentSubtypeId) {
+
+    if (documentSubtypeId != null) {
       documentSubtype = await this.docSubtypeRepository.findOne({
         where: {
           id: documentSubtypeId,
-          documentType: { id: documentType.id },
           isActive: true,
+          documentTypeId,
         },
       });
       if (!documentSubtype) {
         throw new BadRequestException(
-          `Document subtype ${documentSubtypeId} not found, inactive, or does not belong to type ${documentTypeId}`,
+          `Document subtype ${documentSubtypeId} not found, inactive or does not belong to type ${documentTypeId}`,
         );
       }
     }
+
     return { organizationalUnit, documentType, documentSubtype };
   }
 
-  private hasClassificationChanges(dto: UpdateDocumentDto) {
-    return (
-      dto.organizationalUnitId !== undefined ||
-      dto.documentTypeId !== undefined ||
-      Object.prototype.hasOwnProperty.call(dto, 'documentSubtypeId')
-    );
+  private async getActiveOrganizationalUnitOrFail(id: string) {
+    const organizationalUnit = await this.orgUnitRepository.findOneBy({ id, isActive: true });
+    if (!organizationalUnit) throw new BadRequestException(`Organizational unit ${id} not found or inactive`);
+    return organizationalUnit;
+  }
+
+  private async getActiveDocumentTypeWithSubtypeOrFail(typeId: number, subtypeId?: number | null) {
+    const documentType = await this.docTypeRepository.findOneBy({ id: typeId, isActive: true });
+    if (!documentType) throw new BadRequestException(`Document type ${typeId} not found or inactive`);
+
+    let documentSubtype: DocumentSubtype | null = null;
+
+    if (subtypeId !== undefined && subtypeId !== null) {
+      documentSubtype = await this.docSubtypeRepository.findOne({
+        where: {
+          id: subtypeId,
+          isActive: true,
+          documentTypeId: typeId,
+        },
+      });
+
+      if (!documentSubtype) {
+        throw new BadRequestException(`subtype ${subtypeId} not found, inactive or does not belong to type ${typeId}`);
+      }
+    }
+    return { documentType, documentSubtype };
+  }
+
+  private toAdminResponse(document: DocumentRecord): DocumentAdminResponseDto {
+    return {
+      id: document.id,
+      title: document.title,
+      fiscalYear: document.year,
+      status: document.status,
+      documentType: {
+        id: document.documentType.id,
+        name: document.documentType.name,
+        slug: document.documentType.slug,
+        isActive: document.documentType.isActive,
+      },
+      documentSubtype: document.documentSubtype
+        ? {
+            id: document.documentSubtype.id,
+            name: document.documentSubtype.name,
+            slug: document.documentSubtype.slug,
+            isActive: document.documentSubtype.isActive,
+          }
+        : null,
+      organizationalUnit: {
+        id: document.organizationalUnit.id,
+        name: document.organizationalUnit.name,
+        slug: document.organizationalUnit.slug,
+        isActive: document.organizationalUnit.isActive,
+      },
+      file: {
+        id: document.file.id,
+        originalName: document.file.originalName,
+        mimeType: document.file.mimeType,
+        sizeBytes: document.file.sizeBytes,
+        url: this.filesService.buildPublicFileUrl(document.file.id),
+      },
+      createdAt: document.createdAt,
+      updatedAt: document.updatedAt,
+    };
   }
 }

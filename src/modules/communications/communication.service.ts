@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, ILike, Repository } from 'typeorm';
@@ -7,7 +7,7 @@ import { CreateCommunicationDto, GetPortalCommunicationsDto, UpdateCommunication
 import { Communication, TypeCommunication } from './entities';
 import { FilesService } from '../files/files.service';
 import { PaginationParamsDto } from '../common';
-import { FileStatus, StoredFile } from '../files/entities/stored-file.entity';
+import { FileStatus, StoredFileKind } from '../files/entities/stored-file.entity';
 
 export interface PortalCommunication {
   id: string;
@@ -64,12 +64,9 @@ export class CommunicationService {
     const type = await this.typeCommRespository.findOneBy({ id: typeId });
     if (!type) throw new BadGatewayException('Type communication not found');
 
-    const file = await this.fileService.findFileOrFail(fileId);
-    if (file.status !== FileStatus.PENDING) throw new BadRequestException('File is not available for use');
-
     const createdCommunication = await this.dataSource.transaction(async (manager) => {
+      const file = await this.fileService.claimPendingFile(fileId, manager);
       const communication = manager.create(Communication, { ...props, code: normalizedCode, type, file });
-      await manager.update(StoredFile, [{ id: file.id }, { sourceFileId: file.id }], { status: FileStatus.ACTIVE });
       return await manager.save(communication);
     });
     return this.toAdminDto(createdCommunication);
@@ -94,21 +91,10 @@ export class CommunicationService {
       communicationDB.type = type;
     }
 
-    let newFile: StoredFile | null = null;
-    if (fileId && fileId !== communicationDB.file.id) {
-      newFile = await this.fileService.findFileOrFail(fileId);
-      if (newFile.status !== FileStatus.PENDING) throw new BadRequestException('File is not available for use');
-    }
-
     const updatedCommunication = await this.dataSource.transaction(async (manager) => {
       manager.merge(Communication, communicationDB, toUpdate);
-      if (newFile) {
-        await manager.update(StoredFile, [{ id: communicationDB.file.id }, { sourceFileId: communicationDB.file.id }], {
-          status: FileStatus.ORPHANED,
-        });
-        await manager.update(StoredFile, [{ id: newFile.id }, { sourceFileId: newFile.id }], {
-          status: FileStatus.ACTIVE,
-        });
+      if (fileId && fileId !== communicationDB.file.id) {
+        const newFile = await this.fileService.replaceActiveFile(communicationDB.file.id, fileId, manager);
         communicationDB.file = newFile;
       }
       return await manager.save(communicationDB);
@@ -172,7 +158,7 @@ export class CommunicationService {
       throw new NotFoundException();
     }
 
-    const image = communication.file.derivedFiles?.find((f) => f.mimeType.startsWith('image/'));
+    const image = this.findActivePreview(communication.file);
     return {
       id: communication.id,
       type: communication.type.name,
@@ -224,11 +210,20 @@ export class CommunicationService {
   }
 
   toPublicDto({ file, type, ...rest }: Communication): PortalCommunication {
-    const image = file.derivedFiles?.find((f) => f.mimeType.startsWith('image/'));
+    const image = this.findActivePreview(file);
     return {
       ...rest,
       type: type.name,
       previewImageUrl: image ? this.fileService.buildPublicFileUrl(image.id) : null,
     };
+  }
+
+  private findActivePreview(file: Communication['file']) {
+    return (
+      file.derivedFiles?.find(
+        (derivedFile) =>
+          derivedFile.kind === StoredFileKind.PREVIEW && derivedFile.status === FileStatus.ACTIVE,
+      ) ?? null
+    );
   }
 }

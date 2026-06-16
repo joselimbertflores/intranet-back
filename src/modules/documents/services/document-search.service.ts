@@ -70,7 +70,7 @@ export class DocumentSearchService {
     if (fiscalYear) query.andWhere('document.fiscal_year = :fiscalYear', { fiscalYear });
 
     const [documents, total] = await query
-      .orderBy('file.downloadCount', 'DESC')
+      .orderBy('document.createdAt', 'DESC')
       .take(limit)
       .skip(offset)
       .getManyAndCount();
@@ -79,7 +79,8 @@ export class DocumentSearchService {
   }
 
   async getMostDownloaded() {
-    const documents = await this.createVisibleDocumentsQuery().orderBy('file.downloadCount', 'DESC').take(8).getMany();
+    // TODO: order by DocumentRecord download counter when that business metric exists.
+    const documents = await this.createVisibleDocumentsQuery().orderBy('document.createdAt', 'DESC').take(8).getMany();
 
     return this.plainDocuments(documents);
   }
@@ -137,11 +138,16 @@ export class DocumentSearchService {
     }
 
     if (dto.documentSubtype) {
-      const subtype = await this.docSubtypeRepository.findOne({
-        where: { slug: dto.documentSubtype },
+      const matchingSubtypes = await this.docSubtypeRepository.find({
+        where: {
+          slug: dto.documentSubtype,
+          ...(filters.documentTypeId && { documentType: { id: filters.documentTypeId } }),
+        },
+        relations: { documentType: true },
         select: { id: true },
+        take: filters.documentTypeId ? 1 : 2,
       });
-      if (subtype) filters.documentSubtypeId = subtype.id;
+      if (matchingSubtypes.length === 1) filters.documentSubtypeId = matchingSubtypes[0].id;
     }
 
     if (dto.year) filters.fiscalYear = dto.year;
@@ -173,11 +179,10 @@ export class DocumentSearchService {
     return this.documentRepository
       .createQueryBuilder('document')
       .innerJoinAndSelect('document.file', 'file', 'file.status = :fileStatus', { fileStatus: FileStatus.ACTIVE })
-      .innerJoinAndSelect('document.documentType', 'document_type', 'document_type."isActive" = true')
+      .innerJoinAndSelect('document.documentType', 'document_type')
       .leftJoinAndSelect('document.documentSubtype', 'document_subtype')
       .innerJoinAndSelect('document.organizationalUnit', 'organizational_unit')
-      .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE })
-      .andWhere('(document.document_subtype_id IS NULL OR document_subtype."isActive" = true)');
+      .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE });
   }
 
   private plainDocuments(documents: DocumentRecord[]) {
@@ -185,7 +190,7 @@ export class DocumentSearchService {
     return documents.map((doc) => ({
       id: doc.id,
       title: doc.title,
-      fiscalYear: doc.fiscalYear,
+      fiscalYear: doc.year,
       createdAt: doc.createdAt,
       organizationalUnit: doc.organizationalUnit.name,
       documentType: doc.documentType.name,
@@ -195,8 +200,7 @@ export class DocumentSearchService {
         url: `${host}/files/${doc.file.id}?download=true`,
         name: doc.file.originalName,
         size: Number(doc.file.sizeBytes),
-        extension: extname(doc.file.storedName).slice(1).toLowerCase() || 'file',
-        downloadCount: doc.file.downloadCount,
+        extension: extname(doc.file.storageKey).slice(1).toLowerCase() || 'file',
       },
     }));
   }

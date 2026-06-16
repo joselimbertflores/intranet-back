@@ -1,27 +1,32 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
 import { DocumentTypeService, DocumentService, OrganizationalUnitService } from '../services';
-import { CreateDocumentsDto, NewFilterDocumentsDto, UpdateDocumentDto } from '../dtos';
-import { GetAuthUser, ProtectedResource } from 'src/modules/auth/decorators';
-import { Resource, User } from 'src/modules/users/entities';
+import { CreateDocumentBatchDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
+import { ProtectedResource } from 'src/modules/auth/decorators';
+import { Resource } from 'src/modules/users/entities';
 
 @ProtectedResource(Resource.DOCUMENTS)
 @Controller('documents')
 export class DocumentController {
   constructor(
     private organizationalUnitService: OrganizationalUnitService,
-    private documentService: DocumentService,
     private documentTypeService: DocumentTypeService,
+    private documentService: DocumentService,
   ) {}
 
   @Get()
-  findAll(@Query() queryParams: NewFilterDocumentsDto, @GetAuthUser() user: User) {
-    return this.documentService.findAll(queryParams, user);
+  findAll(@Query() queryParams: FilterDocumentsDto) {
+    return this.documentService.findAll(queryParams);
+  }
+
+  @Post('batch')
+  createBatch(@Body() body: CreateDocumentBatchDto) {
+    return this.documentService.createBatch(body);
   }
 
   @Post()
-  create(@Body() body: CreateDocumentsDto, @GetAuthUser() user: User) {
-    return this.documentService.create(body, user);
+  createBatchLegacy(@Body() body: CreateDocumentBatchDto) {
+    return this.documentService.createBatch(body);
   }
 
   @Patch(':id')
@@ -31,11 +36,16 @@ export class DocumentController {
 
   @Get('organizational-units/tree')
   getOrganizationalUnits() {
-    return this.organizationalUnitService.getTree({ onlyActive: true });
+    return this.organizationalUnitService.getTree();
   }
 
   @Get('types')
   getDocumentTypes() {
     return this.documentTypeService.getActiveTypesWithSubtypes();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.documentService.findOne(id);
   }
 }

@@ -1,9 +1,9 @@
-import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsEnum,
   IsOptional,
@@ -14,17 +14,16 @@ import {
 import { PaginationParamsDto } from 'src/modules/common';
 import { DocumentStatus } from '../entities';
 
-export class DocumentDto {
+export class CreateDocumentBatchItemDto {
   @IsUUID()
   fileId: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  title?: string;
+  title: string;
 }
 
-export class CreateDocumentsDto {
+export class CreateDocumentBatchDto {
   @IsUUID()
   organizationalUnitId: string;
 
@@ -40,20 +39,28 @@ export class CreateDocumentsDto {
   @IsInt()
   @IsOptional()
   @Type(() => Number)
-  fiscalYear?: number;
+  year?: number;
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => DocumentDto)
+  @Type(() => CreateDocumentBatchItemDto)
   @ArrayMinSize(1)
-  documents: DocumentDto[];
+  documents: CreateDocumentBatchItemDto[];
 }
+export class UpdateDocumentDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  title?: string;
 
-export class UpdateDocumentDto extends PartialType(DocumentDto) {
+  @IsUUID()
+  @IsOptional()
+  fileId?: string;
+
   @IsInt()
   @IsOptional()
   @Type(() => Number)
-  fiscalYear?: number | null;
+  year?: number | null;
 
   @IsUUID()
   @IsOptional()
@@ -74,9 +81,7 @@ export class UpdateDocumentDto extends PartialType(DocumentDto) {
   status?: DocumentStatus;
 }
 
-type OrderDirection = 'ASC' | 'DESC';
-
-export class NewFilterDocumentsDto extends PaginationParamsDto {
+export class FilterDocumentsDto extends PaginationParamsDto {
   @IsUUID()
   @IsOptional()
   organizationalUnitId?: string;
@@ -100,27 +105,31 @@ export class NewFilterDocumentsDto extends PaginationParamsDto {
   @IsOptional()
   status?: DocumentStatus;
 }
-export class FilterDocumentsDto extends PaginationParamsDto {
-  @IsUUID()
-  @IsOptional()
-  organizationalUnitId?: string;
 
-  @IsInt()
-  @Type(() => Number)
-  @IsOptional()
-  documentTypeId?: number;
+export class DocumentCatalogItemResponseDto {
+  id: string | number;
+  name: string;
+  slug: string;
+  isActive: boolean;
+}
 
-  @IsInt()
-  @Type(() => Number)
-  @IsOptional()
-  documentSubtypeId?: number;
+export class DocumentFileResponseDto {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+}
 
-  // @IsIn(['asc', 'desc'])
-  @IsOptional()
-  orderDirection?: OrderDirection = 'DESC';
-
-  @IsInt()
-  @Type(() => Number)
-  @IsOptional()
-  fiscalYear?: number;
+export class DocumentAdminResponseDto {
+  id: string;
+  title: string;
+  fiscalYear: number | null;
+  status: DocumentStatus;
+  documentType: DocumentCatalogItemResponseDto;
+  documentSubtype: DocumentCatalogItemResponseDto | null;
+  organizationalUnit: DocumentCatalogItemResponseDto;
+  file: DocumentFileResponseDto;
+  createdAt: Date;
+  updatedAt: Date;
 }
