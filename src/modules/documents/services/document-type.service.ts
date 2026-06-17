@@ -7,10 +7,11 @@ import {
   HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { ILike, QueryFailedError, Repository } from 'typeorm';
 
 import { CreateDocumentTypeDto, DocumentSubtypeDto, UpdateDocumentTypeDto } from '../dtos';
 import { DocumentType, DocumentRecord, DocumentSubtype } from '../entities';
+import { PaginationParamsDto } from 'src/modules/common';
 
 @Injectable()
 export class DocumentTypeService {
@@ -20,20 +21,30 @@ export class DocumentTypeService {
     @InjectRepository(DocumentSubtype) private documentSubTypeRepository: Repository<DocumentSubtype>,
   ) {}
 
-  async findAll() {
-    return this.documentTypeRepository.find({
-      relations: { subtypes: true },
+  async findAll(params: PaginationParamsDto) {
+    const { limit, offset, term } = params;
+
+    const [data, total] = await this.documentTypeRepository.findAndCount({
+      where: {
+        ...(term && { name: ILike(`%${term}%`) }),
+      },
+      relations: {
+        subtypes: true,
+      },
       order: { createdAt: 'desc', subtypes: { createdAt: 'desc' } },
+      take: limit,
+      skip: offset,
     });
+
+    return { data, total };
   }
 
   async create(dto: CreateDocumentTypeDto) {
     try {
       const { subtypes, ...props } = dto;
-      const subtypeDtos = subtypes ?? [];
       const model = this.documentTypeRepository.create({
         ...props,
-        subtypes: subtypeDtos.length > 0 ? subtypeDtos.map((st) => this.documentSubTypeRepository.create(st)) : [],
+        subtypes: subtypes.length > 0 ? subtypes.map((st) => this.documentSubTypeRepository.create(st)) : [],
       });
       return await this.documentTypeRepository.save(model);
     } catch (error: unknown) {

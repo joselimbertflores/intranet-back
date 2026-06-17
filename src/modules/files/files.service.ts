@@ -161,7 +161,7 @@ export class FilesService {
     return `${host}/files/${id}`;
   }
 
-  async claimPendingFile(fileId: string, manager: EntityManager): Promise<StoredFile> {
+  async claimPendingFile(fileId: string, manager: EntityManager) {
     const fileRepository = manager.getRepository(StoredFile);
 
     const file = await fileRepository.findOne({ where: { id: fileId }, relations: { derivedFiles: true } });
@@ -182,26 +182,32 @@ export class FilesService {
     if (file.derivedFiles?.length) {
       await fileRepository.update({ sourceFileId: file.id, status: FileStatus.PENDING }, { status: FileStatus.ACTIVE });
 
-      file.derivedFiles = file.derivedFiles.map((derivedFile) => ({
-        ...derivedFile,
-        status: FileStatus.ACTIVE,
-      }));
+      file.derivedFiles.forEach((derivedFile) => {
+        derivedFile.status = FileStatus.ACTIVE;
+      });
     }
     file.status = FileStatus.ACTIVE;
 
     return file;
   }
 
-  async markActiveFileAsOrphaned(fileId: string, manager: EntityManager): Promise<void> {
+  async replaceActiveFileWithPendingFile(currentFileId: string, newPendingFileId: string, manager: EntityManager) {
+    if (currentFileId === newPendingFileId) {
+      throw new BadRequestException('Replacement file must be different from current file');
+    }
+    const newFile = await this.claimPendingFile(newPendingFileId, manager);
+    await this.markActiveFileAsOrphaned(currentFileId, manager);
+    return newFile;
+  }
+
+  private async markActiveFileAsOrphaned(fileId: string, manager: EntityManager): Promise<void> {
     const fileRepository = manager.getRepository(StoredFile);
 
     const file = await fileRepository.findOne({ where: { id: fileId }, relations: { derivedFiles: true } });
 
     if (!file) throw new NotFoundException('File not found');
 
-    if (file.sourceFileId != null) {
-      throw new BadRequestException('Derived files cannot be orphaned directly');
-    }
+    if (file.sourceFileId) throw new BadRequestException('Derived files cannot be orphaned directly');
 
     if (file.status !== FileStatus.ACTIVE) {
       throw new BadRequestException('Only active files can be marked as orphaned');
@@ -211,21 +217,6 @@ export class FilesService {
 
     await fileRepository.update({ id: In(fileIds), status: FileStatus.ACTIVE }, { status: FileStatus.ORPHANED });
   }
-
-  // async replaceActiveFile(oldFileId: string, newPendingFileId: string, manager: EntityManager): Promise<StoredFile> {
-  //   const fileRepository = this.getFileRepository(manager);
-  //   const oldFile = await fileRepository.findOne({ where: { id: oldFileId } });
-
-  //   if (!oldFile) throw new NotFoundException('File not found');
-  //   if (oldFile.status !== FileStatus.ACTIVE) {
-  //     throw new BadRequestException('Current file is not active');
-  //   }
-
-  //   const newFile = await this.claimPendingFile(newPendingFileId, manager);
-  //   await this.markActiveFileAsOrphaned(oldFileId, manager);
-
-  //   return newFile;
-  // }
 
   private async saveFile(params: SaveFileParams): Promise<StoredFile> {
     const { mimeType, context, buffer, originalName, kind = StoredFileKind.ORIGINAL, sourceFile } = params;

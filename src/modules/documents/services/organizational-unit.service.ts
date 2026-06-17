@@ -10,53 +10,41 @@ import { OrganizationalUnitTreeNode } from '../interfaces';
 export class OrganizationalUnitService {
   constructor(
     @InjectRepository(OrganizationalUnit)
-    private readonly organizationalUnitRepository: Repository<OrganizationalUnit>,
+    private readonly orgUnitRepository: Repository<OrganizationalUnit>,
   ) {}
-
-  async findAll(): Promise<OrganizationalUnit[]> {
-    return this.organizationalUnitRepository.find({
-      relations: { parent: true },
-      order: {
-        name: 'ASC',
-      },
-    });
-  }
 
   async create(dto: CreateOrganizationalUnitDto) {
     const { parentId, ...props } = dto;
     let parent: OrganizationalUnit | null = null;
 
     if (parentId) {
-      parent = await this.organizationalUnitRepository.findOne({ where: { id: parentId } });
-      if (!parent) throw new NotFoundException('Parent organizational unit not found');
+      parent = await this.orgUnitRepository.findOne({ where: { id: parentId, isActive: true } });
+      if (!parent) throw new NotFoundException('Parent organizational unit not found or inactive');
     }
 
-    const organizationalUnit = this.organizationalUnitRepository.create({
+    const organizationalUnit = this.orgUnitRepository.create({
       ...props,
       parent,
-      parentId: parent?.id ?? null,
     });
 
-    return this.organizationalUnitRepository.save(organizationalUnit);
+    return this.orgUnitRepository.save(organizationalUnit);
   }
 
   async update(id: string, dto: UpdateOrganizationalUnitDto) {
-    const organizationalUnit = await this.organizationalUnitRepository.findOne({
-      where: { id },
-      relations: { parent: true },
-    });
+    const organizationalUnit = await this.orgUnitRepository.findOneBy({ id });
 
     if (!organizationalUnit) {
       throw new NotFoundException('Organizational unit not found');
     }
 
-    return this.organizationalUnitRepository.save({ ...organizationalUnit, ...dto });
+    Object.assign(organizationalUnit, dto);
+
+    return this.orgUnitRepository.save(organizationalUnit);
   }
 
   async getTree(params?: { onlyActive?: boolean }) {
-    const organizationalUnits = await this.organizationalUnitRepository.find({
+    const organizationalUnits = await this.orgUnitRepository.find({
       ...(params?.onlyActive && { where: { isActive: true } }),
-      relations: { parent: true },
       order: {
         name: 'ASC',
       },
@@ -65,7 +53,7 @@ export class OrganizationalUnitService {
   }
 
   async getOrganizationalUnitAndDescendantIds(id: string): Promise<string[]> {
-    const organizationalUnit = await this.organizationalUnitRepository.findOne({ where: { id } });
+    const organizationalUnit = await this.orgUnitRepository.findOne({ where: { id } });
     if (!organizationalUnit) return [];
 
     const ids: string[] = [];
@@ -73,10 +61,11 @@ export class OrganizationalUnitService {
     const collect = async (parentId: string) => {
       ids.push(parentId);
 
-      const children = await this.organizationalUnitRepository.find({
+      const children = await this.orgUnitRepository.find({
         where: { parentId },
         select: { id: true },
       });
+
       for (const child of children) {
         await collect(child.id);
       }

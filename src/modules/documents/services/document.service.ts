@@ -3,17 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 
-import { DocumentRecord, DocumentStatus, OrganizationalUnit, DocumentType, DocumentSubtype } from '../entities';
-import {
-  CreateDocumentBatchDto,
-  DocumentAdminResponseDto,
-  DocumentFileResponseDto,
-  FilterDocumentsDto,
-  UpdateDocumentDto,
-} from '../dtos';
+import { CreateDocumentBatchDto, DocumentAdminResponseDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
+import { DocumentRecord, OrganizationalUnit, DocumentType, DocumentSubtype } from '../entities';
 import { OrganizationalUnitService } from './organizational-unit.service';
 import { FilesService } from 'src/modules/files/files.service';
-import { FileStatus, StoredFile, StoredFileKind } from 'src/modules/files/entities/stored-file.entity';
 
 @Injectable()
 export class DocumentService {
@@ -114,11 +107,13 @@ export class DocumentService {
 
     if (!document) throw new NotFoundException(`Document ${id} not found`);
 
+    Object.assign(document, toUpdate);
+
     if (organizationalUnitId) {
       document.organizationalUnit = await this.getActiveOrganizationalUnitOrFail(organizationalUnitId);
     }
 
-    if (documentTypeId || documentSubtypeId) {
+    if (documentTypeId !== undefined || documentSubtypeId !== undefined) {
       const { documentType, documentSubtype } = await this.getActiveDocumentTypeWithSubtypeOrFail(
         documentTypeId ?? document.documentType.id,
         documentSubtypeId,
@@ -129,51 +124,12 @@ export class DocumentService {
 
     return this.dataSource.transaction(async (manager) => {
       if (fileId && fileId !== document.fileId) {
-        await this.filesService.markActiveFileAsOrphaned(document.fileId, manager);
-        document.file = await this.filesService.claimPendingFile(fileId, manager);
+        const newFile = await this.filesService.replaceActiveFileWithPendingFile(document.fileId, fileId, manager);
+        document.file = newFile;
       }
       const savedDocument = await manager.save(document);
-
       return this.toAdminResponse(savedDocument);
     });
-  }
-
-  private async getValidDocumentRelations({
-    organizationalUnitId,
-    documentTypeId,
-    documentSubtypeId,
-  }: CreateDocumentBatchDto) {
-    const organizationalUnit = await this.orgUnitRepository.findOneBy({
-      id: organizationalUnitId,
-      isActive: true,
-    });
-    if (!organizationalUnit) {
-      throw new BadRequestException(`Organizational unit ${organizationalUnitId} not found or inactive`);
-    }
-
-    const documentType = await this.docTypeRepository.findOneBy({ id: documentTypeId, isActive: true });
-    if (!documentType) {
-      throw new BadRequestException(`Document type ${documentTypeId} not found or inactive`);
-    }
-
-    let documentSubtype: DocumentSubtype | null = null;
-
-    if (documentSubtypeId != null) {
-      documentSubtype = await this.docSubtypeRepository.findOne({
-        where: {
-          id: documentSubtypeId,
-          isActive: true,
-          documentTypeId,
-        },
-      });
-      if (!documentSubtype) {
-        throw new BadRequestException(
-          `Document subtype ${documentSubtypeId} not found, inactive or does not belong to type ${documentTypeId}`,
-        );
-      }
-    }
-
-    return { organizationalUnit, documentType, documentSubtype };
   }
 
   private async getActiveOrganizationalUnitOrFail(id: string) {

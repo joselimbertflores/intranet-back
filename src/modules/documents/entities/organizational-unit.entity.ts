@@ -21,7 +21,7 @@ export class OrganizationalUnit {
   @Column({ length: 150 })
   name: string;
 
-  @Column({ length: 150, unique: true })
+  @Column({ length: 150 })
   slug: string;
 
   @Column({ name: 'parent_id', type: 'uuid', nullable: true })

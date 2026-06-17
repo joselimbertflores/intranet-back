@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos';
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { DocumentTypeService } from '../services';
 import { Resource } from 'src/modules/users/entities';
+import { PaginationParamsDto } from 'src/modules/common';
 
 @ProtectedResource(Resource.DOCUMENTS)
 @Controller('document-types')
@@ -10,8 +11,8 @@ export class DocumentTypeController {
   constructor(private documentTypeService: DocumentTypeService) {}
 
   @Get()
-  findAll() {
-    return this.documentTypeService.findAll();
+  findAll(@Query() queryParams: PaginationParamsDto) {
+    return this.documentTypeService.findAll(queryParams);
   }
 
   @Post()

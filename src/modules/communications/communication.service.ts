@@ -94,8 +94,8 @@ export class CommunicationService {
     const updatedCommunication = await this.dataSource.transaction(async (manager) => {
       manager.merge(Communication, communicationDB, toUpdate);
       if (fileId && fileId !== communicationDB.file.id) {
-        const newFile = await this.fileService.replaceActiveFile(communicationDB.file.id, fileId, manager);
-        communicationDB.file = newFile;
+        // const newFile = await this.fileService.replaceActiveFile(communicationDB.file.id, fileId, manager);
+        // communicationDB.file = newFile;
       }
       return await manager.save(communicationDB);
     });
@@ -221,8 +221,7 @@ export class CommunicationService {
   private findActivePreview(file: Communication['file']) {
     return (
       file.derivedFiles?.find(
-        (derivedFile) =>
-          derivedFile.kind === StoredFileKind.PREVIEW && derivedFile.status === FileStatus.ACTIVE,
+        (derivedFile) => derivedFile.kind === StoredFileKind.PREVIEW && derivedFile.status === FileStatus.ACTIVE,
       ) ?? null
     );
   }
