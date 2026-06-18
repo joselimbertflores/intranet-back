@@ -35,7 +35,6 @@ export class DocumentTypeService {
       take: limit,
       skip: offset,
     });
-
     return { data, total };
   }
 
@@ -64,7 +63,8 @@ export class DocumentTypeService {
       if (subtypes && subtypes.length > 0) {
         type.subtypes = this.mergeSubtypes(type.subtypes, subtypes);
       }
-      return await this.documentTypeRepository.save({ ...type, ...toUpdate });
+      Object.assign(type, toUpdate);
+      return await this.documentTypeRepository.save(type);
     } catch (error: unknown) {
       this.handleModifyException(error);
     }
