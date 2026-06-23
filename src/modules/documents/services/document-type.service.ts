@@ -1,10 +1,10 @@
 import {
   Injectable,
+  HttpException,
   NotFoundException,
   ConflictException,
   BadRequestException,
   InternalServerErrorException,
-  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, QueryFailedError, Repository } from 'typeorm';
@@ -71,7 +71,7 @@ export class DocumentTypeService {
   }
 
   async removeSubtype(id: number) {
-    const documentsCountUsingSubtype = await this.documentRepository.count({ where: { documentSubtype: { id } } });
+    const documentsCountUsingSubtype = await this.documentRepository.count({ where: { documentSubtypeId: id } });
     if (documentsCountUsingSubtype > 0) {
       throw new BadRequestException(`Cannot delete document subtype ${id} because it is in use.`);
     }

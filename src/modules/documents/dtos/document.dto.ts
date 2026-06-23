@@ -3,7 +3,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsInt,
-  IsIn,
   IsNotEmpty,
   IsEnum,
   IsOptional,
@@ -99,7 +98,7 @@ export class FilterDocumentsDto extends PaginationParamsDto {
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  fiscalYear?: number;
+  year?: number;
 
   @IsEnum(DocumentStatus)
   @IsOptional()

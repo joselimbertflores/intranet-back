@@ -18,9 +18,11 @@ import { stat } from 'fs/promises';
 
 import { CustomFileTypeValidator } from './validators/custom-file-type.validator';
 import { FileContext } from './enums/file-context.enum';
-import { ALLOWED_FILE_TYPES } from './constants';
+import { FILE_UPLOAD_CONFIG } from './constants';
 import { FilesService } from './files.service';
 import { Public } from '../auth/decorators';
+
+const documentUploadConfig = FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS];
 
 @Controller('files')
 export class FilesController {
@@ -33,10 +35,10 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.banners,
+            validTypes: FILE_UPLOAD_CONFIG[FileContext.BANNERS].validTypes,
           }),
         )
-        .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.BANNERS].maxSizeBytes })
         .build(),
     )
     file: Express.Multer.File,
@@ -45,16 +47,16 @@ export class FilesController {
   }
 
   @Post('documents')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: documentUploadConfig.maxSizeBytes } }))
   uploadDocument(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES['document-records'],
+            validTypes: documentUploadConfig.validTypes,
           }),
         )
-        .addMaxSizeValidator({ maxSize: 20 * 1024 * 1024 })
+        .addMaxSizeValidator({ maxSize: documentUploadConfig.maxSizeBytes })
         .build(),
     )
     file: Express.Multer.File,
@@ -69,11 +71,11 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.tutorials,
+            validTypes: FILE_UPLOAD_CONFIG[FileContext.TUTORIALS].validTypes,
           }),
         )
         .addMaxSizeValidator({
-          maxSize: 300 * 1024 * 1024,
+          maxSize: FILE_UPLOAD_CONFIG[FileContext.TUTORIALS].maxSizeBytes,
         })
         .build(),
     )
@@ -89,10 +91,10 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: ALLOWED_FILE_TYPES.communications,
+            validTypes: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].validTypes,
           }),
         )
-        .addMaxSizeValidator({ maxSize: 10 * 1024 * 1024 })
+        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].maxSizeBytes })
         .build(),
     )
     file: Express.Multer.File,

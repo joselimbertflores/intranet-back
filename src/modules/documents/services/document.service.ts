@@ -21,20 +21,19 @@ export class DocumentService {
   ) {}
 
   async findAll(filterParamsDto: FilterDocumentsDto) {
-    const { term, limit, offset, status, fiscalYear, documentTypeId, documentSubtypeId, organizationalUnitId } =
-      filterParamsDto;
+    const { limit, offset, term, ...docFilters } = filterParamsDto;
 
-    const organizationalUnitIds = organizationalUnitId
-      ? await this.organizationalUnitService.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
+    const organizationalUnitIds = docFilters.organizationalUnitId
+      ? await this.organizationalUnitService.getOrganizationalUnitAndDescendantIds(docFilters.organizationalUnitId)
       : undefined;
 
     const where: FindOptionsWhere<DocumentRecord> = {
       ...(term && { title: ILike(`%${term}%`) }),
-      ...(organizationalUnitIds && { organizationalUnit: { id: In(organizationalUnitIds) } }),
-      ...(documentTypeId && { documentType: { id: documentTypeId } }),
-      ...(documentSubtypeId && { documentSubtype: { id: documentSubtypeId } }),
-      ...(fiscalYear && { year: fiscalYear }),
-      ...(status && { status }),
+      ...(organizationalUnitIds?.length && { organizationalUnit: { id: In(organizationalUnitIds) } }),
+      ...(docFilters.documentTypeId && { documentType: { id: docFilters.documentTypeId } }),
+      ...(docFilters.documentSubtypeId && { documentSubtype: { id: docFilters.documentSubtypeId } }),
+      ...(docFilters.year && { year: docFilters.year }),
+      ...(docFilters.status && { status: docFilters.status }),
     };
     const [documents, total] = await this.docRepository.findAndCount({
       where,

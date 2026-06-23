@@ -2,9 +2,10 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
-import { access, mkdir, writeFile } from 'fs/promises';
+import { randomUUID } from 'crypto';
+import { access, mkdir, unlink, writeFile } from 'fs/promises';
 import { dirname, join, parse } from 'path';
-import { EntityManager, In, Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { constants, existsSync } from 'fs';
 import sharp from 'sharp';
 import mime from 'mime-types';
@@ -35,10 +36,10 @@ export class FilesService {
 
   async uploadFile(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
     const saved = await this.saveFile({
-      buffer: file.buffer,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
       context,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      originalName: file.originalname,
     });
 
     return {
@@ -161,7 +162,7 @@ export class FilesService {
     return `${host}/files/${id}`;
   }
 
-  async claimPendingFile(fileId: string, manager: EntityManager) {
+  async claimPendingFile(fileId: string, manager: EntityManager): Promise<StoredFile> {
     const fileRepository = manager.getRepository(StoredFile);
 
     const file = await fileRepository.findOne({ where: { id: fileId }, relations: { derivedFiles: true } });
@@ -183,7 +184,9 @@ export class FilesService {
       await fileRepository.update({ sourceFileId: file.id, status: FileStatus.PENDING }, { status: FileStatus.ACTIVE });
 
       file.derivedFiles.forEach((derivedFile) => {
-        derivedFile.status = FileStatus.ACTIVE;
+        if (derivedFile.status === FileStatus.PENDING) {
+          derivedFile.status = FileStatus.ACTIVE;
+        }
       });
     }
     file.status = FileStatus.ACTIVE;
@@ -213,37 +216,53 @@ export class FilesService {
       throw new BadRequestException('Only active files can be marked as orphaned');
     }
 
-    const fileIds = [file.id, ...(file.derivedFiles?.map(({ id }) => id) ?? [])];
+    const result = await fileRepository.update(
+      { id: file.id, status: FileStatus.ACTIVE },
+      { status: FileStatus.ORPHANED },
+    );
 
-    await fileRepository.update({ id: In(fileIds), status: FileStatus.ACTIVE }, { status: FileStatus.ORPHANED });
+    if (result.affected !== 1) {
+      throw new BadRequestException('Only active files can be marked as orphaned');
+    }
+
+    await fileRepository.update({ sourceFileId: file.id, status: FileStatus.ACTIVE }, { status: FileStatus.ORPHANED });
+
+    file.status = FileStatus.ORPHANED;
+    file.derivedFiles?.forEach((derivedFile) => {
+      if (derivedFile.status === FileStatus.ACTIVE) {
+        derivedFile.status = FileStatus.ORPHANED;
+      }
+    });
   }
 
   private async saveFile(params: SaveFileParams): Promise<StoredFile> {
     const { mimeType, context, buffer, originalName, kind = StoredFileKind.ORIGINAL, sourceFile } = params;
-    const extension = mime.extension(mimeType);
-
-    if (!extension) {
-      throw new Error(`Unsupported mime type: ${mimeType}`);
-    }
-
-    const storageKey = `${context}/${crypto.randomUUID()}.${extension}`;
+    const extension = this.resolveExtensionOrFail(mimeType);
+    const storageKey = this.buildStorageKey(context, extension);
     const finalPath = join(this.BASE_UPLOAD_PATH, storageKey);
 
     await this.ensureFolderExists(dirname(finalPath));
     await writeFile(finalPath, buffer);
 
-    const normalizedName = Buffer.from(originalName, 'latin1').toString('utf8');
+    const normalizedName = this.normalizeOriginalName(originalName);
 
     const entity = this.fileRepository.create({
       originalName: normalizedName,
       storageKey,
       mimeType,
       sizeBytes: buffer.length,
+      status: FileStatus.PENDING,
       kind,
       sourceFile: sourceFile ?? null,
       sourceFileId: sourceFile?.id ?? null,
     });
-    return this.fileRepository.save(entity);
+
+    try {
+      return await this.fileRepository.save(entity);
+    } catch (error) {
+      await this.deletePhysicalFile(finalPath);
+      throw error;
+    }
   }
 
   private async saveDerivedPreview(buffer: Buffer, parent: StoredFile, context: FileContext) {
@@ -261,5 +280,31 @@ export class FilesService {
 
   private async ensureFolderExists(folderPath: string) {
     await mkdir(folderPath, { recursive: true });
+  }
+
+  private resolveExtensionOrFail(mimeType: string): string {
+    const extension = mime.extension(mimeType);
+
+    if (!extension) {
+      throw new BadRequestException(`Unsupported mime type: ${mimeType}`);
+    }
+
+    return extension;
+  }
+
+  private buildStorageKey(context: FileContext, extension: string): string {
+    return `${context}/${randomUUID()}.${extension}`;
+  }
+
+  private normalizeOriginalName(originalName: string): string {
+    return Buffer.from(originalName, 'latin1').toString('utf8');
+  }
+
+  private async deletePhysicalFile(path: string): Promise<void> {
+    try {
+      await unlink(path);
+    } catch {
+      // Best-effort cleanup after a database persistence failure.
+    }
   }
 }
