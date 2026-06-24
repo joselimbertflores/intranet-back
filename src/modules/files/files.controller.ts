@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  NotFoundException,
   Param,
   ParseFilePipeBuilder,
   ParseUUIDPipe,
@@ -13,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { createReadStream } from 'fs';
+import { createReadStream, type Stats } from 'fs';
 import { stat } from 'fs/promises';
 
 import { CustomFileTypeValidator } from './validators/custom-file-type.validator';
@@ -102,6 +103,40 @@ export class FilesController {
     return this.filesService.uploadPdf(file, FileContext.COMMUNICATIONS);
   }
 
+  // @Public()
+  // @Get(':id')
+  // async serveFile(
+  //   @Res({ passthrough: true }) res: Response,
+  //   @Param('id', new ParseUUIDPipe()) id: string,
+  //   @Query('download') download?: string,
+  // ) {
+  //   const file = await this.filesService.findActiveFileOrFail(id);
+
+  //   const isDownload = download === 'true';
+
+  //   const filePath = await this.filesService.getAbsolutePathOrFail(file);
+
+  //   let stats: Stats;
+  //   try {
+  //     stats = await stat(filePath);
+  //   } catch {
+  //     throw new NotFoundException('File not found');
+  //   }
+
+  //   res.setHeader('Content-Type', file.mimeType);
+
+  //   res.setHeader(
+  //     'Content-Disposition',
+  //     `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.originalName)}"; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+  //   );
+
+  //   res.setHeader('Content-Length', stats.size);
+
+  //   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+  //   return new StreamableFile(createReadStream(filePath));
+  // }
+
   @Public()
   @Get(':id')
   async serveFile(
@@ -109,25 +144,15 @@ export class FilesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download') download?: string,
   ) {
-    const file = await this.filesService.findActiveFileOrFail(id);
+    const { file, stream } = await this.filesService.getActiveFileStream(id);
 
-    const isDownload = download === 'true';
-
-    const filePath = await this.filesService.getAbsolutePathOrFail(file);
-
-    const stats = await stat(filePath);
+    const disposition = download === 'true' ? 'attachment' : 'inline';
 
     res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Length', file.sizeBytes);
+    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+    res.setHeader('Cache-Control', 'no-cache');
 
-    res.setHeader(
-      'Content-Disposition',
-      `${isDownload ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
-    );
-
-    res.setHeader('Content-Length', stats.size);
-
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-
-    return new StreamableFile(createReadStream(filePath));
+    return new StreamableFile(stream);
   }
 }

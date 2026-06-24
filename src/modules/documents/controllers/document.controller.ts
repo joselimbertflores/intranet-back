@@ -24,11 +24,6 @@ export class DocumentController {
     return this.documentService.createBatch(body);
   }
 
-  @Post()
-  createBatchLegacy(@Body() body: CreateDocumentBatchDto) {
-    return this.documentService.createBatch(body);
-  }
-
   @Patch(':id')
   update(@Param('id') id: string, @Body() body: UpdateDocumentDto) {
     return this.documentService.update(id, body);

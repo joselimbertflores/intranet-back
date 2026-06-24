@@ -71,6 +71,9 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   BOOTSTRAP_ADMIN_EXTERNAL_KEY?: string;
+
+  @IsString()
+  UPLOAD_PATH: string;
 }
 
 export function validate(config: Record<string, unknown>) {

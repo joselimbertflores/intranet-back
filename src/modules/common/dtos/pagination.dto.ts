@@ -1,14 +1,5 @@
-import { Type } from 'class-transformer';
-import {
-  IsInt,
-  IsPositive,
-  Min,
-  Max,
-  IsOptional,
-  IsString,
-  IsNotEmpty,
-  Matches,
-} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsInt, IsPositive, Min, Max, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class PaginationParamsDto {
   @Type(() => Number)
@@ -25,11 +16,13 @@ export class PaginationParamsDto {
   @IsOptional()
   readonly offset?: number = 0;
 
-  @IsString()
-  @IsNotEmpty()
-  @IsOptional()
-  @Matches(/^[a-zA-Z0-9\s-]{1,255}$/, {
-    message: 'El término de búsqueda contiene caracteres no válidos.',
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value as unknown;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   readonly term?: string;
 }

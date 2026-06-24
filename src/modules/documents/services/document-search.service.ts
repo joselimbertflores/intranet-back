@@ -1,13 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { extname } from 'path';
 
 import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
 import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
+import { FilesService } from 'src/modules/files/files.service';
 import { SearchPortalDocumentsDto } from '../dtos';
-import { EnvironmentVariables } from 'src/config';
 
 export interface PortalOrganizationalUnit {
   id: string;
@@ -24,7 +23,7 @@ export class DocumentSearchService {
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
     @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
-    private configService: ConfigService<EnvironmentVariables>,
+    private filesService: FilesService,
   ) {}
 
   async getOrganizationalUnits() {
@@ -186,7 +185,6 @@ export class DocumentSearchService {
   }
 
   private plainDocuments(documents: DocumentRecord[]) {
-    const host = this.configService.getOrThrow<string>('HOST');
     return documents.map((doc) => ({
       id: doc.id,
       title: doc.title,
@@ -195,13 +193,22 @@ export class DocumentSearchService {
       organizationalUnit: doc.organizationalUnit.name,
       documentType: doc.documentType.name,
       documentSubtype: doc.documentSubtype?.name,
-      file: {
-        id: doc.file.id,
-        url: `${host}/files/${doc.file.id}?download=true`,
-        name: doc.file.originalName,
-        size: Number(doc.file.sizeBytes),
-        extension: extname(doc.file.storageKey).slice(1).toLowerCase() || 'file',
-      },
+      file: this.plainFile(doc),
     }));
+  }
+
+  private plainFile(doc: DocumentRecord) {
+    const fileUrl = this.filesService.buildPublicFileUrl(doc.file.id);
+    const downloadUrl = this.filesService.buildPublicFileUrl(doc.file.id, { download: true });
+
+    return {
+      id: doc.file.id,
+      url: downloadUrl,
+      fileUrl,
+      downloadUrl,
+      name: doc.file.originalName,
+      size: Number(doc.file.sizeBytes),
+      extension: extname(doc.file.storageKey).slice(1).toLowerCase() || 'file',
+    };
   }
 }

@@ -54,7 +54,9 @@ export class OrganizationalUnitService {
 
   async getOrganizationalUnitAndDescendantIds(id: string): Promise<string[]> {
     const organizationalUnit = await this.orgUnitRepository.findOne({ where: { id } });
-    if (!organizationalUnit) return [];
+    if (!organizationalUnit) {
+      throw new NotFoundException('La unidad organizacional no existe.');
+    }
 
     const ids: string[] = [];
 

@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 
-import { CreateDocumentBatchDto, DocumentAdminResponseDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { DocumentRecord, OrganizationalUnit, DocumentType, DocumentSubtype } from '../entities';
+import { CreateDocumentBatchDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { OrganizationalUnitService } from './organizational-unit.service';
 import { FilesService } from 'src/modules/files/files.service';
 
@@ -159,41 +159,24 @@ export class DocumentService {
     return { documentType, documentSubtype };
   }
 
-  private toAdminResponse(document: DocumentRecord): DocumentAdminResponseDto {
+  private toAdminResponse(document: DocumentRecord) {
+    const { file, ...props } = document;
+    const fileUrl = file ? this.filesService.buildPublicFileUrl(file.id) : null;
+    const downloadUrl = file ? this.filesService.buildPublicFileUrl(file.id, { download: true }) : null;
+
     return {
-      id: document.id,
-      title: document.title,
-      fiscalYear: document.year,
-      status: document.status,
-      documentType: {
-        id: document.documentType.id,
-        name: document.documentType.name,
-        slug: document.documentType.slug,
-        isActive: document.documentType.isActive,
-      },
-      documentSubtype: document.documentSubtype
+      ...props,
+      file: file
         ? {
-            id: document.documentSubtype.id,
-            name: document.documentSubtype.name,
-            slug: document.documentSubtype.slug,
-            isActive: document.documentSubtype.isActive,
+            id: file.id,
+            originalName: file.originalName,
+            mimeType: file.mimeType,
+            sizeBytes: file.sizeBytes,
+            url: fileUrl,
+            fileUrl,
+            downloadUrl,
           }
         : null,
-      organizationalUnit: {
-        id: document.organizationalUnit.id,
-        name: document.organizationalUnit.name,
-        slug: document.organizationalUnit.slug,
-        isActive: document.organizationalUnit.isActive,
-      },
-      file: {
-        id: document.file.id,
-        originalName: document.file.originalName,
-        mimeType: document.file.mimeType,
-        sizeBytes: document.file.sizeBytes,
-        url: this.filesService.buildPublicFileUrl(document.file.id),
-      },
-      createdAt: document.createdAt,
-      updatedAt: document.updatedAt,
     };
   }
 }

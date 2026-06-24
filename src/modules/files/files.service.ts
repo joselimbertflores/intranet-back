@@ -1,20 +1,20 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
 
 import { randomUUID } from 'crypto';
 import { access, mkdir, unlink, writeFile } from 'fs/promises';
-import { dirname, join, parse } from 'path';
+import { dirname, isAbsolute, join, parse, relative, resolve } from 'path';
 import { EntityManager, Repository } from 'typeorm';
-import { constants, existsSync } from 'fs';
+import { constants, createReadStream, existsSync } from 'fs';
 import sharp from 'sharp';
 import mime from 'mime-types';
 
 import { FileStatus, StoredFile, StoredFileKind } from './entities/stored-file.entity';
 import { FileContext } from './enums/file-context.enum';
-import { EnvironmentVariables } from 'src/config';
 import { generatePdfPreview } from 'src/helpers';
 import { UploadResult } from './interfaces';
+import { ConfigService } from '@nestjs/config';
+import { EnvironmentVariables } from 'src/config';
 
 interface SaveFileParams {
   buffer: Buffer;
@@ -27,12 +27,16 @@ interface SaveFileParams {
 
 @Injectable()
 export class FilesService {
-  private readonly BASE_UPLOAD_PATH = join(__dirname, '..', '..', '..', 'static', 'uploads');
+  private readonly BASE_UPLOAD_PATH: string;
+  private readonly PUBLIC_FILE_BASE_PATH = '/api/files';
 
   constructor(
+    private readonly configService: ConfigService<EnvironmentVariables>,
     @InjectRepository(StoredFile) private readonly fileRepository: Repository<StoredFile>,
-    private configService: ConfigService<EnvironmentVariables>,
-  ) {}
+  ) {
+    const uploadPath = this.configService.getOrThrow<string>('UPLOAD_PATH');
+    this.BASE_UPLOAD_PATH = resolve(process.cwd(), uploadPath);
+  }
 
   async uploadFile(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
     const saved = await this.saveFile({
@@ -146,20 +150,20 @@ export class FilesService {
   }
 
   async getAbsolutePathOrFail(file: StoredFile): Promise<string> {
-    const path = join(this.BASE_UPLOAD_PATH, file.storageKey);
+    const path = this.resolveStoragePathOrFail(file.storageKey);
 
     try {
       await access(path, constants.R_OK);
     } catch {
-      throw new NotFoundException('File missing from storage');
+      throw new NotFoundException('File not found');
     }
 
     return path;
   }
 
-  buildPublicFileUrl(id: string) {
-    const host = this.configService.getOrThrow<string>('HOST');
-    return `${host}/files/${id}`;
+  buildPublicFileUrl(fileId: string, options?: { download?: boolean }): string {
+    const url = `${this.PUBLIC_FILE_BASE_PATH}/${encodeURIComponent(fileId)}`;
+    return options?.download ? `${url}?download=true` : url;
   }
 
   async claimPendingFile(fileId: string, manager: EntityManager): Promise<StoredFile> {
@@ -235,6 +239,20 @@ export class FilesService {
     });
   }
 
+  async getActiveFileStream(id: string) {
+    const file = await this.fileRepository.findOne({ where: { id, status: FileStatus.ACTIVE } });
+
+    if (!file) throw new NotFoundException('File not found');
+
+    const finalPath = join(this.BASE_UPLOAD_PATH, file.storageKey);
+
+    if (!existsSync(finalPath)) {
+      throw new NotFoundException('File not found');
+    }
+
+    return { file, stream: createReadStream(finalPath) };
+  }
+
   private async saveFile(params: SaveFileParams): Promise<StoredFile> {
     const { mimeType, context, buffer, originalName, kind = StoredFileKind.ORIGINAL, sourceFile } = params;
     const extension = this.resolveExtensionOrFail(mimeType);
@@ -294,6 +312,18 @@ export class FilesService {
 
   private buildStorageKey(context: FileContext, extension: string): string {
     return `${context}/${randomUUID()}.${extension}`;
+  }
+
+  private resolveStoragePathOrFail(storageKey: string): string {
+    const basePath = resolve(this.BASE_UPLOAD_PATH);
+    const filePath = resolve(basePath, storageKey);
+    const pathFromBase = relative(basePath, filePath);
+
+    if (pathFromBase.startsWith('..') || isAbsolute(pathFromBase)) {
+      throw new NotFoundException('File not found');
+    }
+
+    return filePath;
   }
 
   private normalizeOriginalName(originalName: string): string {

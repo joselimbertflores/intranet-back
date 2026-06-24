@@ -104,31 +104,3 @@ export class FilterDocumentsDto extends PaginationParamsDto {
   @IsOptional()
   status?: DocumentStatus;
 }
-
-export class DocumentCatalogItemResponseDto {
-  id: string | number;
-  name: string;
-  slug: string;
-  isActive: boolean;
-}
-
-export class DocumentFileResponseDto {
-  id: string;
-  originalName: string;
-  mimeType: string;
-  sizeBytes: number;
-  url: string;
-}
-
-export class DocumentAdminResponseDto {
-  id: string;
-  title: string;
-  fiscalYear: number | null;
-  status: DocumentStatus;
-  documentType: DocumentCatalogItemResponseDto;
-  documentSubtype: DocumentCatalogItemResponseDto | null;
-  organizationalUnit: DocumentCatalogItemResponseDto;
-  file: DocumentFileResponseDto;
-  createdAt: Date;
-  updatedAt: Date;
-}
