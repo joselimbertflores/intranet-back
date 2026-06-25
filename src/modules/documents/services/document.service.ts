@@ -161,22 +161,17 @@ export class DocumentService {
 
   private toAdminResponse(document: DocumentRecord) {
     const { file, ...props } = document;
-    const fileUrl = file ? this.filesService.buildPublicFileUrl(file.id) : null;
-    const downloadUrl = file ? this.filesService.buildPublicFileUrl(file.id, { download: true }) : null;
+    const url = this.filesService.buildPublicFileUrl(file.id);
 
     return {
       ...props,
-      file: file
-        ? {
-            id: file.id,
-            originalName: file.originalName,
-            mimeType: file.mimeType,
-            sizeBytes: file.sizeBytes,
-            url: fileUrl,
-            fileUrl,
-            downloadUrl,
-          }
-        : null,
+      file: {
+        id: file.id,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+        url,
+      },
     };
   }
 }

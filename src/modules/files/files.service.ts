@@ -2,10 +2,10 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { randomUUID } from 'crypto';
-import { access, mkdir, unlink, writeFile } from 'fs/promises';
-import { dirname, isAbsolute, join, parse, relative, resolve } from 'path';
+import { mkdir, unlink, writeFile } from 'fs/promises';
+import { dirname, join, parse, resolve } from 'path';
 import { EntityManager, Repository } from 'typeorm';
-import { constants, createReadStream, existsSync } from 'fs';
+import { createReadStream, existsSync } from 'fs';
 import sharp from 'sharp';
 import mime from 'mime-types';
 
@@ -106,37 +106,6 @@ export class FilesService {
     };
   }
 
-  async getFileForDownload(fileId: string) {
-    const file = await this.fileRepository.findOneBy({ id: fileId });
-
-    if (!file || file.status !== FileStatus.ACTIVE) {
-      throw new NotFoundException();
-    }
-
-    const path = join(this.BASE_UPLOAD_PATH, file.storageKey);
-
-    return {
-      path,
-      downloadName: file.originalName,
-    };
-  }
-
-  async getFilePath(fileId: string): Promise<string> {
-    const file = await this.fileRepository.findOneBy({ id: fileId });
-
-    if (!file || file.status === FileStatus.ORPHANED) {
-      throw new NotFoundException('File not found');
-    }
-
-    const fullPath = join(this.BASE_UPLOAD_PATH, file.storageKey);
-
-    if (!existsSync(fullPath)) {
-      throw new NotFoundException('Physical file not found');
-    }
-
-    return fullPath;
-  }
-
   async findFileOrFail(id: string): Promise<StoredFile> {
     const file = await this.fileRepository.findOne({ where: { id } });
     if (!file) throw new NotFoundException('File not found');
@@ -149,21 +118,9 @@ export class FilesService {
     return file;
   }
 
-  async getAbsolutePathOrFail(file: StoredFile): Promise<string> {
-    const path = this.resolveStoragePathOrFail(file.storageKey);
-
-    try {
-      await access(path, constants.R_OK);
-    } catch {
-      throw new NotFoundException('File not found');
-    }
-
-    return path;
-  }
-
-  buildPublicFileUrl(fileId: string, options?: { download?: boolean }): string {
-    const url = `${this.PUBLIC_FILE_BASE_PATH}/${encodeURIComponent(fileId)}`;
-    return options?.download ? `${url}?download=true` : url;
+  buildPublicFileUrl(fileId: string): string {
+    const appPublicUrl = this.configService.getOrThrow<string>('APP_PUBLIC_URL');
+    return new URL(`${this.PUBLIC_FILE_BASE_PATH}/${fileId}`, appPublicUrl).toString();
   }
 
   async claimPendingFile(fileId: string, manager: EntityManager): Promise<StoredFile> {
@@ -312,18 +269,6 @@ export class FilesService {
 
   private buildStorageKey(context: FileContext, extension: string): string {
     return `${context}/${randomUUID()}.${extension}`;
-  }
-
-  private resolveStoragePathOrFail(storageKey: string): string {
-    const basePath = resolve(this.BASE_UPLOAD_PATH);
-    const filePath = resolve(basePath, storageKey);
-    const pathFromBase = relative(basePath, filePath);
-
-    if (pathFromBase.startsWith('..') || isAbsolute(pathFromBase)) {
-      throw new NotFoundException('File not found');
-    }
-
-    return filePath;
   }
 
   private normalizeOriginalName(originalName: string): string {

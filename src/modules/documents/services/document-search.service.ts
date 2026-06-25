@@ -198,14 +198,9 @@ export class DocumentSearchService {
   }
 
   private plainFile(doc: DocumentRecord) {
-    const fileUrl = this.filesService.buildPublicFileUrl(doc.file.id);
-    const downloadUrl = this.filesService.buildPublicFileUrl(doc.file.id, { download: true });
-
     return {
       id: doc.file.id,
-      url: downloadUrl,
-      fileUrl,
-      downloadUrl,
+      url: this.filesService.buildPublicFileUrl(doc.file.id),
       name: doc.file.originalName,
       size: Number(doc.file.sizeBytes),
       extension: extname(doc.file.storageKey).slice(1).toLowerCase() || 'file',

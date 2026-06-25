@@ -6,7 +6,7 @@ export class EnvironmentVariables {
   PORT: number;
 
   @IsString()
-  HOST: string;
+  APP_PUBLIC_URL: string;
 
   @IsOptional()
   @IsString()
