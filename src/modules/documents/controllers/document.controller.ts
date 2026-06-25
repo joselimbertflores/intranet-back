@@ -2,8 +2,8 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 
 import { DocumentTypeService, DocumentService, OrganizationalUnitService } from '../services';
 import { CreateDocumentBatchDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
-import { ProtectedResource } from 'src/modules/auth/decorators';
-import { Resource } from 'src/modules/users/entities';
+import { GetAuthUser, ProtectedResource } from 'src/modules/auth/decorators';
+import { Resource, User } from 'src/modules/users/entities';
 
 @ProtectedResource(Resource.DOCUMENTS)
 @Controller('documents')
@@ -20,8 +20,8 @@ export class DocumentController {
   }
 
   @Post('batch')
-  createBatch(@Body() body: CreateDocumentBatchDto) {
-    return this.documentService.createBatch(body);
+  createBatch(@Body() body: CreateDocumentBatchDto, @GetAuthUser() user: User) {
+    return this.documentService.createBatch(body, user);
   }
 
   @Patch(':id')

@@ -12,6 +12,7 @@ import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 import { OrganizationalUnit } from './organizational-unit.entity';
 import { DocumentSubtype } from './document-subtype.entity';
 import { DocumentType } from './document-type.entity';
+import { User } from 'src/modules/users/entities';
 
 export enum DocumentStatus {
   ACTIVE = 'ACTIVE',
@@ -28,6 +29,9 @@ export class DocumentRecord {
 
   @Column({ type: 'int', nullable: true })
   year: number | null;
+
+  @Column({ type: 'integer', default: 0 })
+  downloadCount: number;
 
   @Column({ name: 'organizational_unit_id', type: 'uuid' })
   organizationalUnitId: string;
@@ -63,6 +67,13 @@ export class DocumentRecord {
     default: DocumentStatus.ACTIVE,
   })
   status: DocumentStatus;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by_id' })
+  createdBy: User;
+
+  @Column({ name: 'created_by_id' })
+  createdById: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

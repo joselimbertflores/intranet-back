@@ -7,6 +7,7 @@ import { DocumentRecord, OrganizationalUnit, DocumentType, DocumentSubtype } fro
 import { CreateDocumentBatchDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { OrganizationalUnitService } from './organizational-unit.service';
 import { FilesService } from 'src/modules/files/files.service';
+import { User } from 'src/modules/users/entities';
 
 @Injectable()
 export class DocumentService {
@@ -56,7 +57,7 @@ export class DocumentService {
     return this.toAdminResponse(document);
   }
 
-  async createBatch(dto: CreateDocumentBatchDto) {
+  async createBatch(dto: CreateDocumentBatchDto, currentUser: User) {
     const { organizationalUnitId, documentTypeId, documentSubtypeId, documents, year } = dto;
 
     const fileIds = documents.map(({ fileId }) => fileId);
@@ -82,6 +83,7 @@ export class DocumentService {
           title: item.title,
           year: year ?? null,
           file,
+          createdBy: currentUser,
         });
         records.push(record);
       }
