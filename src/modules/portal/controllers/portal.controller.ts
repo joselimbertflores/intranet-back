@@ -1,4 +1,4 @@
-import { Controller, Get, Ip, Param, Patch } from '@nestjs/common';
+import { Controller, Get, Param, Patch } from '@nestjs/common';
 
 import { DocumentSearchService } from '../../documents/services';
 import { BannerService, QuickAccessItemService } from '../../content/services';
@@ -33,7 +33,7 @@ export class PortalController {
   }
 
   @Patch('document/:id/increment-download')
-  incrementDownload(@Param('id') id: string, @Ip() ip: string) {
-    // return this.documentService.incrementDownloadCount(id, ip);
+  incrementDownload(@Param('id') id: string) {
+    return this.documentService.incrementDownloadCount(id);
   }
 }

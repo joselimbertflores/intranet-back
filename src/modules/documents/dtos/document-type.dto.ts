@@ -36,7 +36,8 @@ export class CreateDocumentTypeDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DocumentSubtypeDto)
-  subtypes: DocumentSubtypeDto[];
+  @IsOptional()
+  subtypes?: DocumentSubtypeDto[];
 
   @IsBoolean()
   @IsOptional()

@@ -115,9 +115,13 @@ export class DocumentService {
     }
 
     if (documentTypeId !== undefined || documentSubtypeId !== undefined) {
+      const nextTypeId = documentTypeId ?? document.documentType.id;
+      const shouldClearSubtype = documentTypeId !== undefined && documentTypeId !== document.documentType.id;
+      const nextSubtypeId =
+        documentSubtypeId !== undefined ? documentSubtypeId : shouldClearSubtype ? null : document.documentSubtypeId;
       const { documentType, documentSubtype } = await this.getActiveDocumentTypeWithSubtypeOrFail(
-        documentTypeId ?? document.documentType.id,
-        documentSubtypeId,
+        nextTypeId,
+        nextSubtypeId,
       );
       document.documentType = documentType;
       document.documentSubtype = documentSubtype;

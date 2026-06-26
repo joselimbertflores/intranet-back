@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { extname } from 'path';
@@ -53,7 +53,7 @@ export class DocumentSearchService {
 
   async searchDocuments(searchParamsDto: SearchPortalDocumentsDto) {
     const { limit, offset, term, ...props } = searchParamsDto;
-    const { organizationalUnitId, documentTypeId, documentSubtypeId, fiscalYear } = await this.resolveFilters(props);
+    const { organizationalUnitId, documentTypeId, documentSubtypeId, year } = await this.resolveFilters(props);
     const organizationalUnitIds = organizationalUnitId
       ? await this.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
       : [];
@@ -66,7 +66,7 @@ export class DocumentSearchService {
     }
     if (documentTypeId) query.andWhere('document_type.id = :documentTypeId', { documentTypeId });
     if (documentSubtypeId) query.andWhere('document_subtype.id = :documentSubtypeId', { documentSubtypeId });
-    if (fiscalYear) query.andWhere('document.fiscal_year = :fiscalYear', { fiscalYear });
+    if (year) query.andWhere('document.year = :year', { year });
 
     const [documents, total] = await query
       .orderBy('document.createdAt', 'DESC')
@@ -78,10 +78,26 @@ export class DocumentSearchService {
   }
 
   async getMostDownloaded() {
-    // TODO: order by DocumentRecord download counter when that business metric exists.
-    const documents = await this.createVisibleDocumentsQuery().orderBy('document.createdAt', 'DESC').take(8).getMany();
+    const documents = await this.createVisibleDocumentsQuery()
+      .orderBy('document.downloadCount', 'DESC')
+      .addOrderBy('document.createdAt', 'DESC')
+      .take(8)
+      .getMany();
 
     return this.plainDocuments(documents);
+  }
+
+  async incrementDownloadCount(id: string) {
+    const document = await this.createVisibleDocumentsQuery().andWhere('document.id = :id', { id }).getOne();
+
+    if (!document) throw new NotFoundException(`Document ${id} not found`);
+
+    await this.documentRepository.increment({ id: document.id }, 'downloadCount', 1);
+
+    return {
+      id: document.id,
+      downloadCount: document.downloadCount + 1,
+    };
   }
 
   private buildTreeOrganizationalUnits(organizationalUnits: OrganizationalUnit[]): PortalOrganizationalUnit[] {
@@ -117,12 +133,12 @@ export class DocumentSearchService {
       organizationalUnitId?: string;
       documentTypeId?: number;
       documentSubtypeId?: number;
-      fiscalYear?: number;
+      year?: number;
     } = {};
 
     if (dto.organizationalUnit) {
       const organizationalUnit = await this.organizationalUnitRepository.findOne({
-        where: { slug: dto.organizationalUnit },
+        where: { slug: dto.organizationalUnit, isActive: true },
         select: { id: true },
       });
       if (organizationalUnit) filters.organizationalUnitId = organizationalUnit.id;
@@ -130,7 +146,7 @@ export class DocumentSearchService {
 
     if (dto.documentType) {
       const type = await this.docTypeRepository.findOne({
-        where: { slug: dto.documentType },
+        where: { slug: dto.documentType, isActive: true },
         select: { id: true },
       });
       if (type) filters.documentTypeId = type.id;
@@ -140,7 +156,11 @@ export class DocumentSearchService {
       const matchingSubtypes = await this.docSubtypeRepository.find({
         where: {
           slug: dto.documentSubtype,
-          ...(filters.documentTypeId && { documentType: { id: filters.documentTypeId } }),
+          isActive: true,
+          documentType: {
+            isActive: true,
+            ...(filters.documentTypeId && { id: filters.documentTypeId }),
+          },
         },
         relations: { documentType: true },
         select: { id: true },
@@ -149,7 +169,7 @@ export class DocumentSearchService {
       if (matchingSubtypes.length === 1) filters.documentSubtypeId = matchingSubtypes[0].id;
     }
 
-    if (dto.year) filters.fiscalYear = dto.year;
+    if (dto.year) filters.year = dto.year;
 
     return filters;
   }
@@ -178,17 +198,18 @@ export class DocumentSearchService {
     return this.documentRepository
       .createQueryBuilder('document')
       .innerJoinAndSelect('document.file', 'file', 'file.status = :fileStatus', { fileStatus: FileStatus.ACTIVE })
-      .innerJoinAndSelect('document.documentType', 'document_type')
+      .innerJoinAndSelect('document.documentType', 'document_type', 'document_type.isActive = true')
       .leftJoinAndSelect('document.documentSubtype', 'document_subtype')
       .innerJoinAndSelect('document.organizationalUnit', 'organizational_unit')
-      .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE });
+      .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE })
+      .andWhere('(document.documentSubtypeId IS NULL OR document_subtype.isActive = true)');
   }
 
   private plainDocuments(documents: DocumentRecord[]) {
     return documents.map((doc) => ({
       id: doc.id,
       title: doc.title,
-      fiscalYear: doc.year,
+      year: doc.year,
       createdAt: doc.createdAt,
       organizationalUnit: doc.organizationalUnit.name,
       documentType: doc.documentType.name,

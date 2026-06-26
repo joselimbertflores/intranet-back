@@ -43,7 +43,7 @@ export class DocumentTypeService {
       const { subtypes, ...props } = dto;
       const model = this.documentTypeRepository.create({
         ...props,
-        subtypes: subtypes.length > 0 ? subtypes.map((st) => this.documentSubTypeRepository.create(st)) : [],
+        subtypes: subtypes?.length ? subtypes.map((st) => this.documentSubTypeRepository.create(st)) : [],
       });
       return await this.documentTypeRepository.save(model);
     } catch (error: unknown) {

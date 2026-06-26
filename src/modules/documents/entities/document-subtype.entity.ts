@@ -35,7 +35,7 @@ export class DocumentSubtype {
   documentType: DocumentType;
 
   @Column({ name: 'document_type_id' })
-  documentTypeId: number | null;
+  documentTypeId: number;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -22,7 +22,7 @@ El modulo se basa en estas entidades:
 
 ## Responsabilidades
 
-`DocumentRecord` representa el documento que se muestra o administra. Sus campos principales son `id`, `title`, `documentTypeId`, `documentSubtypeId` nullable, `organizationalUnitId`, `fiscalYear` nullable, `status`, `fileId`, `createdAt` y `updatedAt`.
+`DocumentRecord` representa el documento que se muestra o administra. Sus campos principales son `id`, `title`, `documentTypeId`, `documentSubtypeId` nullable, `organizationalUnitId`, `year` nullable, `status`, `downloadCount`, `fileId`, `createdAt` y `updatedAt`.
 
 `DocumentType` responde que clase de documento es. Ejemplos: Manual, Formulario, Normativa, Comunicado, Organigrama, Tutorial, Convocatoria, Plantilla.
 
@@ -30,7 +30,7 @@ El modulo se basa en estas entidades:
 
 `OrganizationalUnit` representa la estructura institucional real: GAM Sacaba, nivel central, distritos, subalcaldias, secretarias, direcciones, jefaturas, unidades y otras dependencias reales. Es un arbol flexible mediante `parentId`; no usa `level` ni `unitType` en v1.
 
-`StoredFile` mantiene el archivo y su estado operativo. Un documento visible requiere archivo activo.
+`StoredFile` mantiene el archivo y su estado operativo. Un documento visible requiere archivo activo. Los datos administrativos del registro, como `downloadCount`, pertenecen a `DocumentRecord`, no a `StoredFile`.
 
 ## Reglas Principales
 
@@ -40,7 +40,7 @@ Un documento pertenece a una sola unidad organizacional. Si el documento es gene
 
 Se usa `DocumentType + DocumentSubtype` porque separa la clase documental de su variante. No se usa una entidad jerarquica generica `DocumentCategory`, ya que eso permitiria volver al desorden de carpetas donde se mezclan unidades, anios, temas y tipos.
 
-`fiscalYear` es opcional porque no todos los documentos pertenecen a una gestion. `fiscalYear` indica la gestion asociada al contenido cuando aplica; las fechas de auditoria indican cuando se crea o actualiza el registro.
+`year` es opcional porque no todos los documentos pertenecen a una gestion. `year` indica la gestion asociada al contenido cuando aplica; las fechas de auditoria indican cuando se crea o actualiza el registro.
 
 ## Estados y Activacion
 
@@ -88,7 +88,7 @@ Documento: "MPyP Activos Fijos.pdf"
 - `documentType`: Manual
 - `documentSubtype`: Manual de Procedimientos
 - `organizationalUnit`: Direccion de Finanzas
-- `fiscalYear`: 2026
+- `year`: 2026
 
 Ejemplo correcto:
 
@@ -97,7 +97,7 @@ Documento: "Formulario de Solicitud de Vacacion"
 - `documentType`: Formulario
 - `documentSubtype`: Solicitud de Vacacion
 - `organizationalUnit`: Direccion de Recursos Humanos
-- `fiscalYear`: null
+- `year`: null
 
 Ejemplo incorrecto:
 
@@ -108,7 +108,7 @@ Correccion:
 - `documentType`: Formulario
 - `documentSubtype`: Solicitud de Vacacion
 - `organizationalUnit`: Direccion de Recursos Humanos
-- `fiscalYear`: 2026, solo si la gestion aplica al contenido
+- `year`: 2026, solo si la gestion aplica al contenido
 
 Ejemplo incorrecto:
 
@@ -119,7 +119,7 @@ Correccion:
 - `documentType`: Manual
 - `documentSubtype`: Manual de Procedimientos
 - `organizationalUnit`: Direccion de Finanzas
-- `fiscalYear`: 2026, si corresponde
+- `year`: 2026, si corresponde
 
 Ejemplo incorrecto:
 
