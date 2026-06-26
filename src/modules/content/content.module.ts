@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { BannerController, QuickAccessController } from './controllers';
-import { BannerService, QuickAccessItemService } from './services';
-import { Banner, QuickAccessItem } from './entities';
+import { ContentAdminController, ContentLandingController } from './controllers';
+import { HeroSlidesService, QuickAccessesService } from './services';
+import { HeroSlide, QuickAccess } from './entities';
 import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Banner, QuickAccessItem]), FilesModule],
-  controllers: [BannerController, QuickAccessController],
-  providers: [BannerService, QuickAccessItemService],
-  exports: [BannerService, QuickAccessItemService],
+  imports: [TypeOrmModule.forFeature([HeroSlide, QuickAccess]), FilesModule],
+  controllers: [ContentAdminController, ContentLandingController],
+  providers: [HeroSlidesService, QuickAccessesService],
+  exports: [HeroSlidesService, QuickAccessesService],
 })
 export class ContentModule {}

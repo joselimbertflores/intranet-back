@@ -1,20 +1,20 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 
-import { randomUUID } from 'crypto';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { dirname, join, parse, resolve } from 'path';
 import { EntityManager, Repository } from 'typeorm';
 import { createReadStream, existsSync } from 'fs';
-import sharp from 'sharp';
 import mime from 'mime-types';
+import sharp from 'sharp';
+import { randomUUID } from 'crypto';
 
 import { FileStatus, StoredFile, StoredFileKind } from './entities/stored-file.entity';
 import { FileContext } from './enums/file-context.enum';
+import { EnvironmentVariables } from 'src/config';
 import { generatePdfPreview } from 'src/helpers';
 import { UploadResult } from './interfaces';
-import { ConfigService } from '@nestjs/config';
-import { EnvironmentVariables } from 'src/config';
 
 interface SaveFileParams {
   buffer: Buffer;
@@ -164,7 +164,7 @@ export class FilesService {
     return newFile;
   }
 
-  private async markActiveFileAsOrphaned(fileId: string, manager: EntityManager): Promise<void> {
+  async markActiveFileAsOrphaned(fileId: string, manager: EntityManager): Promise<void> {
     const fileRepository = manager.getRepository(StoredFile);
 
     const file = await fileRepository.findOne({ where: { id: fileId }, relations: { derivedFiles: true } });

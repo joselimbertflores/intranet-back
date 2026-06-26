@@ -1,2 +1,2 @@
-export * from './banner.controller';
-export * from './quick-access.controller';
+export * from './content-admin.controller';
+export * from './content-landing.controller';

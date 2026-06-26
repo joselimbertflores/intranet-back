@@ -1,2 +1,2 @@
-export * from './banner.service';
-export * from './quick-access-items.service';
+export * from './hero-slides.service';
+export * from './quick-accesses.service';
