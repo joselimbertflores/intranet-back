@@ -31,7 +31,7 @@ export class DocumentController {
 
   @Get('organizational-units/tree')
   getOrganizationalUnits() {
-    return this.organizationalUnitService.getTree();
+    return this.organizationalUnitService.getTree({ onlyActive: true });
   }
 
   @Get('types')
