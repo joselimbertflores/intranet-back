@@ -7,7 +7,7 @@ import { SaveHeroSlidesBatchDto, SaveQuickAccessesBatchDto } from '../dtos';
 import { HeroSlidesService, QuickAccessesService } from '../services';
 
 @ProtectedResource(Resource.CONTENT)
-@Controller('content/admin')
+@Controller('content')
 export class ContentAdminController {
   constructor(
     private readonly heroSlidesService: HeroSlidesService,
@@ -31,7 +31,7 @@ export class ContentAdminController {
 
   @Get('quick-accesses')
   getQuickAccesses() {
-    return this.quickAccessesService.findAdmin();
+    return this.quickAccessesService.findAll();
   }
 
   @Put('quick-accesses/batch')

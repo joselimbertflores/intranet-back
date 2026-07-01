@@ -10,7 +10,9 @@ import {
   PortalDirectoryController,
   PortalController,
   PortalCalendarController,
+  PortalLandingController,
 } from './controllers';
+import { PortalLandingService } from './services';
 import { TutorialModule } from '../tutorial/tutorial.module';
 import { DirectoryModule } from '../directory/directory.module';
 import { CalendarModule } from '../calendar/calendar.module';
@@ -18,12 +20,14 @@ import { CalendarModule } from '../calendar/calendar.module';
 @Module({
   controllers: [
     PortalController,
+    PortalLandingController,
     PortalCalendarController,
     PortalCommunicationsController,
     PortalAssistanceController,
     PortalDocumentsController,
     PortalDirectoryController,
   ],
+  providers: [PortalLandingService],
   imports: [DocumentModule, ContentModule, CommunicationsModule, DirectoryModule, TutorialModule, CalendarModule],
 })
 export class PortalModule {}

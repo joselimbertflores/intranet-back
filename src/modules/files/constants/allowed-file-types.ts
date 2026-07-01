@@ -6,7 +6,7 @@ interface FileUploadConfig {
 }
 
 export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
-  [FileContext.BANNERS]: {
+  [FileContext.HERO_SLIDES]: {
     validTypes: ['jpg', 'jpeg', 'png'],
     maxSizeBytes: 5 * 1024 * 1024,
   },
@@ -45,7 +45,7 @@ export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
 };
 
 export const ALLOWED_FILE_TYPES: Record<FileContext, string[]> = {
-  [FileContext.BANNERS]: FILE_UPLOAD_CONFIG[FileContext.BANNERS].validTypes,
+  [FileContext.HERO_SLIDES]: FILE_UPLOAD_CONFIG[FileContext.HERO_SLIDES].validTypes,
   [FileContext.DOCUMENT_RECORDS]: FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS].validTypes,
   [FileContext.QUICK_ACCESS]: FILE_UPLOAD_CONFIG[FileContext.QUICK_ACCESS].validTypes,
   [FileContext.COMMUNICATIONS]: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].validTypes,

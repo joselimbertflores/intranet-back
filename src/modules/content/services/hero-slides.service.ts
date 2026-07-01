@@ -7,6 +7,20 @@ import { FilesService } from 'src/modules/files/files.service';
 import { SaveHeroSlidesBatchDto } from '../dtos';
 import { HeroSlide } from '../entities';
 
+export interface HeroSlideResponse {
+  id: number;
+  title: string;
+  description: string | null;
+  linkLabel: string | null;
+  linkUrl: string | null;
+  imageFileId: string;
+  imageUrl: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export type PublicHeroSlideResponse = Omit<HeroSlideResponse, 'isActive'>;
+
 @Injectable()
 export class HeroSlidesService {
   constructor(
@@ -15,25 +29,33 @@ export class HeroSlidesService {
     private readonly filesService: FilesService,
   ) {}
 
-  async findAll() {
-    const slides = await this.heroSlidesRepository.find({ relations: { file: true }, order: { sortOrder: 'ASC' } });
-    return this.mapHeroSlides(slides);
+  async findAll(): Promise<HeroSlideResponse[]> {
+    const slides = await this.heroSlidesRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+    return slides.map((slide) => this.mapHeroSlide(slide));
   }
 
-  async findLanding() {
+  async findActive(): Promise<PublicHeroSlideResponse[]> {
     const slides = await this.heroSlidesRepository.find({
       where: { isActive: true },
-      relations: { file: true },
       order: { sortOrder: 'ASC', id: 'ASC' },
     });
 
-    return this.mapHeroSlides(slides);
+    return slides.map((slide) => {
+      const { isActive: _, ...publicSlide } = this.mapHeroSlide(slide);
+      return publicSlide;
+    });
   }
 
   async saveBatch({ items }: SaveHeroSlidesBatchDto) {
     const ids = items.filter((item) => item.id).map((item) => item.id as number);
     if (new Set(ids).size !== ids.length) {
       throw new BadRequestException('Duplicate hero slide IDs are not allowed in the payload');
+    }
+
+    const fileIds = items.map((item) => item.imageFileId);
+
+    if (new Set(fileIds).size !== fileIds.length) {
+      throw new BadRequestException('Duplicate hero slide image file IDs are not allowed in the payload');
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -57,28 +79,47 @@ export class HeroSlidesService {
 
           if (!current) throw new NotFoundException(`Hero slide with id ${item.id} not found`);
 
-          if (current.fileId !== item.fileId) {
+          if (current.imageFileId !== item.imageFileId) {
             const replacementFile = await this.filesService.replaceActiveFileWithPendingFile(
-              current.fileId,
-              item.fileId,
+              current.imageFileId,
+              item.imageFileId,
               manager,
             );
-            current.file = replacementFile;
+            current.imageFile = replacementFile;
           }
 
-          slidesToSave.push(Object.assign(current, { ...item, sortOrder }));
+          slidesToSave.push(
+            Object.assign(current, {
+              title: item.title,
+              description: item.description ?? null,
+              linkUrl: item.linkUrl ?? null,
+              linkLabel: item.linkUrl ? (item.linkLabel ?? null) : null,
+              imageFileId: item.imageFileId,
+              sortOrder,
+              ...(item.isActive !== undefined && { isActive: item.isActive }),
+            }),
+          );
         } else {
-          const file = await this.filesService.claimPendingFile(item.fileId, manager);
-          const newSlide = manager.create(HeroSlide, { ...item, file, sortOrder });
+          const imageFile = await this.filesService.claimPendingFile(item.imageFileId, manager);
+          const newSlide = manager.create(HeroSlide, {
+            title: item.title,
+            description: item.description ?? null,
+            linkUrl: item.linkUrl ?? null,
+            linkLabel: item.linkUrl ? (item.linkLabel ?? null) : null,
+            imageFileId: item.imageFileId,
+            imageFile,
+            sortOrder,
+            isActive: item.isActive ?? true,
+          });
           slidesToSave.push(newSlide);
         }
       }
 
       if (slidesToSave.length) await slideRepository.save(slidesToSave);
 
-      const result = await slideRepository.find({ relations: { file: true }, order: { sortOrder: 'ASC' } });
+      const result = await slideRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
 
-      return this.mapHeroSlides(result);
+      return result.map((slide) => this.mapHeroSlide(slide));
     });
   }
 
@@ -89,24 +130,26 @@ export class HeroSlidesService {
 
       if (!slide) throw new NotFoundException('Hero slide not found');
 
-      await this.filesService.markActiveFileAsOrphaned(slide.fileId, manager);
+      await this.filesService.markActiveFileAsOrphaned(slide.imageFileId, manager);
       await slideRepository.delete(id);
 
       return { ok: true, message: 'Hero slide removed successfully' };
     });
   }
 
-  private mapHeroSlides(slides: HeroSlide[]) {
-    return slides.map((slide) => ({
+  private mapHeroSlide(slide: HeroSlide): HeroSlideResponse {
+    const linkUrl = slide.linkUrl?.trim() || null;
+
+    return {
       id: slide.id,
       title: slide.title,
-      description: slide.description,
-      linkLabel: slide.linkLabel,
-      linkUrl: slide.linkUrl,
-      fileId: slide.fileId,
-      fileUrl: this.filesService.buildPublicFileUrl(slide.fileId),
+      description: slide.description ?? null,
+      linkLabel: linkUrl ? slide.linkLabel?.trim() || null : null,
+      linkUrl,
+      imageFileId: slide.imageFileId,
+      imageUrl: this.filesService.buildPublicFileUrl(slide.imageFileId),
       sortOrder: slide.sortOrder,
       isActive: slide.isActive,
-    }));
+    };
   }
 }

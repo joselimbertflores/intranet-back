@@ -28,22 +28,22 @@ const documentUploadConfig = FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS];
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
-  @Post('banners')
+  @Post('hero-slides')
   @UseInterceptors(FileInterceptor('file'))
   uploadHeroSlideImage(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: FILE_UPLOAD_CONFIG[FileContext.BANNERS].validTypes,
+            validTypes: FILE_UPLOAD_CONFIG.hero_slides.validTypes,
           }),
         )
-        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.BANNERS].maxSizeBytes })
+        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG.hero_slides.maxSizeBytes })
         .build(),
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.uploadImage(file, FileContext.BANNERS);
+    return this.filesService.uploadImage(file, FileContext.HERO_SLIDES);
   }
 
   @Post('documents')

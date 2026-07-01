@@ -6,17 +6,20 @@ export class QuickAccess {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 120 })
+  @Column({ length: 80 })
   title: string;
 
   @Column({ type: 'text', nullable: true })
   description?: string | null;
 
-  @Column({ length: 80, nullable: true })
-  icon?: string | null;
+  @Column({ length: 40 })
+  iconKey: string;
+
+  @Column({ length: 7, default: '#2563EB' })
+  color: string;
 
   @Column({ type: 'text' })
-  linkUrl: string;
+  url: string;
 
   @Column({ type: 'int', default: 0 })
   sortOrder: number;

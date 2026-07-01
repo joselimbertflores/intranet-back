@@ -16,6 +16,10 @@ import {
 } from 'class-validator';
 
 const absoluteOrInternalPathRegex = /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i;
+const optionalTrimmedString = ({ value }: { value: unknown }): unknown => {
+  if (typeof value !== 'string') return value;
+  return value.trim() || null;
+};
 
 export class HeroSlideBatchItemDto {
   @IsOptional()
@@ -31,25 +35,25 @@ export class HeroSlideBatchItemDto {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
-  description?: string;
+  @Transform(optionalTrimmedString)
+  description?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(80)
-  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
-  linkLabel?: string;
+  @Transform(optionalTrimmedString)
+  linkLabel?: string | null;
 
   @IsOptional()
   @IsString()
   @Matches(absoluteOrInternalPathRegex, {
     message: 'linkUrl must be an absolute http(s) URL or an internal path like /documents',
   })
-  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
-  linkUrl?: string;
+  @Transform(optionalTrimmedString)
+  linkUrl?: string | null;
 
   @IsUUID()
-  fileId: string;
+  imageFileId: string;
 
   @IsOptional()
   @IsBoolean()
