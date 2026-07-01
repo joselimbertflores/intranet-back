@@ -3,8 +3,8 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Put } from '@nestjs
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { Resource } from 'src/modules/users/entities';
 
-import { SaveHeroSlidesBatchDto, SaveQuickAccessesBatchDto } from '../dtos';
-import { HeroSlidesService, QuickAccessesService } from '../services';
+import { SaveFeaturedBannersBatchDto, SaveHeroSlidesBatchDto, SaveQuickAccessesBatchDto } from '../dtos';
+import { FeaturedBannersService, HeroSlidesService, QuickAccessesService } from '../services';
 
 @ProtectedResource(Resource.CONTENT)
 @Controller('content')
@@ -12,6 +12,7 @@ export class ContentAdminController {
   constructor(
     private readonly heroSlidesService: HeroSlidesService,
     private readonly quickAccessesService: QuickAccessesService,
+    private readonly featuredBannersService: FeaturedBannersService,
   ) {}
 
   @Get('hero-slides')
@@ -42,5 +43,20 @@ export class ContentAdminController {
   @Delete('quick-accesses/:id')
   removeQuickAccess(@Param('id', ParseIntPipe) id: number) {
     return this.quickAccessesService.remove(id);
+  }
+
+  @Get('featured-banners')
+  getFeaturedBanners() {
+    return this.featuredBannersService.findAdminFeaturedBanners();
+  }
+
+  @Put('featured-banners/batch')
+  saveFeaturedBannersBatch(@Body() dto: SaveFeaturedBannersBatchDto) {
+    return this.featuredBannersService.saveFeaturedBannersBatch(dto);
+  }
+
+  @Delete('featured-banners/:id')
+  removeFeaturedBanner(@Param('id', ParseIntPipe) id: number) {
+    return this.featuredBannersService.removeFeaturedBanner(id);
   }
 }

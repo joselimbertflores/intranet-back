@@ -46,6 +46,24 @@ export class FilesController {
     return this.filesService.uploadImage(file, FileContext.HERO_SLIDES);
   }
 
+  @Post('featured-banners')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadFeaturedBannerImage(
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addValidator(
+          new CustomFileTypeValidator({
+            validTypes: FILE_UPLOAD_CONFIG[FileContext.FEATURED_BANNERS].validTypes,
+          }),
+        )
+        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.FEATURED_BANNERS].maxSizeBytes })
+        .build(),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.filesService.uploadImage(file, FileContext.FEATURED_BANNERS);
+  }
+
   @Post('documents')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: documentUploadConfig.maxSizeBytes } }))
   uploadDocument(
