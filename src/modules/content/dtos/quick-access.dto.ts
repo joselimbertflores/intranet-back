@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -12,6 +13,8 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { QUICK_ACCESS_ICON_KEYS } from '../entities';
+import type { QuickAccessIconKey } from '../entities';
 
 export class QuickAccessBatchItemDto {
   @IsOptional()
@@ -28,9 +31,8 @@ export class QuickAccessBatchItemDto {
   @IsString()
   description?: string;
 
-  @IsString()
-  @MaxLength(80)
-  iconKey: string;
+  @IsIn(QUICK_ACCESS_ICON_KEYS)
+  iconKey: QuickAccessIconKey;
 
   @IsString()
   @IsNotEmpty()

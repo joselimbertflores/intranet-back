@@ -1,5 +1,22 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
+export const QUICK_ACCESS_ICON_KEYS = [
+  'email',
+  'application',
+  'document',
+  'book',
+  'form',
+  'support',
+  'link',
+  'external',
+  'dashboard',
+  'report',
+  'user',
+  'calendar',
+  'settings',
+] as const;
+
+export type QuickAccessIconKey = (typeof QUICK_ACCESS_ICON_KEYS)[number];
 @Entity('quick_accesses')
 @Index(['isActive', 'sortOrder'])
 export class QuickAccess {
@@ -13,10 +30,7 @@ export class QuickAccess {
   description?: string | null;
 
   @Column({ length: 40 })
-  iconKey: string;
-
-  @Column({ length: 7, default: '#2563EB' })
-  color: string;
+  iconKey: QuickAccessIconKey;
 
   @Column({ type: 'text' })
   url: string;
