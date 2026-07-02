@@ -2,6 +2,7 @@ jest.mock('../../content/services', () => ({
   HeroSlidesService: class HeroSlidesService {},
   QuickAccessesService: class QuickAccessesService {},
   FeaturedBannersService: class FeaturedBannersService {},
+  LandingModalNoticesService: class LandingModalNoticesService {},
 }));
 
 import { PortalLandingService } from './portal-landing.service';
@@ -51,15 +52,31 @@ describe('PortalLandingService', () => {
     const featuredBannersService = {
       findLandingFeaturedBanners: jest.fn().mockResolvedValue(featuredBanners),
     };
+    const modalNotices = [
+      {
+        id: '29b743df-eec3-48a6-b0f0-067358c104af',
+        title: 'Mantenimiento programado',
+        contentHtml: '<p>El sistema no estará disponible.</p>',
+        imageId: null,
+        imageUrl: null,
+        imageAlt: null,
+        imageLinkUrl: null,
+      },
+    ];
+    const landingModalNoticesService = {
+      findVisible: jest.fn().mockResolvedValue(modalNotices),
+    };
     const service = new PortalLandingService(
       heroSlidesService as never,
       quickAccessesService as never,
       featuredBannersService as never,
+      landingModalNoticesService as never,
     );
 
-    await expect(service.getLanding()).resolves.toEqual({ heroSlides, quickAccesses, featuredBanners });
+    await expect(service.getLanding()).resolves.toEqual({ heroSlides, quickAccesses, featuredBanners, modalNotices });
     expect(heroSlidesService.findActive).toHaveBeenCalledTimes(1);
     expect(quickAccessesService.findLanding).toHaveBeenCalledTimes(1);
     expect(featuredBannersService.findLandingFeaturedBanners).toHaveBeenCalledTimes(1);
+    expect(landingModalNoticesService.findVisible).toHaveBeenCalledTimes(1);
   });
 });

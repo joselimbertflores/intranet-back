@@ -4,16 +4,18 @@ import {
   FeaturedBannersService,
   HeroSlidesService,
   LandingFeaturedBannerResponse,
+  LandingModalNoticesService,
   PublicHeroSlideResponse,
   PublicQuickAccessResponse,
   QuickAccessesService,
 } from '../../content/services';
 
-export interface PortalLandingResponse {
-  heroSlides: PublicHeroSlideResponse[];
-  quickAccesses: PublicQuickAccessResponse[];
-  featuredBanners: LandingFeaturedBannerResponse[];
-}
+// export interface PortalLandingResponse {
+//   heroSlides: PublicHeroSlideResponse[];
+//   quickAccesses: PublicQuickAccessResponse[];
+//   featuredBanners: LandingFeaturedBannerResponse[];
+//   modalNotices: PublicLandingModalNoticeResponse[];
+// }
 
 @Injectable()
 export class PortalLandingService {
@@ -21,15 +23,17 @@ export class PortalLandingService {
     private readonly heroSlidesService: HeroSlidesService,
     private readonly quickAccessesService: QuickAccessesService,
     private readonly featuredBannersService: FeaturedBannersService,
+    private readonly landingModalNoticesService: LandingModalNoticesService,
   ) {}
 
-  async getLanding(): Promise<PortalLandingResponse> {
-    const [heroSlides, quickAccesses, featuredBanners] = await Promise.all([
+  async getLanding() {
+    const [heroSlides, quickAccesses, featuredBanners, modalNotices] = await Promise.all([
       this.heroSlidesService.findActive(),
       this.quickAccessesService.findLanding(),
       this.featuredBannersService.findLandingFeaturedBanners(),
+      this.landingModalNoticesService.findVisible(),
     ]);
 
-    return { heroSlides, quickAccesses, featuredBanners };
+    return { heroSlides, quickAccesses, featuredBanners, modalNotices };
   }
 }
