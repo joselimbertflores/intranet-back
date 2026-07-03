@@ -25,7 +25,6 @@ export class LandingModalNoticesService {
       take: limit,
       skip: offset,
     });
-    console.log(notices);
     return { notices: notices.map((notice) => this.mapToAdminDto(notice)), total };
   }
 
@@ -138,7 +137,6 @@ export class LandingModalNoticesService {
   }
 
   private mapToAdminDto({ imageId, ...props }: LandingModalNotice) {
-    console.log(imageId);
     return {
       ...props,
       imageUrl: imageId ? this.filesService.buildPublicFileUrl(imageId) : null,
