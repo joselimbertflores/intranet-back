@@ -1,34 +1,16 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Put,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
 
 import { GetAuthUser, ProtectedResource } from 'src/modules/auth/decorators';
 import { Resource, User } from 'src/modules/users/entities';
 
 import {
-  CreateLandingModalNoticeDto,
+  CreateLandingNoticeDto,
   SaveFeaturedBannersBatchDto,
   SaveHeroSlidesBatchDto,
   SaveQuickAccessesBatchDto,
-  UpdateLandingModalNoticeDto,
+  UpdateLandingNoticeDto,
 } from '../dtos';
-import {
-  LandingModalNoticesService,
-  FeaturedBannersService,
-  HeroSlidesService,
-  QuickAccessesService,
-} from '../services';
-import { PaginationParamsDto } from 'src/modules/common';
+import { LandingNoticesService, FeaturedBannersService, HeroSlidesService, QuickAccessesService } from '../services';
 
 @ProtectedResource(Resource.CONTENT)
 @Controller('content')
@@ -37,7 +19,7 @@ export class ContentAdminController {
     private readonly heroSlidesService: HeroSlidesService,
     private readonly quickAccessesService: QuickAccessesService,
     private readonly featuredBannersService: FeaturedBannersService,
-    private readonly landingModalNoticesService: LandingModalNoticesService,
+    private readonly landingNoticesService: LandingNoticesService,
   ) {}
 
   @Get('hero-slides')
@@ -85,27 +67,27 @@ export class ContentAdminController {
     return this.featuredBannersService.removeFeaturedBanner(id);
   }
 
-  @Get('landing-modal-notices')
-  getLandingModalNotices(@Query() queryParams: PaginationParamsDto) {
-    return this.landingModalNoticesService.findAll(queryParams);
+  @Get('landing-notices')
+  getLandingNotices() {
+    return this.landingNoticesService.findAll();
   }
 
-  @Post('landing-modal-notices')
-  createLandingModalNotice(@Body() dto: CreateLandingModalNoticeDto, @GetAuthUser() user: User) {
-    return this.landingModalNoticesService.create(dto, user);
+  @Post('landing-notices')
+  createLandingNotice(@Body() dto: CreateLandingNoticeDto, @GetAuthUser() user: User) {
+    return this.landingNoticesService.create(dto, user);
   }
 
-  @Patch('landing-modal-notices/:id')
-  updateLandingModalNotice(
+  @Patch('landing-notices/:id')
+  updateLandingNotice(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateLandingModalNoticeDto,
+    @Body() dto: UpdateLandingNoticeDto,
     @GetAuthUser() user: User,
   ) {
-    return this.landingModalNoticesService.update(id, dto, user);
+    return this.landingNoticesService.update(id, dto, user);
   }
 
-  @Delete('landing-modal-notices/:id')
-  removeLandingModalNotice(@Param('id', ParseUUIDPipe) id: string) {
-    return this.landingModalNoticesService.remove(id);
+  @Delete('landing-notices/:id')
+  removeLandingNotice(@Param('id', ParseUUIDPipe) id: string) {
+    return this.landingNoticesService.remove(id);
   }
 }

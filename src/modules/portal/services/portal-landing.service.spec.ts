@@ -2,7 +2,7 @@ jest.mock('../../content/services', () => ({
   HeroSlidesService: class HeroSlidesService {},
   QuickAccessesService: class QuickAccessesService {},
   FeaturedBannersService: class FeaturedBannersService {},
-  LandingModalNoticesService: class LandingModalNoticesService {},
+  LandingNoticesService: class LandingNoticesService {},
 }));
 
 import { PortalLandingService } from './portal-landing.service';
@@ -52,7 +52,7 @@ describe('PortalLandingService', () => {
     const featuredBannersService = {
       findLandingFeaturedBanners: jest.fn().mockResolvedValue(featuredBanners),
     };
-    const modalNotices = [
+    const landingNotices = [
       {
         id: '29b743df-eec3-48a6-b0f0-067358c104af',
         title: 'Mantenimiento programado',
@@ -61,22 +61,28 @@ describe('PortalLandingService', () => {
         imageUrl: null,
         imageAlt: null,
         imageLinkUrl: null,
+        updatedAt: new Date('2026-07-05T12:00:00Z'),
       },
     ];
-    const landingModalNoticesService = {
-      findVisible: jest.fn().mockResolvedValue(modalNotices),
+    const landingNoticesService = {
+      findVisible: jest.fn().mockResolvedValue(landingNotices),
     };
     const service = new PortalLandingService(
       heroSlidesService as never,
       quickAccessesService as never,
       featuredBannersService as never,
-      landingModalNoticesService as never,
+      landingNoticesService as never,
     );
 
-    await expect(service.getLanding()).resolves.toEqual({ heroSlides, quickAccesses, featuredBanners, modalNotices });
+    await expect(service.getLanding()).resolves.toEqual({
+      heroSlides,
+      quickAccesses,
+      featuredBanners,
+      landingNotices,
+    });
     expect(heroSlidesService.findActive).toHaveBeenCalledTimes(1);
     expect(quickAccessesService.findLanding).toHaveBeenCalledTimes(1);
     expect(featuredBannersService.findLandingFeaturedBanners).toHaveBeenCalledTimes(1);
-    expect(landingModalNoticesService.findVisible).toHaveBeenCalledTimes(1);
+    expect(landingNoticesService.findVisible).toHaveBeenCalledTimes(1);
   });
 });

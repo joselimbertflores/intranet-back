@@ -3,19 +3,9 @@ import { Injectable } from '@nestjs/common';
 import {
   FeaturedBannersService,
   HeroSlidesService,
-  LandingFeaturedBannerResponse,
-  LandingModalNoticesService,
-  PublicHeroSlideResponse,
-  PublicQuickAccessResponse,
+  LandingNoticesService,
   QuickAccessesService,
 } from '../../content/services';
-
-// export interface PortalLandingResponse {
-//   heroSlides: PublicHeroSlideResponse[];
-//   quickAccesses: PublicQuickAccessResponse[];
-//   featuredBanners: LandingFeaturedBannerResponse[];
-//   modalNotices: PublicLandingModalNoticeResponse[];
-// }
 
 @Injectable()
 export class PortalLandingService {
@@ -23,17 +13,17 @@ export class PortalLandingService {
     private readonly heroSlidesService: HeroSlidesService,
     private readonly quickAccessesService: QuickAccessesService,
     private readonly featuredBannersService: FeaturedBannersService,
-    private readonly landingModalNoticesService: LandingModalNoticesService,
+    private readonly landingNoticesService: LandingNoticesService,
   ) {}
 
   async getLanding() {
-    const [heroSlides, quickAccesses, featuredBanners, modalNotices] = await Promise.all([
+    const [heroSlides, quickAccesses, featuredBanners, landingNotices] = await Promise.all([
       this.heroSlidesService.findActive(),
       this.quickAccessesService.findLanding(),
       this.featuredBannersService.findLandingFeaturedBanners(),
-      this.landingModalNoticesService.findVisible(),
+      this.landingNoticesService.findVisible(),
     ]);
 
-    return { heroSlides, quickAccesses, featuredBanners, modalNotices };
+    return { heroSlides, quickAccesses, featuredBanners, landingNotices };
   }
 }

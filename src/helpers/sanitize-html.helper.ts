@@ -1,10 +1,8 @@
-import DOMPurify from 'isomorphic-dompurify';
+import sanitize from 'sanitize-html';
 
 export function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true },
-
-    ALLOWED_TAGS: [
+  return sanitize(html, {
+    allowedTags: [
       'p',
       'br',
       'strong',
@@ -22,9 +20,12 @@ export function sanitizeHtml(html: string): string {
       'h4',
       'span',
     ],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
-    ADD_ATTR: ['target', 'rel'],
-    FORBID_TAGS: ['style', 'script'],
-    FORBID_ATTR: ['onerror', 'onclick'],
+    allowedAttributes: {
+      '*': ['class'],
+      a: ['href', 'target', 'rel'],
+    },
+    allowedSchemes: ['http', 'https'],
+    allowedSchemesAppliedToAttributes: ['href'],
+    allowProtocolRelative: false,
   });
 }

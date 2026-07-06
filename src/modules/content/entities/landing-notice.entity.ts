@@ -13,9 +13,9 @@ import {
 import { StoredFile } from '../../files/entities/stored-file.entity';
 import { User } from '../../users/entities/user.entity';
 
-@Entity('landing_modal_notices')
+@Entity('landing_notices')
 @Index(['isActive', 'isPinned', 'createdAt'])
-export class LandingModalNotice {
+export class LandingNotice {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

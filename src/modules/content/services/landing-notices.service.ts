@@ -1,29 +1,26 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { FilesService } from '../../files/files.service';
 
-import { CreateLandingModalNoticeDto, UpdateLandingModalNoticeDto } from '../dtos';
-import { LandingModalNotice } from '../entities/landing-modal-notice.entity';
+import { CreateLandingNoticeDto, UpdateLandingNoticeDto } from '../dtos';
+import { LandingNotice } from '../entities/landing-notice.entity';
 import { User } from 'src/modules/users/entities';
-import { PaginationParamsDto } from 'src/modules/common';
 
 @Injectable()
-export class LandingModalNoticesService {
+export class LandingNoticesService {
   constructor(
-    @InjectRepository(LandingModalNotice) private noticesRepository: Repository<LandingModalNotice>,
-    private dataSource: DataSource,
-    private filesService: FilesService,
+    @InjectRepository(LandingNotice)
+    private readonly noticesRepository: Repository<LandingNotice>,
+    private readonly dataSource: DataSource,
+    private readonly filesService: FilesService,
   ) {}
 
-  async findAll({ limit, offset, term }: PaginationParamsDto) {
+  async findAll() {
     const [notices, total] = await this.noticesRepository.findAndCount({
-      where: { ...(term && { title: ILike(`%${term}%`) }) },
       relations: { image: true },
-      order: { isPinned: 'DESC', createdAt: 'DESC' },
-      take: limit,
-      skip: offset,
+      order: { createdAt: 'DESC' },
     });
     return { notices: notices.map((notice) => this.mapToAdminDto(notice)), total };
   }
@@ -40,22 +37,25 @@ export class LandingModalNoticesService {
       .getMany();
 
     return notices.map((notice) => ({
+      id: notice.id,
       title: notice.title,
       contentHtml: notice.contentHtml,
       imageUrl: notice.imageId ? this.filesService.buildPublicFileUrl(notice.imageId) : null,
       imageAlt: notice.imageAlt,
       imageLinkUrl: notice.imageLinkUrl,
+      updatedAt: notice.updatedAt,
     }));
   }
 
-  async create(dto: CreateLandingModalNoticeDto, currentUser: User) {
+  async create(dto: CreateLandingNoticeDto, currentUser: User) {
     const { imageId, ...props } = dto;
     return this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(LandingModalNotice);
+      const repository = manager.getRepository(LandingNotice);
 
       const image = imageId ? await this.filesService.claimPendingFile(imageId, manager) : null;
       const model = repository.create({
         ...props,
+        imageId: image?.id ?? null,
         image,
         createdBy: currentUser,
       });
@@ -65,13 +65,13 @@ export class LandingModalNoticesService {
     });
   }
 
-  async update(id: string, dto: UpdateLandingModalNoticeDto, currentUser: User) {
+  async update(id: string, dto: UpdateLandingNoticeDto, currentUser: User) {
     const { imageId, ...updateProps } = dto;
     return this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(LandingModalNotice);
+      const repository = manager.getRepository(LandingNotice);
       const notice = await repository.findOne({ where: { id } });
 
-      if (!notice) throw new NotFoundException('Landing modal notice not found');
+      if (!notice) throw new NotFoundException('Landing notice not found');
 
       await this.applyImageChange(notice, imageId, manager);
 
@@ -87,17 +87,17 @@ export class LandingModalNoticesService {
 
   async remove(id: string): Promise<{ ok: true; message: string }> {
     return this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(LandingModalNotice);
+      const repository = manager.getRepository(LandingNotice);
       const notice = await repository.findOne({ where: { id } });
-      if (!notice) throw new NotFoundException('Landing modal notice not found');
+      if (!notice) throw new NotFoundException('Landing notice not found');
 
       if (notice.imageId) await this.filesService.markActiveFileAsOrphaned(notice.imageId, manager);
       await repository.delete(id);
-      return { ok: true, message: 'Landing modal notice removed successfully' };
+      return { ok: true, message: 'Landing notice removed successfully' };
     });
   }
 
-  private assertValidNoticeState(notice: LandingModalNotice): void {
+  private assertValidNoticeState(notice: LandingNotice): void {
     if (!notice.contentHtml && !notice.imageId) {
       throw new BadRequestException('contentHtml or imageId is required');
     }
@@ -109,11 +109,7 @@ export class LandingModalNoticesService {
     }
   }
 
-  private async applyImageChange(
-    notice: LandingModalNotice,
-    imageId: string | null | undefined,
-    manager: EntityManager,
-  ) {
+  private async applyImageChange(notice: LandingNotice, imageId: string | null | undefined, manager: EntityManager) {
     if (imageId === undefined) return;
 
     if (notice.imageId === imageId) return;
@@ -136,10 +132,10 @@ export class LandingModalNoticesService {
     notice.imageId = imageId;
   }
 
-  private mapToAdminDto({ imageId, ...props }: LandingModalNotice) {
+  private mapToAdminDto(notice: LandingNotice) {
     return {
-      ...props,
-      imageUrl: imageId ? this.filesService.buildPublicFileUrl(imageId) : null,
+      ...notice,
+      imageUrl: notice.imageId ? this.filesService.buildPublicFileUrl(notice.imageId) : null,
     };
   }
 }

@@ -14,7 +14,7 @@ export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
     validTypes: ['jpg', 'jpeg', 'png', 'webp'],
     maxSizeBytes: 5 * 1024 * 1024,
   },
-  [FileContext.LANDING_MODAL_NOTICES]: {
+  [FileContext.LANDING_NOTICES]: {
     validTypes: ['jpg', 'jpeg', 'png', 'webp'],
     maxSizeBytes: 5 * 1024 * 1024,
   },
@@ -55,7 +55,7 @@ export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
 export const ALLOWED_FILE_TYPES: Record<FileContext, string[]> = {
   [FileContext.HERO_SLIDES]: FILE_UPLOAD_CONFIG[FileContext.HERO_SLIDES].validTypes,
   [FileContext.FEATURED_BANNERS]: FILE_UPLOAD_CONFIG[FileContext.FEATURED_BANNERS].validTypes,
-  [FileContext.LANDING_MODAL_NOTICES]: FILE_UPLOAD_CONFIG[FileContext.LANDING_MODAL_NOTICES].validTypes,
+  [FileContext.LANDING_NOTICES]: FILE_UPLOAD_CONFIG[FileContext.LANDING_NOTICES].validTypes,
   [FileContext.DOCUMENT_RECORDS]: FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS].validTypes,
   [FileContext.QUICK_ACCESS]: FILE_UPLOAD_CONFIG[FileContext.QUICK_ACCESS].validTypes,
   [FileContext.COMMUNICATIONS]: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].validTypes,

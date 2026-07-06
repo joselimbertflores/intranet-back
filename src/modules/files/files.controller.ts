@@ -64,22 +64,22 @@ export class FilesController {
     return this.filesService.uploadImage(file, FileContext.FEATURED_BANNERS);
   }
 
-  @Post('landing-modal-notices')
+  @Post('landing-notices')
   @UseInterceptors(FileInterceptor('file'))
-  uploadLandingModalNoticeImage(
+  uploadLandingNoticeImage(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: FILE_UPLOAD_CONFIG[FileContext.LANDING_MODAL_NOTICES].validTypes,
+            validTypes: FILE_UPLOAD_CONFIG[FileContext.LANDING_NOTICES].validTypes,
           }),
         )
-        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.LANDING_MODAL_NOTICES].maxSizeBytes })
+        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.LANDING_NOTICES].maxSizeBytes })
         .build(),
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.uploadImage(file, FileContext.LANDING_MODAL_NOTICES);
+    return this.filesService.uploadImage(file, FileContext.LANDING_NOTICES);
   }
 
   @Post('documents')
