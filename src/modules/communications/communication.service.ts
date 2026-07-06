@@ -1,13 +1,14 @@
-import { BadGatewayException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { DataSource, ILike, Repository } from 'typeorm';
+import { DataSource, ILike, QueryFailedError, Repository } from 'typeorm';
 
 import { CreateCommunicationDto, GetPortalCommunicationsDto, UpdateCommunicationDto } from './dtos';
 import { Communication, TypeCommunication } from './entities';
 import { FilesService } from '../files/files.service';
 import { PaginationParamsDto } from '../common';
 import { FileStatus, StoredFileKind } from '../files/entities/stored-file.entity';
+import { FileContext } from '../files/enums/file-context.enum';
 
 export interface PortalCommunication {
   id: string;
@@ -15,15 +16,19 @@ export interface PortalCommunication {
   code: string;
   type: string;
   createdAt: Date;
-  previewImageUrl?: string | null;
-  attachment?: Attachment;
+  previewImageUrl: string | null;
 }
 
-export interface Attachment {
+export interface PortalCommunicationDetail extends PortalCommunication {
+  attachment: CommunicationAttachment | null;
+}
+
+export interface CommunicationAttachment {
   fileName: string;
   mimeType: string;
-  url: string;
-  size?: number;
+  sizeBytes: number;
+  fileUrl: string;
+  downloadUrl: string;
 }
 @Injectable()
 export class CommunicationService {
@@ -62,14 +67,18 @@ export class CommunicationService {
     await this.checkDuplicateCode(normalizedCode);
 
     const type = await this.typeCommRespository.findOneBy({ id: typeId });
-    if (!type) throw new BadGatewayException('Type communication not found');
+    if (!type) throw new NotFoundException('Communication type not found');
 
-    const createdCommunication = await this.dataSource.transaction(async (manager) => {
-      const file = await this.fileService.claimPendingFile(fileId, manager);
-      const communication = manager.create(Communication, { ...props, code: normalizedCode, type, file });
-      return await manager.save(communication);
-    });
-    return this.toAdminDto(createdCommunication);
+    try {
+      const createdCommunication = await this.dataSource.transaction(async (manager) => {
+        const file = await this.fileService.claimPendingFile(fileId, FileContext.COMMUNICATIONS, manager);
+        const communication = manager.create(Communication, { ...props, code: normalizedCode, type, file });
+        return manager.save(communication);
+      });
+      return this.toAdminDto(createdCommunication);
+    } catch (error) {
+      this.rethrowUniqueCodeViolation(error, normalizedCode);
+    }
   }
 
   async update(id: string, dto: UpdateCommunicationDto) {
@@ -87,23 +96,33 @@ export class CommunicationService {
 
     if (typeId) {
       const type = await this.typeCommRespository.findOneBy({ id: typeId });
-      if (!type) throw new BadGatewayException('Type communication not found');
+      if (!type) throw new NotFoundException('Communication type not found');
       communicationDB.type = type;
     }
 
-    const updatedCommunication = await this.dataSource.transaction(async (manager) => {
-      manager.merge(Communication, communicationDB, toUpdate);
-      if (fileId && fileId !== communicationDB.file.id) {
-        // const newFile = await this.fileService.replaceActiveFile(communicationDB.file.id, fileId, manager);
-        // communicationDB.file = newFile;
-      }
-      return await manager.save(communicationDB);
-    });
-    return this.toAdminDto(updatedCommunication);
+    try {
+      const updatedCommunication = await this.dataSource.transaction(async (manager) => {
+        manager.merge(Communication, communicationDB, toUpdate);
+        if (fileId && fileId !== communicationDB.file.id) {
+          communicationDB.file = await this.fileService.replaceActiveFileWithPendingFile(
+            communicationDB.file.id,
+            fileId,
+            FileContext.COMMUNICATIONS,
+            manager,
+          );
+        }
+        return manager.save(communicationDB);
+      });
+      return this.toAdminDto(updatedCommunication);
+    } catch (error) {
+      this.rethrowUniqueCodeViolation(error, normalizedCode ?? communicationDB.code);
+    }
   }
 
   async setActiveState(id: string, isActive: boolean) {
-    await this.commRepository.update({ id }, { isActive });
+    const result = await this.commRepository.update({ id }, { isActive });
+    if (result.affected !== 1) throw new NotFoundException(`Communication ${id} not found`);
+    return { id, isActive };
   }
 
   async getLatestCommunications(limit: number = 8): Promise<PortalCommunication[]> {
@@ -145,7 +164,7 @@ export class CommunicationService {
     };
   }
 
-  async getPortalCommunicationById(id: string): Promise<PortalCommunication> {
+  async getPortalCommunicationById(id: string): Promise<PortalCommunicationDetail> {
     const communication = await this.commRepository.findOne({
       where: { id, isActive: true },
       relations: {
@@ -159,6 +178,7 @@ export class CommunicationService {
     }
 
     const image = this.findActivePreview(communication.file);
+    const fileUrl = communication.file ? this.fileService.buildPublicFileUrl(communication.file.id) : null;
     return {
       id: communication.id,
       type: communication.type.name,
@@ -166,19 +186,21 @@ export class CommunicationService {
       reference: communication.reference,
       createdAt: communication.createdAt,
       previewImageUrl: image ? this.fileService.buildPublicFileUrl(image.id) : null,
-      ...(communication.file && {
-        attachment: {
-          fileName: communication.file.originalName,
-          size: communication.file.sizeBytes,
-          mimeType: communication.file.mimeType,
-          url: this.fileService.buildPublicFileUrl(communication.file.id),
-        },
-      }),
+      attachment: communication.file
+        ? {
+            fileName: communication.file.originalName,
+            sizeBytes: communication.file.sizeBytes,
+            mimeType: communication.file.mimeType,
+            fileUrl: fileUrl!,
+            downloadUrl: this.buildDownloadUrl(fileUrl!),
+          }
+        : null,
     };
   }
 
   async getTypes() {
-    return await this.typeCommRespository.find();
+    const types = await this.typeCommRespository.find({ order: { name: 'ASC' } });
+    return types.map(({ id, name }) => ({ id, name }));
   }
 
   async findByIdOrFail(id: string) {
@@ -189,7 +211,7 @@ export class CommunicationService {
 
   private async checkDuplicateCode(code: string) {
     const duplicate = await this.commRepository.findOneBy({ code });
-    if (duplicate) throw new BadGatewayException(`Code: ${code} already exists`);
+    if (duplicate) throw new ConflictException(`Code: ${code} already exists`);
   }
 
   private normalizeCode(code: string): string {
@@ -209,13 +231,29 @@ export class CommunicationService {
     };
   }
 
-  toPublicDto({ file, type, ...rest }: Communication): PortalCommunication {
-    const image = this.findActivePreview(file);
+  private toPublicDto(communication: Communication): PortalCommunication {
+    const image = this.findActivePreview(communication.file);
     return {
-      ...rest,
-      type: type.name,
+      id: communication.id,
+      reference: communication.reference,
+      code: communication.code,
+      type: communication.type.name,
+      createdAt: communication.createdAt,
       previewImageUrl: image ? this.fileService.buildPublicFileUrl(image.id) : null,
     };
+  }
+
+  private buildDownloadUrl(fileUrl: string): string {
+    const url = new URL(fileUrl);
+    url.searchParams.set('download', 'true');
+    return url.toString();
+  }
+
+  private rethrowUniqueCodeViolation(error: unknown, code: string): never {
+    if (error instanceof QueryFailedError && (error.driverError as { code?: string }).code === '23505') {
+      throw new ConflictException(`Code: ${code} already exists`);
+    }
+    throw error;
   }
 
   private findActivePreview(file: Communication['file']) {

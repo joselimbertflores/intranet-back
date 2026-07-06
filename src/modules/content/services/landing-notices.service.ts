@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { FilesService } from '../../files/files.service';
+import { FileContext } from '../../files/enums/file-context.enum';
 
 import { CreateLandingNoticeDto, UpdateLandingNoticeDto } from '../dtos';
 import { LandingNotice } from '../entities/landing-notice.entity';
@@ -52,7 +53,9 @@ export class LandingNoticesService {
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(LandingNotice);
 
-      const image = imageId ? await this.filesService.claimPendingFile(imageId, manager) : null;
+      const image = imageId
+        ? await this.filesService.claimPendingFile(imageId, FileContext.LANDING_NOTICES, manager)
+        : null;
       const model = repository.create({
         ...props,
         imageId: image?.id ?? null,
@@ -124,9 +127,14 @@ export class LandingNoticesService {
     }
 
     if (notice.imageId) {
-      notice.image = await this.filesService.replaceActiveFileWithPendingFile(notice.imageId, imageId, manager);
+      notice.image = await this.filesService.replaceActiveFileWithPendingFile(
+        notice.imageId,
+        imageId,
+        FileContext.LANDING_NOTICES,
+        manager,
+      );
     } else {
-      notice.image = await this.filesService.claimPendingFile(imageId, manager);
+      notice.image = await this.filesService.claimPendingFile(imageId, FileContext.LANDING_NOTICES, manager);
     }
 
     notice.imageId = imageId;

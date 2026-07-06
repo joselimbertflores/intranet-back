@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
@@ -27,6 +27,7 @@ interface SaveFileParams {
 
 @Injectable()
 export class FilesService {
+  private readonly logger = new Logger(FilesService.name);
   private readonly BASE_UPLOAD_PATH: string;
   private readonly PUBLIC_FILE_BASE_PATH = '/api/files';
 
@@ -57,16 +58,22 @@ export class FilesService {
     const savedPdf = await this.saveFile({
       buffer: file.buffer,
       originalName: file.originalname,
-      mimeType: file.mimetype,
+      mimeType: 'application/pdf',
       context,
     });
 
     const pdfPath = join(this.BASE_UPLOAD_PATH, savedPdf.storageKey);
 
-    const previewBuffer = await generatePdfPreview(pdfPath);
-
-    if (previewBuffer) {
-      await this.saveDerivedPreview(previewBuffer, savedPdf, context);
+    try {
+      const previewBuffer = await generatePdfPreview(pdfPath);
+      if (previewBuffer) {
+        await this.saveDerivedPreview(previewBuffer, savedPdf, context);
+      } else {
+        this.logger.warn(`PDF preview could not be generated for file ${savedPdf.id}: no page content`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown preview generation error';
+      this.logger.warn(`PDF preview could not be generated for file ${savedPdf.id}: ${message}`);
     }
 
     return {
@@ -123,16 +130,24 @@ export class FilesService {
     return new URL(`${this.PUBLIC_FILE_BASE_PATH}/${fileId}`, appPublicUrl).toString();
   }
 
-  async claimPendingFile(fileId: string, manager: EntityManager): Promise<StoredFile> {
+  async claimPendingFile(fileId: string, context: FileContext, manager: EntityManager): Promise<StoredFile> {
     const fileRepository = manager.getRepository(StoredFile);
 
     const file = await fileRepository.findOne({ where: { id: fileId }, relations: { derivedFiles: true } });
 
     if (!file) throw new NotFoundException('File not found');
 
-    if (file.sourceFileId) throw new BadRequestException('Derived files cannot be claimed directly');
+    if (file.status !== FileStatus.PENDING) {
+      throw new BadRequestException('File is not pending');
+    }
 
-    if (file.status !== FileStatus.PENDING) throw new BadRequestException('File is not available for use');
+    if (file.context !== context) {
+      throw new BadRequestException('File does not belong to this context');
+    }
+
+    if (file.kind !== StoredFileKind.ORIGINAL || file.sourceFileId) {
+      throw new BadRequestException('File must be an original file');
+    }
 
     const result = await fileRepository.update(
       { id: file.id, status: FileStatus.PENDING },
@@ -142,7 +157,10 @@ export class FilesService {
     if (result.affected !== 1) throw new BadRequestException('File is not available for use');
 
     if (file.derivedFiles?.length) {
-      await fileRepository.update({ sourceFileId: file.id, status: FileStatus.PENDING }, { status: FileStatus.ACTIVE });
+      await fileRepository.update(
+        { sourceFileId: file.id, context: file.context, status: FileStatus.PENDING },
+        { status: FileStatus.ACTIVE },
+      );
 
       file.derivedFiles.forEach((derivedFile) => {
         if (derivedFile.status === FileStatus.PENDING) {
@@ -155,21 +173,30 @@ export class FilesService {
     return file;
   }
 
-  async replaceActiveFileWithPendingFile(currentFileId: string, newPendingFileId: string, manager: EntityManager) {
+  async replaceActiveFileWithPendingFile(
+    currentFileId: string,
+    newPendingFileId: string,
+    context: FileContext,
+    manager: EntityManager,
+  ) {
     if (currentFileId === newPendingFileId) {
       throw new BadRequestException('Replacement file must be different from current file');
     }
-    const newFile = await this.claimPendingFile(newPendingFileId, manager);
-    await this.markActiveFileAsOrphaned(currentFileId, manager);
+    const newFile = await this.claimPendingFile(newPendingFileId, context, manager);
+    await this.markActiveFileAsOrphaned(currentFileId, manager, context);
     return newFile;
   }
 
-  async markActiveFileAsOrphaned(fileId: string, manager: EntityManager): Promise<void> {
+  async markActiveFileAsOrphaned(fileId: string, manager: EntityManager, expectedContext?: FileContext): Promise<void> {
     const fileRepository = manager.getRepository(StoredFile);
 
     const file = await fileRepository.findOne({ where: { id: fileId }, relations: { derivedFiles: true } });
 
     if (!file) throw new NotFoundException('File not found');
+
+    if (expectedContext && file.context !== expectedContext) {
+      throw new BadRequestException('File does not belong to the expected context');
+    }
 
     if (file.sourceFileId) throw new BadRequestException('Derived files cannot be orphaned directly');
 
@@ -226,6 +253,7 @@ export class FilesService {
       storageKey,
       mimeType,
       sizeBytes: buffer.length,
+      context,
       status: FileStatus.PENDING,
       kind,
       sourceFile: sourceFile ?? null,

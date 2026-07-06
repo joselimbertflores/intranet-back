@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 
-import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos';
+import { CreateCommunicationDto, SetCommunicationStatusDto, UpdateCommunicationDto } from './dtos';
 import { CommunicationService } from './communication.service';
 import { PaginationParamsDto } from '../common';
 import { ProtectedResource } from '../auth/decorators';
@@ -24,6 +24,11 @@ export class CommunicationController {
   @Patch('/:id')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateCommunicationDto) {
     return this.communicationService.update(id, body);
+  }
+
+  @Patch('/:id/status')
+  setStatus(@Param('id', ParseUUIDPipe) id: string, @Body() body: SetCommunicationStatusDto) {
+    return this.communicationService.setActiveState(id, body.isActive);
   }
 
   @Get('types')

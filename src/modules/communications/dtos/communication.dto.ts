@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { PaginationParamsDto } from 'src/modules/common';
@@ -16,7 +16,8 @@ export class CreateCommunicationDto {
   code: string;
 
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   typeId: number;
 
   @IsBoolean()
@@ -29,16 +30,15 @@ export class CreateCommunicationDto {
 
 export class UpdateCommunicationDto extends PartialType(CreateCommunicationDto) {}
 
-export class CreateTypeCommunicationDto {
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(120)
-  name: string;
+export class SetCommunicationStatusDto {
+  @IsBoolean()
+  isActive: boolean;
 }
 
 export class GetPortalCommunicationsDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   @IsOptional()
   typeId?: number;
 }

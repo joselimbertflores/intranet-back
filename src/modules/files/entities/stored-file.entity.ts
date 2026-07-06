@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
   JoinColumn,
 } from 'typeorm';
+import { FileContext } from '../enums/file-context.enum';
 
 // file-status.enum.ts
 export enum FileStatus {
@@ -40,6 +41,12 @@ export class StoredFile {
   // ej: communications/uuid.pdf
   @Column({ unique: true })
   storageKey: string;
+
+  @Column({
+    type: 'enum',
+    enum: FileContext,
+  })
+  context: FileContext;
 
   @Column({
     type: 'enum',

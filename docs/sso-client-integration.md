@@ -150,16 +150,11 @@ Si despues de sembrar permisos no existe ningun permiso, el bootstrap falla con 
 
 Los admins posteriores se gestionan desde la UI administrativa mediante roles locales.
 
-## Cambio operativo de base de datos
+## Esquema de base de datos
 
-El proyecto incluye una migracion TypeORM para agregar `roles.isAutoAssigned`. En ambientes que todavia tengan la columna local antigua de usuarios, aplicar tambien el cambio operativo sobre la base de Intranet:
+El código actual espera `roles.isAutoAssigned` y no define `users.isActive`. En este estado del repositorio no hay una migración versionada que aplique ambos cambios. Antes de desplegar en un ambiente con un esquema anterior se debe crear y revisar la migración TypeORM correspondiente; no se debe depender de `synchronize` fuera de desarrollo.
 
-```sql
-ALTER TABLE roles ADD COLUMN IF NOT EXISTS "isAutoAssigned" boolean NOT NULL DEFAULT false;
-ALTER TABLE users DROP COLUMN IF EXISTS "isActive";
-```
-
-No se deben borrar registros de usuarios locales ni modificar tablas de Identity Hub desde este cliente.
+La migración no debe borrar registros de usuarios locales ni modificar tablas de Identity Hub desde este cliente.
 
 ## Logout local vs global
 

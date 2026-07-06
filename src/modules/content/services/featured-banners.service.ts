@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
+import { FileContext } from 'src/modules/files/enums/file-context.enum';
 
 import { SaveFeaturedBannersBatchDto } from '../dtos';
 import { FeaturedBanner } from '../entities';
@@ -90,6 +91,7 @@ export class FeaturedBannersService {
             current.imageFile = await this.filesService.replaceActiveFileWithPendingFile(
               current.imageFileId,
               item.imageFileId,
+              FileContext.FEATURED_BANNERS,
               manager,
             );
           }
@@ -98,7 +100,11 @@ export class FeaturedBannersService {
           continue;
         }
 
-        const imageFile = await this.filesService.claimPendingFile(item.imageFileId, manager);
+        const imageFile = await this.filesService.claimPendingFile(
+          item.imageFileId,
+          FileContext.FEATURED_BANNERS,
+          manager,
+        );
         bannersToSave.push(repository.create({ ...patch, imageFile }));
       }
 

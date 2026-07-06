@@ -31,14 +31,8 @@ export class CalendarController {
     return this.eventService.getOne(id);
   }
 
-  @Patch('communications/:id/deactivate')
-  setCommunicationState(@Param('id') id: string, @Body() dto: { isActive: boolean }) {
-    return this.eventService.setCommunicationState(id, dto.isActive);
-  }
-
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.eventService.remove(id);
   }
-
 }

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
+import { FileContext } from 'src/modules/files/enums/file-context.enum';
 
 import { SaveHeroSlidesBatchDto } from '../dtos';
 import { HeroSlide } from '../entities';
@@ -83,6 +84,7 @@ export class HeroSlidesService {
             const replacementFile = await this.filesService.replaceActiveFileWithPendingFile(
               current.imageFileId,
               item.imageFileId,
+              FileContext.HERO_SLIDES,
               manager,
             );
             current.imageFile = replacementFile;
@@ -100,7 +102,11 @@ export class HeroSlidesService {
             }),
           );
         } else {
-          const imageFile = await this.filesService.claimPendingFile(item.imageFileId, manager);
+          const imageFile = await this.filesService.claimPendingFile(
+            item.imageFileId,
+            FileContext.HERO_SLIDES,
+            manager,
+          );
           const newSlide = manager.create(HeroSlide, {
             title: item.title,
             description: item.description ?? null,

@@ -18,7 +18,10 @@ export class ResourceGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const resource = this.reflector.get<Resource>(RESOURCE_KEY, context.getClass());
+    const resource = this.reflector.getAllAndOverride<Resource>(RESOURCE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!resource) return true;
 

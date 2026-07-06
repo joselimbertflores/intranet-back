@@ -89,14 +89,6 @@ export class CalendarService {
     return await this.eventRepository.findOneBy({ id });
   }
 
-  async setCommunicationState(communicationId: string, isActive: boolean) {
-    const communication = await this.communicationService.findByIdOrFail(communicationId);
-    if (communication.isActive === isActive) return;
-    await this.communicationService.setActiveState(communicationId, isActive);
-    await this.eventRepository.update({ communication: { id: communicationId } }, { isActive });
-    return { ok: true, message: isActive ? 'Communication activated' : 'Communication deactivated' };
-  }
-
   async remove(id: string) {
     const result = await this.eventRepository.delete(id);
     return (result.affected ?? 0 > 0)

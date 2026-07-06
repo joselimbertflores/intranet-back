@@ -1,16 +1,21 @@
 import { FileValidator } from '@nestjs/common';
 import { fileTypeFromBuffer } from 'file-type';
-import { getMimeType } from 'src/helpers';
+import { getMimeType } from '../../../helpers';
+
+const AMBIGUOUS_CONTAINER_MIMES = new Set(['application/zip', 'application/x-zip-compressed']);
 
 interface ValidatorConfig {
   validTypes: string[];
+  requireDetectedType?: boolean;
 }
 export class CustomFileTypeValidator extends FileValidator {
   private readonly allowedMimes: string[];
+  private readonly requireDetectedType: boolean;
 
   constructor(config: ValidatorConfig) {
     super(config);
     this.allowedMimes = config.validTypes.map((type) => (type.includes('/') ? type : getMimeType(type) || type));
+    this.requireDetectedType = config.requireDetectedType ?? false;
   }
 
   async isValid(file?: Express.Multer.File): Promise<boolean> {
@@ -18,9 +23,18 @@ export class CustomFileTypeValidator extends FileValidator {
 
     const detected = await fileTypeFromBuffer(file.buffer.subarray(0, 4100));
 
-    if (detected && this.allowedMimes.includes(detected.mime)) {
-      return true;
+    if (detected) {
+      if (this.allowedMimes.includes(detected.mime)) return true;
+
+      if (!this.requireDetectedType && AMBIGUOUS_CONTAINER_MIMES.has(detected.mime)) {
+        return this.allowedMimes.includes(file.mimetype);
+      }
+
+      return false;
     }
+
+    if (this.requireDetectedType) return false;
+
     return this.allowedMimes.includes(file.mimetype);
   }
 

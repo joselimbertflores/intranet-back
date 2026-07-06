@@ -20,7 +20,8 @@ import { CustomFileTypeValidator } from './validators/custom-file-type.validator
 import { FileContext } from './enums/file-context.enum';
 import { FILE_UPLOAD_CONFIG } from './constants';
 import { FilesService } from './files.service';
-import { Public } from '../auth/decorators';
+import { ProtectedResource, Public } from '../auth/decorators';
+import { Resource } from '../users/entities';
 
 const documentUploadConfig = FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS];
 
@@ -120,14 +121,20 @@ export class FilesController {
     return this.filesService.uploadFile(file, FileContext.TUTORIALS);
   }
 
-  @Post('communication')
-  @UseInterceptors(FileInterceptor('file'))
+  @Post('communications')
+  @ProtectedResource(Resource.COMMUNICATIONS)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].maxSizeBytes },
+    }),
+  )
   uploadCommunication(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
             validTypes: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].validTypes,
+            requireDetectedType: true,
           }),
         )
         .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].maxSizeBytes })

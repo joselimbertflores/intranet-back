@@ -7,6 +7,7 @@ import { DocumentRecord, OrganizationalUnit, DocumentType, DocumentSubtype } fro
 import { CreateDocumentBatchDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
 import { OrganizationalUnitService } from './organizational-unit.service';
 import { FilesService } from 'src/modules/files/files.service';
+import { FileContext } from 'src/modules/files/enums/file-context.enum';
 import { User } from 'src/modules/users/entities';
 
 @Injectable()
@@ -75,7 +76,7 @@ export class DocumentService {
     return this.dataSource.transaction(async (manager) => {
       const records: DocumentRecord[] = [];
       for (const item of documents) {
-        const file = await this.filesService.claimPendingFile(item.fileId, manager);
+        const file = await this.filesService.claimPendingFile(item.fileId, FileContext.DOCUMENT_RECORDS, manager);
         const record = manager.create(DocumentRecord, {
           organizationalUnit,
           documentType,
@@ -129,7 +130,12 @@ export class DocumentService {
 
     return this.dataSource.transaction(async (manager) => {
       if (fileId && fileId !== document.fileId) {
-        const newFile = await this.filesService.replaceActiveFileWithPendingFile(document.fileId, fileId, manager);
+        const newFile = await this.filesService.replaceActiveFileWithPendingFile(
+          document.fileId,
+          fileId,
+          FileContext.DOCUMENT_RECORDS,
+          manager,
+        );
         document.file = newFile;
       }
       const savedDocument = await manager.save(document);

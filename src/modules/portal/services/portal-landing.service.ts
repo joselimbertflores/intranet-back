@@ -6,6 +6,7 @@ import {
   LandingNoticesService,
   QuickAccessesService,
 } from '../../content/services';
+import { CommunicationService } from '../../communications/communication.service';
 
 @Injectable()
 export class PortalLandingService {
@@ -14,16 +15,18 @@ export class PortalLandingService {
     private readonly quickAccessesService: QuickAccessesService,
     private readonly featuredBannersService: FeaturedBannersService,
     private readonly landingNoticesService: LandingNoticesService,
+    private readonly communicationService: CommunicationService,
   ) {}
 
   async getLanding() {
-    const [heroSlides, quickAccesses, featuredBanners, landingNotices] = await Promise.all([
+    const [heroSlides, quickAccesses, featuredBanners, landingNotices, communications] = await Promise.all([
       this.heroSlidesService.findActive(),
       this.quickAccessesService.findLanding(),
       this.featuredBannersService.findLandingFeaturedBanners(),
       this.landingNoticesService.findVisible(),
+      this.communicationService.getLatestCommunications(6),
     ]);
 
-    return { heroSlides, quickAccesses, featuredBanners, landingNotices };
+    return { heroSlides, quickAccesses, featuredBanners, landingNotices, communications };
   }
 }

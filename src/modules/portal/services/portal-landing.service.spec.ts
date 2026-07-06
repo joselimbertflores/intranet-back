@@ -4,6 +4,9 @@ jest.mock('../../content/services', () => ({
   FeaturedBannersService: class FeaturedBannersService {},
   LandingNoticesService: class LandingNoticesService {},
 }));
+jest.mock('../../communications/communication.service', () => ({
+  CommunicationService: class CommunicationService {},
+}));
 
 import { PortalLandingService } from './portal-landing.service';
 
@@ -67,11 +70,25 @@ describe('PortalLandingService', () => {
     const landingNoticesService = {
       findVisible: jest.fn().mockResolvedValue(landingNotices),
     };
+    const communications = [
+      {
+        id: '6f59a232-e441-46d9-b34f-7411939cc576',
+        reference: 'Comunicado institucional',
+        code: 'COM-001',
+        type: 'General',
+        createdAt: new Date('2026-07-05T12:00:00Z'),
+        previewImageUrl: null,
+      },
+    ];
+    const communicationService = {
+      getLatestCommunications: jest.fn().mockResolvedValue(communications),
+    };
     const service = new PortalLandingService(
       heroSlidesService as never,
       quickAccessesService as never,
       featuredBannersService as never,
       landingNoticesService as never,
+      communicationService as never,
     );
 
     await expect(service.getLanding()).resolves.toEqual({
@@ -79,10 +96,12 @@ describe('PortalLandingService', () => {
       quickAccesses,
       featuredBanners,
       landingNotices,
+      communications,
     });
     expect(heroSlidesService.findActive).toHaveBeenCalledTimes(1);
     expect(quickAccessesService.findLanding).toHaveBeenCalledTimes(1);
     expect(featuredBannersService.findLandingFeaturedBanners).toHaveBeenCalledTimes(1);
     expect(landingNoticesService.findVisible).toHaveBeenCalledTimes(1);
+    expect(communicationService.getLatestCommunications).toHaveBeenCalledWith(6);
   });
 });
