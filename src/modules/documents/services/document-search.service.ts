@@ -210,10 +210,10 @@ export class DocumentSearchService {
       id: doc.id,
       title: doc.title,
       year: doc.year,
-      createdAt: doc.createdAt,
       organizationalUnit: doc.organizationalUnit.name,
       documentType: doc.documentType.name,
       documentSubtype: doc.documentSubtype?.name,
+      downloadCount: doc.downloadCount ?? 0,
       file: this.plainFile(doc),
     }));
   }
@@ -223,6 +223,7 @@ export class DocumentSearchService {
       id: doc.file.id,
       url: this.filesService.buildPublicFileUrl(doc.file.id),
       name: doc.file.originalName,
+      mimeType: doc.file.mimeType,
       size: Number(doc.file.sizeBytes),
       extension: extname(doc.file.storageKey).slice(1).toLowerCase() || 'file',
     };
