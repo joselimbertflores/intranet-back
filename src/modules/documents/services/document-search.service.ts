@@ -52,6 +52,7 @@ export class DocumentSearchService {
   }
 
   async searchDocuments(searchParamsDto: SearchPortalDocumentsDto) {
+    console.log(searchParamsDto);
     const { limit, offset, term, ...props } = searchParamsDto;
     const { organizationalUnitId, documentTypeId, documentSubtypeId, year } = await this.resolveFilters(props);
     const organizationalUnitIds = organizationalUnitId
