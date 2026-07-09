@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+
 import { Repository } from 'typeorm';
-import { extname } from 'path';
 
 import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
 import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { FilesService } from 'src/modules/files/files.service';
 import { SearchPortalDocumentsDto } from '../dtos';
+import { EnvironmentVariables } from 'src/config';
 
 export interface PortalOrganizationalUnit {
   id: string;
@@ -17,13 +19,14 @@ export interface PortalOrganizationalUnit {
 }
 
 @Injectable()
-export class DocumentSearchService {
+export class PublicDocumentService {
   constructor(
     @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
     @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
     private filesService: FilesService,
+    private configService: ConfigService<EnvironmentVariables>,
   ) {}
 
   async getOrganizationalUnits() {
@@ -52,7 +55,6 @@ export class DocumentSearchService {
   }
 
   async searchDocuments(searchParamsDto: SearchPortalDocumentsDto) {
-    console.log(searchParamsDto);
     const { limit, offset, term, ...props } = searchParamsDto;
     const { organizationalUnitId, documentTypeId, documentSubtypeId, year } = await this.resolveFilters(props);
     const organizationalUnitIds = organizationalUnitId
@@ -76,6 +78,29 @@ export class DocumentSearchService {
       .getManyAndCount();
 
     return { documents: this.plainDocuments(documents), total };
+  }
+
+  async getDocumentFileStream(documentId: string, options?: { countDownload?: boolean }) {
+    const document = await this.documentRepository.findOne({
+      where: {
+        id: documentId,
+        status: DocumentStatus.ACTIVE,
+      },
+      relations: {
+        file: true,
+      },
+    });
+
+    if (!document) throw new NotFoundException('Document not found');
+
+    const result = await this.filesService.getActiveFileStream(document.file.id);
+
+    
+    if (options?.countDownload) {
+      await this.documentRepository.increment({ id: document.id }, 'downloadCount', 1);
+    }
+
+    return result;
   }
 
   async getMostDownloaded() {
@@ -215,18 +240,18 @@ export class DocumentSearchService {
       documentType: doc.documentType.name,
       documentSubtype: doc.documentSubtype?.name,
       downloadCount: doc.downloadCount ?? 0,
-      file: this.plainFile(doc),
+      file: {
+        name: doc.file.originalName,
+        mimeType: doc.file.mimeType,
+        size: Number(doc.file.sizeBytes),
+        downloadUrl: this.buildDocumentDownloadUrl(doc.id),
+      },
     }));
   }
 
-  private plainFile(doc: DocumentRecord) {
-    return {
-      id: doc.file.id,
-      url: this.filesService.buildPublicFileUrl(doc.file.id),
-      name: doc.file.originalName,
-      mimeType: doc.file.mimeType,
-      size: Number(doc.file.sizeBytes),
-      extension: extname(doc.file.storageKey).slice(1).toLowerCase() || 'file',
-    };
+  private buildDocumentDownloadUrl(documentId: string) {
+    const baseUrl = this.configService.getOrThrow<string>('APP_PUBLIC_URL');
+    const url = new URL(`/api/portal-documents/${documentId}/file`, baseUrl);
+    return `${url.toString()}?download=true`;
   }
 }

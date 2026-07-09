@@ -5,12 +5,12 @@ import { DocumentRecord, OrganizationalUnit, DocumentType, DocumentSubtype } fro
 import { DocumentTypeService, DocumentService, OrganizationalUnitService } from './services';
 import { DocumentController, DocumentTypeController, OrganizationalUnitController } from './controllers';
 import { FilesModule } from '../files/files.module';
-import { DocumentSearchService } from './services/document-search.service';
+import { PublicDocumentService } from './services/public-document.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([OrganizationalUnit, DocumentType, DocumentRecord, DocumentSubtype]), FilesModule],
-  providers: [DocumentTypeService, DocumentService, OrganizationalUnitService, DocumentSearchService],
+  providers: [DocumentTypeService, DocumentService, OrganizationalUnitService, PublicDocumentService],
   controllers: [DocumentController, DocumentTypeController, OrganizationalUnitController],
-  exports: [DocumentSearchService, DocumentService, OrganizationalUnitService, DocumentTypeService],
+  exports: [PublicDocumentService, DocumentService, OrganizationalUnitService, DocumentTypeService],
 })
 export class DocumentModule {}

@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Patch } from '@nestjs/common';
 
-import { DocumentSearchService } from '../../documents/services';
+import { PublicDocumentService } from '../../documents/services';
 import { QuickAccessesService } from '../../content/services';
 import { Public } from '../../auth/decorators';
 import { CommunicationService } from 'src/modules/communications/communication.service';
@@ -10,7 +10,7 @@ import { CommunicationService } from 'src/modules/communications/communication.s
 export class PortalController {
   constructor(
     private quickAccessesService: QuickAccessesService,
-    private documentService: DocumentSearchService,
+    private documentService: PublicDocumentService,
     private communicationService: CommunicationService,
   ) {}
 
