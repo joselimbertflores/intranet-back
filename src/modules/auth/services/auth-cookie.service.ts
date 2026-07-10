@@ -72,7 +72,7 @@ export class AuthCookieService {
     return {
       httpOnly: true,
       sameSite: this.getSameSite(),
-      secure: this.configService.getOrThrow<boolean>('AUTH_COOKIE_SECURE'),
+      secure: this.getSecure(),
       path: '/',
     };
   }
@@ -105,5 +105,9 @@ export class AuthCookieService {
 
   private getSameSite(): CookieOptions['sameSite'] {
     return this.configService.get<'lax' | 'strict' | 'none'>('AUTH_COOKIE_SAME_SITE', 'lax');
+  }
+
+  private getSecure(): boolean {
+    return this.configService.get<string>('AUTH_COOKIE_SECURE', 'false') === 'true';
   }
 }

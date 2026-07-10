@@ -3,7 +3,7 @@ import { Public } from 'src/modules/auth/decorators';
 import { DirectoryService } from 'src/modules/directory/directory.service';
 
 @Public()
-@Controller('portal/directory')
+@Controller('portal-directory')
 export class PortalDirectoryController {
   constructor(private readonly directoryService: DirectoryService) {}
 

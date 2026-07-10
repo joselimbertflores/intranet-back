@@ -73,6 +73,7 @@ export class OAuthController {
 
   private validateCallbackState(request: Request, state?: string): boolean {
     const cookieState = this.authCookieService.getOAuthState(request);
+    console.log(cookieState);
     return Boolean(state && state === cookieState);
   }
 

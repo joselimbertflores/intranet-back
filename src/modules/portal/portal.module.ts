@@ -8,7 +8,6 @@ import {
   PortalAssistanceController,
   PortalDocumentsController,
   PortalDirectoryController,
-  PortalController,
   PortalCalendarController,
   PortalLandingController,
 } from './controllers';
@@ -19,7 +18,6 @@ import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
   controllers: [
-    PortalController,
     PortalLandingController,
     PortalCalendarController,
     PortalCommunicationsController,

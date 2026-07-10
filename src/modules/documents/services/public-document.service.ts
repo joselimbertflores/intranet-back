@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 
 import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
 import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
@@ -80,6 +80,28 @@ export class PublicDocumentService {
     return { documents: this.plainDocuments(documents), total };
   }
 
+  async findMostConsultedForLanding() {
+    const documents = await this.documentRepository.find({
+      where: {
+        status: DocumentStatus.ACTIVE,
+        downloadCount: MoreThanOrEqual(1),
+      },
+      relations: {
+        file: true,
+        documentType: true,
+        documentSubtype: true,
+        organizationalUnit: true,
+      },
+      order: {
+        downloadCount: 'DESC',
+        createdAt: 'DESC',
+      },
+      take: 8,
+    });
+
+    return this.plainDocuments(documents);
+  }
+
   async getDocumentFileStream(documentId: string, options?: { countDownload?: boolean }) {
     const document = await this.documentRepository.findOne({
       where: {
@@ -95,22 +117,11 @@ export class PublicDocumentService {
 
     const result = await this.filesService.getActiveFileStream(document.file.id);
 
-    
     if (options?.countDownload) {
       await this.documentRepository.increment({ id: document.id }, 'downloadCount', 1);
     }
 
     return result;
-  }
-
-  async getMostDownloaded() {
-    const documents = await this.createVisibleDocumentsQuery()
-      .orderBy('document.downloadCount', 'DESC')
-      .addOrderBy('document.createdAt', 'DESC')
-      .take(8)
-      .getMany();
-
-    return this.plainDocuments(documents);
   }
 
   async incrementDownloadCount(id: string) {
