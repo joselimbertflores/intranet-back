@@ -1,17 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { IsNull, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { IsNull, LessThan, Not, Repository } from 'typeorm';
 import { RRule } from 'rrule';
 
 import { PortalCalendarDto } from './types/interfaces/portal-calendar.interface';
 import { CalendarEvent } from './entities';
+
+const MAX_RANGE_IN_MS = 366 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class CalendarReadService {
   constructor(@InjectRepository(CalendarEvent) private eventRepo: Repository<CalendarEvent>) {}
 
   async getEventsInRange(start: Date, end: Date) {
+    this.validateRange(start, end);
+
     const [singleEvents, recurringEvents] = await Promise.all([
       this.getSingleEvents(start, end),
       this.getRecurringEvents(start, end),
@@ -40,7 +44,7 @@ export class CalendarReadService {
       where: {
         isActive: true,
         recurrenceRule: Not(IsNull()),
-        startDate: LessThanOrEqual(end),
+        startDate: LessThan(end),
       },
       relations: {
         communication: {
@@ -54,16 +58,26 @@ export class CalendarReadService {
   private expandRecurringEvent(event: CalendarEvent, rangeStart: Date, rangeEnd: Date) {
     if (!event.recurrenceRule) return [];
     const rule = RRule.fromString(event.recurrenceRule);
-    rule.options.dtstart = event.startDate;
-
     const durationMs = event.endDate.getTime() - event.startDate.getTime();
+    const recurrenceSearchStart = new Date(rangeStart.getTime() - durationMs);
 
-    return rule.between(rangeStart, rangeEnd, true).map((date) => {
-      const start = date;
-      const end = durationMs ? new Date(start.getTime() + durationMs) : undefined;
+    return rule
+      .between(recurrenceSearchStart, rangeEnd, true)
+      .map((start) => ({ start, end: new Date(start.getTime() + durationMs) }))
+      .filter(({ start, end }) => start < rangeEnd && end > rangeStart)
+      .map(({ start, end }) => this.mapOccurrence(event, start, end));
+  }
 
-      return this.mapOccurrence(event, start, end);
-    });
+  private validateRange(start: Date, end: Date) {
+    const startTime = start.getTime();
+    const endTime = end.getTime();
+
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+      throw new BadRequestException('Invalid calendar range');
+    }
+    if (endTime - startTime > MAX_RANGE_IN_MS) {
+      throw new BadRequestException('Calendar range cannot exceed 366 days');
+    }
   }
 
   private mapOccurrence(event: CalendarEvent, start: Date, end?: Date): PortalCalendarDto {
@@ -77,7 +91,7 @@ export class CalendarReadService {
       end: end,
       allDay: event.allDay,
       isRecurring,
-      ...(event.communication && {
+      ...(event.communication?.isActive && {
         communication: {
           id: event.communication.id,
           reference: event.communication.reference,

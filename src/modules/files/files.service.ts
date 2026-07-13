@@ -66,6 +66,7 @@ export class FilesService {
 
     try {
       const previewBuffer = await generatePdfPreview(pdfPath);
+      console.log(previewBuffer);
       if (previewBuffer) {
         await this.saveDerivedPreview(previewBuffer, savedPdf, context);
       } else {
@@ -155,7 +156,7 @@ export class FilesService {
     );
 
     if (result.affected !== 1) throw new BadRequestException('File is not available for use');
-
+    console.log(file.derivedFiles);
     if (file.derivedFiles?.length) {
       await fileRepository.update(
         { sourceFileId: file.id, context: file.context, status: FileStatus.PENDING },

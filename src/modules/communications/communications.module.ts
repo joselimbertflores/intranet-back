@@ -3,11 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CommunicationController } from './communication.controller';
 import { CommunicationService } from './communication.service';
-import { Communication, TypeCommunication } from './entities';
+import { Communication, CommunicationType } from './entities';
 import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Communication, TypeCommunication]), FilesModule],
+  imports: [TypeOrmModule.forFeature([Communication, CommunicationType]), FilesModule],
   providers: [CommunicationService],
   controllers: [CommunicationController],
   exports: [CommunicationService],

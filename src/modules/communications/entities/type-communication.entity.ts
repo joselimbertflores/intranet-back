@@ -3,7 +3,7 @@ import { Communication } from './communication.entity';
 
 @Entity()
 @Unique(['name'])
-export class TypeCommunication {
+export class CommunicationType {
   @PrimaryGeneratedColumn()
   id: number;
 

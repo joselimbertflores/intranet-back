@@ -5,14 +5,12 @@ import {
   OneToOne,
   ManyToOne,
   JoinColumn,
-  BeforeInsert,
-  BeforeUpdate,
   CreateDateColumn,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { TypeCommunication } from './type-communication.entity';
-import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
-import { CalendarEvent } from 'src/modules/calendar/entities/calendar-event.entity';
+import { CommunicationType } from './type-communication.entity';
+import { CalendarEvent } from '../../calendar/entities/calendar-event.entity';
+import { StoredFile } from '../../files/entities/stored-file.entity';
 
 @Entity('communications')
 export class Communication {
@@ -33,12 +31,12 @@ export class Communication {
   @Column({ default: true })
   isActive: boolean;
 
-  @ManyToOne(() => TypeCommunication, (type) => type.communications, {
+  @ManyToOne(() => CommunicationType, (type) => type.communications, {
     nullable: false,
     onDelete: 'RESTRICT',
     eager: true,
   })
-  type: TypeCommunication;
+  type: CommunicationType;
 
   @OneToOne(() => StoredFile)
   @JoinColumn()
@@ -46,10 +44,4 @@ export class Communication {
 
   @OneToOne(() => CalendarEvent, (event) => event.communication)
   calendarEvent?: CalendarEvent;
-  
-  @BeforeInsert()
-  @BeforeUpdate()
-  normalize() {
-    this.code = this.code.replace(/\s+/g, ' ').trim().toUpperCase();
-  }
 }

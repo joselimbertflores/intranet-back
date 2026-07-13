@@ -1,4 +1,4 @@
-import { Communication } from 'src/modules/communications/entities/communication.entity';
+import { Communication } from '../../communications/entities/communication.entity';
 import {
   Column,
   Entity,
@@ -13,6 +13,7 @@ export interface RecurrenceConfig {
   frequency: string;
   interval: number;
   byWeekDays?: string[];
+  until?: Date | string;
 }
 @Entity('calendar_events')
 export class CalendarEvent {
@@ -54,5 +55,12 @@ export class CalendarEvent {
     onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'communicationId', referencedColumnName: 'id' })
-  communication?: Communication;
+  communication?: Communication | null;
+
+  @Column({
+    type: 'uuid',
+    nullable: true,
+    unique: true,
+  })
+  communicationId: string | null;
 }

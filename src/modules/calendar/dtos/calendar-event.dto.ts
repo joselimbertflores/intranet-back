@@ -85,11 +85,11 @@ export class CreateCalendarEventDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => RecurrenceConfigDto)
-  recurrence?: RecurrenceConfigDto;
+  recurrence?: RecurrenceConfigDto | null;
 
-  @IsUUID()
   @IsOptional()
-  communicationId?: string;
+  @IsUUID()
+  communicationId?: string | null;
 }
 
 export class UpdateCalendarEventDto extends PartialType(CreateCalendarEventDto) {}
@@ -99,5 +99,6 @@ export class GetCalendarRangeDto {
   start: string;
 
   @IsISO8601()
+  @IsAfterDate('start')
   end: string;
 }

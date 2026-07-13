@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 
 import { CalendarService } from './calendar.service';
-import { CreateCalendarEventDto, GetCalendarRangeDto, UpdateCalendarEventDto } from './dtos';
+import { CreateCalendarEventDto, UpdateCalendarEventDto } from './dtos';
 import { PaginationParamsDto } from '../common';
 import { ProtectedResource } from '../auth/decorators';
 import { Resource } from '../users/entities';
@@ -22,17 +22,17 @@ export class CalendarController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateCalendarEventDto) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCalendarEventDto) {
     return this.eventService.update(id, dto);
   }
 
   @Get(':id')
-  getOne(@Param('id') id: string) {
+  getOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.eventService.getOne(id);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.eventService.remove(id);
   }
 }

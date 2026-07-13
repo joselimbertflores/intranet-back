@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, QueryFailedError, Repository } from 'typeorm';
 
 import { CreateCommunicationDto, GetPortalCommunicationsDto, UpdateCommunicationDto } from './dtos';
-import { Communication, TypeCommunication } from './entities';
+import { Communication, CommunicationType } from './entities';
 import { FilesService } from '../files/files.service';
 import { PaginationParamsDto } from '../common';
 import { FileStatus, StoredFileKind } from '../files/entities/stored-file.entity';
@@ -19,10 +19,6 @@ export interface PortalCommunication {
   previewImageUrl: string | null;
 }
 
-export interface PortalCommunicationDetail extends PortalCommunication {
-  attachment: CommunicationAttachment | null;
-}
-
 export interface CommunicationAttachment {
   fileName: string;
   mimeType: string;
@@ -34,7 +30,7 @@ export interface CommunicationAttachment {
 export class CommunicationService {
   constructor(
     @InjectRepository(Communication) private commRepository: Repository<Communication>,
-    @InjectRepository(TypeCommunication) private typeCommRespository: Repository<TypeCommunication>,
+    @InjectRepository(CommunicationType) private typeCommRespository: Repository<CommunicationType>,
     private fileService: FilesService,
     private dataSource: DataSource,
   ) {}
@@ -119,11 +115,6 @@ export class CommunicationService {
     }
   }
 
-  async setActiveState(id: string, isActive: boolean) {
-    const result = await this.commRepository.update({ id }, { isActive });
-    if (result.affected !== 1) throw new NotFoundException(`Communication ${id} not found`);
-    return { id, isActive };
-  }
 
   async getLatestCommunications(limit: number = 8): Promise<PortalCommunication[]> {
     const communications = await this.commRepository.find({
@@ -164,49 +155,9 @@ export class CommunicationService {
     };
   }
 
-  async getPortalCommunicationById(id: string): Promise<PortalCommunicationDetail> {
-    const communication = await this.commRepository.findOne({
-      where: { id, isActive: true },
-      relations: {
-        type: true,
-        file: { derivedFiles: true },
-      },
-    });
-
-    if (!communication) {
-      throw new NotFoundException();
-    }
-
-    const image = this.findActivePreview(communication.file);
-    const fileUrl = communication.file ? this.fileService.buildPublicFileUrl(communication.file.id) : null;
-    return {
-      id: communication.id,
-      type: communication.type.name,
-      code: communication.code,
-      reference: communication.reference,
-      createdAt: communication.createdAt,
-      previewImageUrl: image ? this.fileService.buildPublicFileUrl(image.id) : null,
-      attachment: communication.file
-        ? {
-            fileName: communication.file.originalName,
-            sizeBytes: communication.file.sizeBytes,
-            mimeType: communication.file.mimeType,
-            fileUrl: fileUrl!,
-            downloadUrl: this.buildDownloadUrl(fileUrl!),
-          }
-        : null,
-    };
-  }
-
   async getTypes() {
     const types = await this.typeCommRespository.find({ order: { name: 'ASC' } });
     return types.map(({ id, name }) => ({ id, name }));
-  }
-
-  async findByIdOrFail(id: string) {
-    const communication = await this.commRepository.findOneBy({ id });
-    if (!communication) throw new NotFoundException(`Communication ${id} not found`);
-    return communication;
   }
 
   private async checkDuplicateCode(code: string) {
@@ -243,12 +194,12 @@ export class CommunicationService {
     };
   }
 
-  private buildDownloadUrl(fileUrl: string): string {
-    const url = new URL(fileUrl);
-    url.searchParams.set('download', 'true');
-    return url.toString();
+    async findByIdOrFail(id: string) {
+    const communication = await this.commRepository.findOneBy({ id });
+    if (!communication) throw new NotFoundException(`Communication ${id} not found`);
+    return communication;
   }
-
+  
   private rethrowUniqueCodeViolation(error: unknown, code: string): never {
     if (error instanceof QueryFailedError && (error.driverError as { code?: string }).code === '23505') {
       throw new ConflictException(`Code: ${code} already exists`);

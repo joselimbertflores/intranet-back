@@ -13,12 +13,6 @@ export class PortalCommunicationsController {
   getTypeCommunications() {
     return this.coomunicationService.getTypes();
   }
-
-  @Get(':id')
-  getPortalCommunicationById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.coomunicationService.getPortalCommunicationById(id);
-  }
-
   @Get()
   getPortalCommunications(@Query() queryParams: GetPortalCommunicationsDto) {
     return this.coomunicationService.getPortalCommunications(queryParams);

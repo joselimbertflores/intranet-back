@@ -25,12 +25,7 @@ export class CommunicationController {
   update(@Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateCommunicationDto) {
     return this.communicationService.update(id, body);
   }
-
-  @Patch('/:id/status')
-  setStatus(@Param('id', ParseUUIDPipe) id: string, @Body() body: SetCommunicationStatusDto) {
-    return this.communicationService.setActiveState(id, body.isActive);
-  }
-
+  
   @Get('types')
   getTypes() {
     return this.communicationService.getTypes();
