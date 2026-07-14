@@ -30,11 +30,6 @@ export class CreateCommunicationDto {
 
 export class UpdateCommunicationDto extends PartialType(CreateCommunicationDto) {}
 
-export class SetCommunicationStatusDto {
-  @IsBoolean()
-  isActive: boolean;
-}
-
 export class GetPortalCommunicationsDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsInt()

@@ -5,12 +5,12 @@ import { CalendarController } from './calendar.controller';
 import { CalendarService } from './calendar.service';
 import { CalendarEvent } from './entities';
 import { CommunicationsModule } from '../communications/communications.module';
-import { CalendarReadService } from './calendar-read.service';
+import { PublicCalendarService } from './public-calendar.service';
 
 @Module({
-  providers: [CalendarService, CalendarReadService],
+  providers: [CalendarService, PublicCalendarService],
   controllers: [CalendarController],
   imports: [TypeOrmModule.forFeature([CalendarEvent]), CommunicationsModule],
-  exports: [CalendarReadService],
+  exports: [PublicCalendarService],
 })
 export class CalendarModule {}

@@ -11,7 +11,7 @@ export class DirectoryController {
 
   @Get()
   getTree() {
-    return this.directoryService.findAllAdmin();
+    return this.directoryService.findAll();
   }
 
   @Post()

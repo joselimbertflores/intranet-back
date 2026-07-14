@@ -19,7 +19,7 @@ export interface PortalOrganizationalUnit {
 }
 
 @Injectable()
-export class PublicDocumentService {
+export class PublicDocumentsService {
   constructor(
     @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
@@ -122,19 +122,6 @@ export class PublicDocumentService {
     }
 
     return result;
-  }
-
-  async incrementDownloadCount(id: string) {
-    const document = await this.createVisibleDocumentsQuery().andWhere('document.id = :id', { id }).getOne();
-
-    if (!document) throw new NotFoundException(`Document ${id} not found`);
-
-    await this.documentRepository.increment({ id: document.id }, 'downloadCount', 1);
-
-    return {
-      id: document.id,
-      downloadCount: document.downloadCount + 1,
-    };
   }
 
   private buildTreeOrganizationalUnits(organizationalUnits: OrganizationalUnit[]): PortalOrganizationalUnit[] {

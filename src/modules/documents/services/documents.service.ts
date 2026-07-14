@@ -11,7 +11,7 @@ import { FileContext } from 'src/modules/files/enums/file-context.enum';
 import { User } from 'src/modules/users/entities';
 
 @Injectable()
-export class DocumentService {
+export class DocumentsService {
   constructor(
     @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,

@@ -20,8 +20,6 @@ export interface FeaturedBannerResponse {
   isActive: boolean;
 }
 
-export type LandingFeaturedBannerResponse = Omit<FeaturedBannerResponse, 'isActive'>;
-
 @Injectable()
 export class FeaturedBannersService {
   constructor(
@@ -34,18 +32,6 @@ export class FeaturedBannersService {
   async findAdminFeaturedBanners(): Promise<FeaturedBannerResponse[]> {
     const banners = await this.featuredBannersRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
     return banners.map((banner) => this.mapFeaturedBanner(banner));
-  }
-
-  async findLandingFeaturedBanners(): Promise<LandingFeaturedBannerResponse[]> {
-    const banners = await this.featuredBannersRepository.find({
-      where: { isActive: true },
-      order: { sortOrder: 'ASC', id: 'ASC' },
-    });
-
-    return banners.map((banner) => {
-      const { isActive: _, ...landingBanner } = this.mapFeaturedBanner(banner);
-      return landingBanner;
-    });
   }
 
   async saveFeaturedBannersBatch({ items }: SaveFeaturedBannersBatchDto): Promise<FeaturedBannerResponse[]> {

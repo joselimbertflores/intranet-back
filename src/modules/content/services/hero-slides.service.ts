@@ -20,8 +20,6 @@ export interface HeroSlideResponse {
   isActive: boolean;
 }
 
-export type PublicHeroSlideResponse = Omit<HeroSlideResponse, 'isActive'>;
-
 @Injectable()
 export class HeroSlidesService {
   constructor(
@@ -33,18 +31,6 @@ export class HeroSlidesService {
   async findAll(): Promise<HeroSlideResponse[]> {
     const slides = await this.heroSlidesRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
     return slides.map((slide) => this.mapHeroSlide(slide));
-  }
-
-  async findActive(): Promise<PublicHeroSlideResponse[]> {
-    const slides = await this.heroSlidesRepository.find({
-      where: { isActive: true },
-      order: { sortOrder: 'ASC', id: 'ASC' },
-    });
-
-    return slides.map((slide) => {
-      const { isActive: _, ...publicSlide } = this.mapHeroSlide(slide);
-      return publicSlide;
-    });
   }
 
   async saveBatch({ items }: SaveHeroSlidesBatchDto) {

@@ -1,14 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from 'src/modules/auth/decorators';
-import { DirectoryService } from 'src/modules/directory/directory.service';
+import { PublicDirectoryService } from 'src/modules/directory/public-directory.service';
 
 @Public()
 @Controller('portal-directory')
 export class PortalDirectoryController {
-  constructor(private readonly directoryService: DirectoryService) {}
+  constructor(private readonly publicDirectoryService: PublicDirectoryService) {}
 
   @Get()
   findAll() {
-    return this.directoryService.findAllPublic();
+    return this.publicDirectoryService.findAll();
   }
 }

@@ -8,11 +8,11 @@ import { GetPortalTutorialsDto } from '../dtos';
 import { TutorialVideoHelper } from '../helpers';
 
 @Injectable()
-export class TutorialReadService {
+export class PublicTutorialsService {
   constructor(
     @InjectRepository(Tutorial) private tutorialRepository: Repository<Tutorial>,
     @InjectRepository(TutorialCategory) private tutorialCategoryRepository: Repository<TutorialCategory>,
-    private fileServicce: FilesService,
+    private readonly filesService: FilesService,
   ) {}
 
   async findPublicList({ limit, offset, term, categoryId }: GetPortalTutorialsDto) {
@@ -84,7 +84,7 @@ export class TutorialReadService {
           file: block.file
             ? {
                 id: block.file.id,
-                url: this.fileServicce.buildPublicFileUrl(block.file.id),
+                url: this.filesService.buildPublicFileUrl(block.file.id),
                 name: block.file.originalName,
                 mimeType: block.file.mimeType,
                 size: block.file.sizeBytes,

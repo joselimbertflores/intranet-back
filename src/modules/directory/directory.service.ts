@@ -40,11 +40,7 @@ export class DirectoryService {
     return { deleted: true };
   }
 
-  findAllAdmin() {
-    return this.findDirectoryTree();
-  }
-
-  findAllPublic() {
+  findAll() {
     return this.findDirectoryTree();
   }
 

@@ -10,8 +10,8 @@ import { CalendarEvent } from './entities';
 const MAX_RANGE_IN_MS = 366 * 24 * 60 * 60 * 1000;
 
 @Injectable()
-export class CalendarReadService {
-  constructor(@InjectRepository(CalendarEvent) private eventRepo: Repository<CalendarEvent>) {}
+export class PublicCalendarService {
+  constructor(@InjectRepository(CalendarEvent) private readonly eventsRepository: Repository<CalendarEvent>) {}
 
   async getEventsInRange(start: Date, end: Date) {
     this.validateRange(start, end);
@@ -26,7 +26,7 @@ export class CalendarReadService {
   }
 
   private async getSingleEvents(start: Date, end: Date) {
-    const events = await this.eventRepo
+    const events = await this.eventsRepository
       .createQueryBuilder('event')
       .leftJoinAndSelect('event.communication', 'communication')
       .leftJoinAndSelect('communication.type', 'type')
@@ -40,7 +40,7 @@ export class CalendarReadService {
   }
 
   private async getRecurringEvents(start: Date, end: Date) {
-    const result = await this.eventRepo.find({
+    const result = await this.eventsRepository.find({
       where: {
         isActive: true,
         recurrenceRule: Not(IsNull()),

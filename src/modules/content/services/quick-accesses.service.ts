@@ -5,15 +5,6 @@ import { DataSource, In, Repository } from 'typeorm';
 import { SaveQuickAccessesBatchDto } from '../dtos';
 import { QuickAccess } from '../entities';
 
-export interface PublicQuickAccessResponse {
-  id: number;
-  title: string;
-  description: string | null;
-  iconKey: string;
-  url: string;
-  sortOrder: number;
-}
-
 @Injectable()
 export class QuickAccessesService {
   constructor(
@@ -23,22 +14,6 @@ export class QuickAccessesService {
 
   findAll() {
     return this.quickAccessRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
-  }
-
-  async findLanding(): Promise<PublicQuickAccessResponse[]> {
-    const quickAccesses = await this.quickAccessRepository.find({
-      where: { isActive: true },
-      order: { sortOrder: 'ASC', id: 'ASC' },
-    });
-
-    return quickAccesses.map(({ id, title, description, iconKey, url, sortOrder }) => ({
-      id,
-      title,
-      description: description ?? null,
-      iconKey,
-      url,
-      sortOrder,
-    }));
   }
 
   async saveBatch({ items }: SaveQuickAccessesBatchDto) {

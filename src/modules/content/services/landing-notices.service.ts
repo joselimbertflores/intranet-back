@@ -26,28 +26,6 @@ export class LandingNoticesService {
     return { notices: notices.map((notice) => this.mapToAdminDto(notice)), total };
   }
 
-  async findVisible() {
-    const notices = await this.noticesRepository
-      .createQueryBuilder('notice')
-      .where('notice.isActive = :isActive', { isActive: true })
-      .andWhere('(notice.visibleFrom IS NULL OR notice.visibleFrom <= NOW())')
-      .andWhere('(notice.visibleUntil IS NULL OR notice.visibleUntil >= NOW())')
-      .orderBy('notice.isPinned', 'DESC')
-      .addOrderBy('notice.createdAt', 'DESC')
-      .limit(5)
-      .getMany();
-
-    return notices.map((notice) => ({
-      id: notice.id,
-      title: notice.title,
-      contentHtml: notice.contentHtml,
-      imageUrl: notice.imageId ? this.filesService.buildPublicFileUrl(notice.imageId) : null,
-      imageAlt: notice.imageAlt,
-      imageLinkUrl: notice.imageLinkUrl,
-      updatedAt: notice.updatedAt,
-    }));
-  }
-
   async create(dto: CreateLandingNoticeDto, currentUser: User) {
     const { imageId, ...props } = dto;
     return this.dataSource.transaction(async (manager) => {

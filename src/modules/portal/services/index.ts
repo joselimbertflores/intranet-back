@@ -1,1 +1,1 @@
-export * from './portal-landing.service';
+export * from './portal.service';

@@ -13,7 +13,7 @@ import {
   WeekDay,
 } from './dtos';
 import { PaginationParamsDto } from '../common';
-import { CommunicationService } from '../communications/communication.service';
+import { CommunicationsService } from '../communications/communications.service';
 import { Communication } from '../communications/entities';
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -23,7 +23,7 @@ const INSTITUTIONAL_TIME_ZONE_OFFSET = '-04:00';
 export class CalendarService {
   constructor(
     @InjectRepository(CalendarEvent) private eventRepository: Repository<CalendarEvent>,
-    private communicationService: CommunicationService,
+    private readonly communicationsService: CommunicationsService,
   ) {}
 
   async findAll({ limit, offset, term }: PaginationParamsDto) {
@@ -186,7 +186,7 @@ export class CalendarService {
   ): Promise<Communication | null> {
     if (!communicationId) return null;
 
-    const communication = await this.communicationService.findByIdOrFail(communicationId);
+    const communication = await this.communicationsService.findByIdOrFail(communicationId);
     const associatedEvent = await this.eventRepository.findOne({ where: { communicationId } });
 
     if (associatedEvent && associatedEvent.id !== currentEventId) {

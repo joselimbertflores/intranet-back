@@ -2,15 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { DocumentRecord, OrganizationalUnit, DocumentType, DocumentSubtype } from './entities';
-import { DocumentTypeService, DocumentService, OrganizationalUnitService } from './services';
+import { DocumentsService, DocumentTypeService, OrganizationalUnitService, PublicDocumentsService } from './services';
 import { DocumentController, DocumentTypeController, OrganizationalUnitController } from './controllers';
 import { FilesModule } from '../files/files.module';
-import { PublicDocumentService } from './services/public-document.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([OrganizationalUnit, DocumentType, DocumentRecord, DocumentSubtype]), FilesModule],
-  providers: [DocumentTypeService, DocumentService, OrganizationalUnitService, PublicDocumentService],
+  providers: [DocumentTypeService, DocumentsService, OrganizationalUnitService, PublicDocumentsService],
   controllers: [DocumentController, DocumentTypeController, OrganizationalUnitController],
-  exports: [PublicDocumentService, DocumentService, OrganizationalUnitService, DocumentTypeService],
+  exports: [PublicDocumentsService],
 })
-export class DocumentModule {}
+export class DocumentsModule {}

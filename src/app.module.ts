@@ -8,7 +8,7 @@ import { join } from 'path';
 import { CommunicationsModule } from './modules/communications/communications.module';
 import { EnvironmentVariables, validate } from './config/env.validation';
 import { DirectoryModule } from './modules/directory/directory.module';
-import { DocumentModule } from './modules/documents/document.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { TutorialModule } from './modules/tutorial/tutorial.module';
 import { ContentModule } from './modules/content/content.module';
@@ -42,7 +42,7 @@ import { AuthModule } from './modules/auth/auth.module';
       exclude: ['/api/{*path}', '/auth/login', '/auth/callback'],
     }),
     CommunicationsModule,
-    DocumentModule,
+    DocumentsModule,
     ContentModule,
     CalendarModule,
     FilesModule,

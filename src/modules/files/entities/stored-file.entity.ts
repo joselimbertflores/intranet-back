@@ -20,7 +20,6 @@ export enum FileStatus {
 export enum StoredFileKind {
   ORIGINAL = 'ORIGINAL',
   PREVIEW = 'PREVIEW',
-  THUMBNAIL = 'THUMBNAIL',
 }
 
 @Entity('files')
@@ -68,14 +67,17 @@ export class StoredFile {
    * - value → archivo derivado (preview, thumbnail, etc.)
    */
   @Column({ type: 'uuid', nullable: true })
-  sourceFileId?: string | null;
+  sourceFileId: string | null;
 
-  @ManyToOne(() => StoredFile, (file) => file.derivedFiles, { nullable: true })
+  @ManyToOne(() => StoredFile, (file) => file.derivedFiles, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'sourceFileId' })
-  sourceFile?: StoredFile | null;
+  sourceFile: StoredFile | null;
 
   @OneToMany(() => StoredFile, (file) => file.sourceFile)
-  derivedFiles?: StoredFile[];
+  derivedFiles: StoredFile[];
 
   @CreateDateColumn()
   createdAt: Date;

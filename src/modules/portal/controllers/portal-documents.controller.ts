@@ -13,25 +13,25 @@ import type { Response } from 'express';
 import { Public } from 'src/modules/auth/decorators';
 
 import { SearchPortalDocumentsDto } from 'src/modules/documents/dtos';
-import { PublicDocumentService } from 'src/modules/documents/services';
+import { PublicDocumentsService } from 'src/modules/documents/services';
 
 @Public()
 @Controller('portal-documents')
 export class PortalDocumentsController {
-  constructor(private publicDocumentService: PublicDocumentService) {}
+  constructor(private readonly publicDocumentsService: PublicDocumentsService) {}
 
   @Get('filters')
   async getDocumentFilters() {
     const [organizationalUnits, types] = await Promise.all([
-      this.publicDocumentService.getOrganizationalUnits(),
-      this.publicDocumentService.getTypes(),
+      this.publicDocumentsService.getOrganizationalUnits(),
+      this.publicDocumentsService.getTypes(),
     ]);
     return { organizationalUnits, types };
   }
 
   @Get()
   searchDocuments(@Query() body: SearchPortalDocumentsDto) {
-    return this.publicDocumentService.searchDocuments(body);
+    return this.publicDocumentsService.searchDocuments(body);
   }
 
   @Public()
@@ -41,7 +41,9 @@ export class PortalDocumentsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download', new DefaultValuePipe(false), ParseBoolPipe) download: boolean,
   ) {
-    const { file, stream } = await this.publicDocumentService.getDocumentFileStream(id, { countDownload: download });
+    const { file, stream } = await this.publicDocumentsService.getDocumentFileStream(id, {
+      countDownload: download,
+    });
 
     const disposition = download ? 'attachment' : 'inline';
     res.setHeader('Content-Type', file.mimeType);
