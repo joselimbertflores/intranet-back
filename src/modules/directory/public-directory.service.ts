@@ -2,55 +2,43 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { DirectoryEntryTreeDto } from './dtos/directory-entry-tree.dto';
-import { DirectoryEntry } from './entities';
+import { DirectorySearchDto } from './dtos';
+import { DirectoryEntry, DirectorySite } from './entities';
 
 @Injectable()
 export class PublicDirectoryService {
   constructor(
-    @InjectRepository(DirectoryEntry) private readonly directoryEntriesRepository: Repository<DirectoryEntry>,
+    @InjectRepository(DirectoryEntry) private readonly entryRepository: Repository<DirectoryEntry>,
+    @InjectRepository(DirectorySite) private readonly siteRepository: Repository<DirectorySite>,
   ) {}
 
-  async findAll(): Promise<DirectoryEntryTreeDto[]> {
-    const entries = await this.directoryEntriesRepository.find({
-      select: {
-        id: true,
-        name: true,
-        internalPhone: true,
-        landlinePhone: true,
-        order: true,
-        parent: { id: true },
-      },
-      relations: { parent: true },
-      order: { order: 'asc' },
-    });
+  findAll({ term, siteId }: DirectorySearchDto) {
+    const builder = this.entryRepository
+      .createQueryBuilder('entry')
+      .leftJoinAndSelect('entry.site', 'site')
+      .where('entry.isActive = true')
+      .andWhere('(site.id IS NULL OR site.isActive = true)');
 
-    const entriesById = new Map<number, DirectoryEntryTreeDto>();
-    const roots: DirectoryEntryTreeDto[] = [];
-
-    for (const entry of entries) {
-      entriesById.set(entry.id, {
-        id: entry.id,
-        name: entry.name,
-        internalPhone: entry.internalPhone,
-        landlinePhone: entry.landlinePhone,
-        order: entry.order,
-        children: [],
-      });
+    if (siteId) builder.andWhere('entry.siteId = :siteId', { siteId });
+    if (term) {
+      builder.andWhere(
+        `(
+          LOWER(entry.areaName) LIKE LOWER(:term)
+          OR LOWER(COALESCE(entry.contactLabel, '')) LIKE LOWER(:term)
+          OR LOWER(COALESCE(entry.email, '')) LIKE LOWER(:term)
+          OR LOWER(COALESCE(entry.siteDetails, '')) LIKE LOWER(:term)
+          OR LOWER(COALESCE(site.name, '')) LIKE LOWER(:term)
+          OR LOWER(array_to_string(entry.extensions, ' ')) LIKE LOWER(:term)
+          OR LOWER(array_to_string(entry.phones, ' ')) LIKE LOWER(:term)
+        )`,
+        { term: `%${term}%` },
+      );
     }
 
-    for (const entry of entries) {
-      const node = entriesById.get(entry.id);
-      if (!node) continue;
+    return builder.orderBy('entry.areaName', 'ASC').addOrderBy('entry.contactLabel', 'ASC').getMany();
+  }
 
-      const parentId = entry.parent?.id;
-      if (parentId) {
-        entriesById.get(parentId)?.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-
-    return roots;
+  findSites() {
+    return this.siteRepository.find({ where: { isActive: true }, order: { name: 'asc' } });
   }
 }

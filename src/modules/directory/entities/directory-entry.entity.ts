@@ -1,28 +1,40 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+
+import { DirectorySite } from './directory-site.entity';
 
 @Entity('directory_entries')
 export class DirectoryEntry {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  name: string;
+  @Column({ length: 160 })
+  areaName: string;
 
-  @Column({ nullable: true })
-  internalPhone?: string;
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  contactLabel: string | null;
 
-  @Column({ nullable: true })
-  landlinePhone?: string;
+  @Column({ type: 'text', array: true, default: () => "'{}'::text[]" })
+  extensions: string[];
 
-  @ManyToOne(() => DirectoryEntry, (entry) => entry.children, {
+  @Column({ type: 'text', array: true, default: () => "'{}'::text[]" })
+  phones: string[];
+
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  email: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  siteId: number | null;
+
+  @ManyToOne(() => DirectorySite, (site) => site.entries, {
     nullable: true,
-    onDelete: 'CASCADE',
+    onDelete: 'SET NULL',
   })
-  parent?: DirectoryEntry | null;
+  @JoinColumn({ name: 'siteId' })
+  site: DirectorySite | null;
 
-  @OneToMany(() => DirectoryEntry, (entry) => entry.parent)
-  children: DirectoryEntry[];
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  siteDetails: string | null;
 
-  @Column({ default: 0 })
-  order: number;
+  @Column({ default: true })
+  isActive: boolean;
 }
