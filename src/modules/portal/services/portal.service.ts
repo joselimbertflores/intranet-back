@@ -16,7 +16,7 @@ export class PortalService {
     const [content, communications, mostConsultedDocuments] = await Promise.all([
       this.publicContentService.getLandingContent(),
       this.publicCommunicationsService.findLatest(6),
-      this.publicDocumentsService.findMostConsultedForLanding(),
+      this.publicDocumentsService.findMostDownloaded(),
     ]);
 
     return { ...content, communications, mostConsultedDocuments };

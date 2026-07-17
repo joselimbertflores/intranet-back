@@ -4,7 +4,7 @@ import { ILike, Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
 import { Tutorial, TutorialBlockType, TutorialCategory } from '../entities';
-import { GetPortalTutorialsDto } from '../dtos';
+import { SearchPublicTutorialsDto } from '../dtos';
 import { TutorialVideoHelper } from '../helpers';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class PublicTutorialsService {
     private readonly filesService: FilesService,
   ) {}
 
-  async findPublicList({ limit, offset, term, categoryId }: GetPortalTutorialsDto) {
+  async findAll({ limit, offset, term, categoryId }: SearchPublicTutorialsDto) {
     const [tutorials, total] = await this.tutorialRepository.findAndCount({
       where: {
         isPublished: true,
@@ -41,7 +41,7 @@ export class PublicTutorialsService {
     };
   }
 
-  async findPublicBySlug(slug: string) {
+  async findBySlug(slug: string) {
     const tutorial = await this.tutorialRepository.findOne({
       where: { slug, isPublished: true },
       relations: {

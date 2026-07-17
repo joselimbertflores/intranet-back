@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 
-import { GetPortalCommunicationsDto } from 'src/modules/communications/dtos/communication.dto';
+import { SearchPublicCommunicationsDto } from 'src/modules/communications/dtos/communication.dto';
 import { PublicCommunicationsService } from 'src/modules/communications/public-communications.service';
 import { Public } from 'src/modules/auth/decorators';
 
@@ -15,7 +15,7 @@ export class PortalCommunicationsController {
   }
 
   @Get()
-  getPortalCommunications(@Query() queryParams: GetPortalCommunicationsDto) {
-    return this.publicCommunicationsService.findAll(queryParams);
+  getPortalCommunications(@Query() queryParams: SearchPublicCommunicationsDto) {
+    return this.publicCommunicationsService.search(queryParams);
   }
 }

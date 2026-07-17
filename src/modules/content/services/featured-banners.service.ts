@@ -29,12 +29,12 @@ export class FeaturedBannersService {
     private readonly filesService: FilesService,
   ) {}
 
-  async findAdminFeaturedBanners(): Promise<FeaturedBannerResponse[]> {
+  async findAll(): Promise<FeaturedBannerResponse[]> {
     const banners = await this.featuredBannersRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
     return banners.map((banner) => this.mapFeaturedBanner(banner));
   }
 
-  async saveFeaturedBannersBatch({ items }: SaveFeaturedBannersBatchDto): Promise<FeaturedBannerResponse[]> {
+  async saveBatch({ items }: SaveFeaturedBannersBatchDto): Promise<FeaturedBannerResponse[]> {
     const ids = items.flatMap((item) => (item.id ? [item.id] : []));
     if (new Set(ids).size !== ids.length) {
       throw new BadRequestException('Duplicate featured banner IDs are not allowed in the payload');
@@ -101,7 +101,7 @@ export class FeaturedBannersService {
     });
   }
 
-  async removeFeaturedBanner(id: number) {
+  async remove(id: number) {
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(FeaturedBanner);
       const banner = await repository.findOne({ where: { id } });

@@ -12,7 +12,7 @@ import {
 import type { Response } from 'express';
 import { Public } from 'src/modules/auth/decorators';
 
-import { SearchPortalDocumentsDto } from 'src/modules/documents/dtos';
+import { SearchPublicDocumentsDto } from 'src/modules/documents/dtos';
 import { PublicDocumentsService } from 'src/modules/documents/services';
 
 @Public()
@@ -30,7 +30,7 @@ export class PortalDocumentsController {
   }
 
   @Get()
-  searchDocuments(@Query() body: SearchPortalDocumentsDto) {
+  searchDocuments(@Query() body: SearchPublicDocumentsDto) {
     return this.publicDocumentsService.searchDocuments(body);
   }
 

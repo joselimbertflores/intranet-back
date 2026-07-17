@@ -7,7 +7,7 @@ import { MoreThanOrEqual, Repository } from 'typeorm';
 import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
 import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { FilesService } from 'src/modules/files/files.service';
-import { SearchPortalDocumentsDto } from '../dtos';
+import { SearchPublicDocumentsDto } from '../dtos';
 import { EnvironmentVariables } from 'src/config';
 
 export interface PortalOrganizationalUnit {
@@ -54,7 +54,7 @@ export class PublicDocumentsService {
     }));
   }
 
-  async searchDocuments(searchParamsDto: SearchPortalDocumentsDto) {
+  async searchDocuments(searchParamsDto: SearchPublicDocumentsDto) {
     const { limit, offset, term, ...props } = searchParamsDto;
     const { organizationalUnitId, documentTypeId, documentSubtypeId, year } = await this.resolveFilters(props);
     const organizationalUnitIds = organizationalUnitId
@@ -80,7 +80,7 @@ export class PublicDocumentsService {
     return { documents: this.plainDocuments(documents), total };
   }
 
-  async findMostConsultedForLanding() {
+  async findMostDownloaded() {
     const documents = await this.documentRepository.find({
       where: {
         status: DocumentStatus.ACTIVE,
@@ -152,7 +152,7 @@ export class PublicDocumentsService {
     return roots;
   }
 
-  private async resolveFilters(dto: SearchPortalDocumentsDto) {
+  private async resolveFilters(dto: SearchPublicDocumentsDto) {
     const filters: {
       organizationalUnitId?: string;
       documentTypeId?: number;

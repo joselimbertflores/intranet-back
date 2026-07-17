@@ -1,1 +1,1 @@
-export * from "./tutorial-vide-helper"
+export * from './tutorial-video-helper';

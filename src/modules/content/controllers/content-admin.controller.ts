@@ -54,17 +54,17 @@ export class ContentAdminController {
 
   @Get('featured-banners')
   getFeaturedBanners() {
-    return this.featuredBannersService.findAdminFeaturedBanners();
+    return this.featuredBannersService.findAll();
   }
 
   @Put('featured-banners/batch')
   saveFeaturedBannersBatch(@Body() dto: SaveFeaturedBannersBatchDto) {
-    return this.featuredBannersService.saveFeaturedBannersBatch(dto);
+    return this.featuredBannersService.saveBatch(dto);
   }
 
   @Delete('featured-banners/:id')
   removeFeaturedBanner(@Param('id', ParseIntPipe) id: number) {
-    return this.featuredBannersService.removeFeaturedBanner(id);
+    return this.featuredBannersService.remove(id);
   }
 
   @Get('landing-notices')

@@ -30,7 +30,7 @@ export class CreateCommunicationDto {
 
 export class UpdateCommunicationDto extends PartialType(CreateCommunicationDto) {}
 
-export class GetPortalCommunicationsDto extends PaginationParamsDto {
+export class SearchPublicCommunicationsDto extends PaginationParamsDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)

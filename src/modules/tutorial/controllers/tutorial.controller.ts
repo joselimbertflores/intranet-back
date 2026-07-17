@@ -51,7 +51,7 @@ export class TutorialController {
   }
 
   @Patch('block/:id')
-  updateBLock(@Param('id') id: string, @Body() body: UpdateTutorialBlockDto) {
+  updateBlock(@Param('id') id: string, @Body() body: UpdateTutorialBlockDto) {
     return this.tutorialBlockService.update(id, body);
   }
 

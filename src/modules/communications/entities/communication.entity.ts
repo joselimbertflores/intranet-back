@@ -8,7 +8,7 @@ import {
   CreateDateColumn,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { CommunicationType } from './type-communication.entity';
+import { CommunicationType } from './communication-type.entity';
 import { CalendarEvent } from '../../calendar/entities/calendar-event.entity';
 import { StoredFile } from '../../files/entities/stored-file.entity';
 

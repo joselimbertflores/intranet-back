@@ -4,7 +4,7 @@ import { ILike, Repository } from 'typeorm';
 
 import { FileStatus, StoredFileKind } from '../files/entities/stored-file.entity';
 import { FilesService } from '../files/files.service';
-import { GetPortalCommunicationsDto } from './dtos';
+import { SearchPublicCommunicationsDto } from './dtos';
 import { Communication, CommunicationType } from './entities';
 
 @Injectable()
@@ -26,7 +26,7 @@ export class PublicCommunicationsService {
     return communications.map((item) => this.toPublicDtoWithPreview(item));
   }
 
-  async findAll({ limit, offset, term, typeId }: GetPortalCommunicationsDto) {
+  async search({ limit, offset, term, typeId }: SearchPublicCommunicationsDto) {
     console.log(typeId);
     const [communications, total] = await this.communicationsRepository.findAndCount({
       where: {

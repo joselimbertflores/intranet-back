@@ -59,7 +59,7 @@ export class CreateTutorialDto {
 
 export class UpdateTutorialDto extends PartialType(CreateTutorialDto) {}
 
-export class BlockOrderDto {
+export class TutorialBlockOrderDto {
   @IsUUID()
   id: string;
 
@@ -71,7 +71,7 @@ export class BlockOrderDto {
 export class ReorderTutorialBlocksDto {
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => BlockOrderDto)
+  @Type(() => TutorialBlockOrderDto)
   @ArrayMinSize(1)
-  items: BlockOrderDto[];
+  items: TutorialBlockOrderDto[];
 }
