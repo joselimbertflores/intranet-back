@@ -27,7 +27,7 @@ export class ContentAdminController {
     return this.heroSlidesService.findAll();
   }
 
-  @Put('hero-slides/batch')
+  @Post('hero-slides/batch')
   saveHeroSlidesBatch(@Body() dto: SaveHeroSlidesBatchDto) {
     return this.heroSlidesService.saveBatch(dto);
   }

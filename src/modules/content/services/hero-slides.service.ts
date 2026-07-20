@@ -33,27 +33,39 @@ export class HeroSlidesService {
     return slides.map((slide) => this.mapHeroSlide(slide));
   }
 
-  async saveBatch({ items }: SaveHeroSlidesBatchDto) {
-    const ids = items.filter((item) => item.id).map((item) => item.id as number);
-    if (new Set(ids).size !== ids.length) {
-      throw new BadRequestException('Duplicate hero slide IDs are not allowed in the payload');
+  async saveBatch({ items, deletedIds = [] }: SaveHeroSlidesBatchDto) {
+    const itemIds = items.map((item) => item.id).filter((id) => id !== null && id !== undefined);
+
+    const deletedIdSet = new Set(deletedIds);
+
+    const conflictingIds = itemIds.filter((id) => deletedIdSet.has(id));
+
+    if (conflictingIds.length) {
+      throw new BadRequestException(
+        `Hero slides cannot be updated and deleted simultaneously: ${conflictingIds.join(', ')}`,
+      );
     }
 
-    const fileIds = items.map((item) => item.imageFileId);
-
-    if (new Set(fileIds).size !== fileIds.length) {
-      throw new BadRequestException('Duplicate hero slide image file IDs are not allowed in the payload');
-    }
+    const affectedIds = [...itemIds, ...deletedIds];
 
     return this.dataSource.transaction(async (manager) => {
       const slideRepository = manager.getRepository(HeroSlide);
 
-      const existingSlides = ids.length ? await slideRepository.find({ where: { id: In(ids) } }) : [];
-      const slidesMap = new Map(existingSlides.map((slide) => [slide.id, slide]));
-      const missingIds = ids.filter((id) => !slidesMap.has(id));
+      const existingSlides = affectedIds.length ? await slideRepository.find({ where: { id: In(affectedIds) } }) : [];
+      const slidesById = new Map(existingSlides.map((slide) => [slide.id, slide]));
+      const missingIds = affectedIds.filter((id) => !slidesById.has(id));
 
       if (missingIds.length) {
         throw new NotFoundException(`Hero slides not found: ${missingIds.join(', ')}`);
+      }
+
+      const slidesToDelete = deletedIds.map((id) => slidesById.get(id)).filter((item) => item !== undefined);
+
+      if (slidesToDelete.length) {
+        for (const slide of slidesToDelete) {
+          await this.filesService.markActiveFileAsOrphaned(slide.imageFileId, manager);
+        }
+        await slideRepository.remove(slidesToDelete);
       }
 
       const slidesToSave: HeroSlide[] = [];
@@ -62,8 +74,7 @@ export class HeroSlidesService {
         const sortOrder = index + 1;
 
         if (item.id) {
-          const current = slidesMap.get(item.id);
-
+          const current = slidesById.get(item.id);
           if (!current) throw new NotFoundException(`Hero slide with id ${item.id} not found`);
 
           if (current.imageFileId !== item.imageFileId) {
@@ -76,17 +87,15 @@ export class HeroSlidesService {
             current.imageFile = replacementFile;
           }
 
-          slidesToSave.push(
-            Object.assign(current, {
-              title: item.title,
-              description: item.description ?? null,
-              linkUrl: item.linkUrl ?? null,
-              linkLabel: item.linkUrl ? (item.linkLabel ?? null) : null,
-              imageFileId: item.imageFileId,
-              sortOrder,
-              ...(item.isActive !== undefined && { isActive: item.isActive }),
-            }),
-          );
+          Object.assign(current, {
+            title: item.title,
+            description: item.description ?? null,
+            linkUrl: item.linkUrl ?? null,
+            linkLabel: item.linkUrl ? (item.linkLabel ?? null) : null,
+            isActive: item.isActive ?? current.isActive,
+            sortOrder,
+          });
+          slidesToSave.push(current);
         } else {
           const imageFile = await this.filesService.claimPendingFile(
             item.imageFileId,
@@ -98,10 +107,9 @@ export class HeroSlidesService {
             description: item.description ?? null,
             linkUrl: item.linkUrl ?? null,
             linkLabel: item.linkUrl ? (item.linkLabel ?? null) : null,
-            imageFileId: item.imageFileId,
+            isActive: item.isActive,
             imageFile,
             sortOrder,
-            isActive: item.isActive ?? true,
           });
           slidesToSave.push(newSlide);
         }
@@ -109,7 +117,7 @@ export class HeroSlidesService {
 
       if (slidesToSave.length) await slideRepository.save(slidesToSave);
 
-      const result = await slideRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+      const result = await slideRepository.find({ order: { sortOrder: 'ASC' } });
 
       return result.map((slide) => this.mapHeroSlide(slide));
     });

@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsInt,
@@ -29,18 +30,19 @@ export class HeroSlideBatchItemDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(120)
+  @MaxLength(80)
   @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   title: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   @Transform(optionalTrimmedString)
   description?: string | null;
 
   @IsOptional()
   @IsString()
-  @MaxLength(80)
+  @MaxLength(40)
   @Transform(optionalTrimmedString)
   linkLabel?: string | null;
 
@@ -62,9 +64,25 @@ export class HeroSlideBatchItemDto {
 
 export class SaveHeroSlidesBatchDto {
   @IsArray()
-  @ArrayMaxSize(100)
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @ArrayUnique((item: HeroSlideBatchItemDto) => item.id ?? item.imageFileId, {
+    message: 'Duplicate hero slide IDs are not allowed',
+  })
+  @ArrayUnique((item: HeroSlideBatchItemDto) => item.imageFileId, {
+    message: 'Duplicate hero slide image file IDs are not allowed',
+  })
   @ValidateNested({ each: true })
   @Type(() => HeroSlideBatchItemDto)
-  @ArrayMinSize(1)
   items: HeroSlideBatchItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @Min(1, { each: true })
+  @ArrayUnique({
+    message: 'Duplicate deleted hero slide IDs are not allowed',
+  })
+  @IsInt({ each: true })
+  deletedIds?: number[];
 }

@@ -7,7 +7,7 @@ interface FileUploadConfig {
 
 export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
   [FileContext.HERO_SLIDES]: {
-    validTypes: ['jpg', 'jpeg', 'png'],
+    validTypes: ['jpg', 'jpeg', 'png', 'webp'],
     maxSizeBytes: 5 * 1024 * 1024,
   },
   [FileContext.FEATURED_BANNERS]: {
