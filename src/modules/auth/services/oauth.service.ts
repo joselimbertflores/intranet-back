@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 
 import { AccessTokenPayload, TokenRequestResponse } from '../interfaces';
 import { TokenVerifierService } from './token-verifier.service';
-import { UsersService } from '../../users/services';
+import { IdentityUserProvisioningService } from '../../users/services';
 import { EnvironmentVariables } from 'src/config';
 import { IdentityService } from './identity.service';
 import { PkceService } from './pkce.service';
@@ -13,7 +13,7 @@ import { PkceService } from './pkce.service';
 export class OAuthService {
   constructor(
     private readonly identityService: IdentityService,
-    private readonly userService: UsersService,
+    private readonly identityUserProvisioningService: IdentityUserProvisioningService,
     private readonly tokenVerifierService: TokenVerifierService,
     private readonly configService: ConfigService<EnvironmentVariables>,
     private readonly pkceService: PkceService,
@@ -59,6 +59,6 @@ export class OAuthService {
   }
 
   private async syncLocalUserFromIdentity(decodedAccessToken: AccessTokenPayload) {
-    await this.userService.syncUserFromIdentity(decodedAccessToken);
+    await this.identityUserProvisioningService.syncUserFromIdentity(decodedAccessToken);
   }
 }

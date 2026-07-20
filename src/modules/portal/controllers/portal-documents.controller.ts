@@ -13,12 +13,15 @@ import type { Response } from 'express';
 import { Public } from 'src/modules/auth/decorators';
 
 import { SearchPublicDocumentsDto } from 'src/modules/documents/dtos';
-import { PublicDocumentsService } from 'src/modules/documents/services';
+import { DocumentDownloadService, PublicDocumentsService } from 'src/modules/documents/services';
 
 @Public()
 @Controller('portal-documents')
 export class PortalDocumentsController {
-  constructor(private readonly publicDocumentsService: PublicDocumentsService) {}
+  constructor(
+    private readonly publicDocumentsService: PublicDocumentsService,
+    private readonly documentDownloadService: DocumentDownloadService,
+  ) {}
 
   @Get('filters')
   async getDocumentFilters() {
@@ -41,7 +44,7 @@ export class PortalDocumentsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download', new DefaultValuePipe(false), ParseBoolPipe) download: boolean,
   ) {
-    const { file, stream } = await this.publicDocumentsService.getDocumentFileStream(id, {
+    const { file, stream } = await this.documentDownloadService.getDocumentFileStream(id, {
       countDownload: download,
     });
 

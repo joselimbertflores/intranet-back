@@ -29,7 +29,7 @@ export class HeroSlidesService {
   ) {}
 
   async findAll(): Promise<HeroSlideResponse[]> {
-    const slides = await this.heroSlidesRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+    const slides = await this.heroSlidesRepository.find({ order: { sortOrder: 'ASC' } });
     return slides.map((slide) => this.mapHeroSlide(slide));
   }
 
@@ -138,14 +138,12 @@ export class HeroSlidesService {
   }
 
   private mapHeroSlide(slide: HeroSlide): HeroSlideResponse {
-    const linkUrl = slide.linkUrl?.trim() || null;
-
     return {
       id: slide.id,
       title: slide.title,
       description: slide.description ?? null,
-      linkLabel: linkUrl ? slide.linkLabel?.trim() || null : null,
-      linkUrl,
+      linkLabel: slide.linkLabel?.trim() ?? null,
+      linkUrl: slide.linkUrl?.trim() || null,
       imageFileId: slide.imageFileId,
       imageUrl: this.filesService.buildPublicFileUrl(slide.imageFileId),
       sortOrder: slide.sortOrder,

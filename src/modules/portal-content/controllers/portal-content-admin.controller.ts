@@ -14,7 +14,7 @@ import { LandingNoticesService, FeaturedBannersService, HeroSlidesService, Quick
 
 @ProtectedResource(Resource.CONTENT)
 @Controller('content')
-export class ContentAdminController {
+export class PortalContentAdminController {
   constructor(
     private readonly heroSlidesService: HeroSlidesService,
     private readonly quickAccessesService: QuickAccessesService,

@@ -2,7 +2,7 @@ import { Controller, Get, Body, Patch, Param, Query, Post } from '@nestjs/common
 import { PaginationParamsDto } from 'src/modules/common';
 
 import { ProtectedResource } from 'src/modules/auth/decorators';
-import { RolesService, UsersService } from '../services';
+import { IdentityUserProvisioningService, RolesService, UsersService } from '../services';
 import { ImportUserFromIdentityDto, SearchIdentityCandidatesDto, UpdateUserDto } from '../dtos';
 import { Resource } from '../entities';
 @ProtectedResource(Resource.USERS)
@@ -11,6 +11,7 @@ export class UsersController {
   constructor(
     private readonly roleService: RolesService,
     private readonly userService: UsersService,
+    private readonly identityUserProvisioningService: IdentityUserProvisioningService,
   ) {}
 
   @Get('roles')
@@ -25,17 +26,17 @@ export class UsersController {
 
   @Get('identity-candidates')
   searchIdentityCandidates(@Query() queryParams: SearchIdentityCandidatesDto) {
-    return this.userService.searchIdentityCandidates(queryParams.term);
+    return this.identityUserProvisioningService.searchIdentityCandidates(queryParams.term);
   }
 
   @Get('identity-candidates/:externalKey')
   findIdentityCandidateByExternalKey(@Param('externalKey') externalKey: string) {
-    return this.userService.findIdentityCandidateByExternalKey(externalKey);
+    return this.identityUserProvisioningService.findIdentityCandidateByExternalKey(externalKey);
   }
 
   @Post('import-from-identity')
   importFromIdentity(@Body() body: ImportUserFromIdentityDto) {
-    return this.userService.importFromIdentity(body);
+    return this.identityUserProvisioningService.importFromIdentity(body);
   }
 
   @Patch(':id')

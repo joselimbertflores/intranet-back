@@ -1,21 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 
-import {
-  CreateDirectoryEntryDto,
-  CreateDirectorySiteDto,
-  DirectorySearchDto,
-  UpdateDirectoryEntryDto,
-  UpdateDirectorySiteDto,
-} from './dtos';
-import { DirectoryEntry, DirectorySite } from './entities';
+import { CreateDirectoryEntryDto, DirectorySearchDto, UpdateDirectoryEntryDto } from './dtos';
+import { DirectoryEntry } from './entities';
+import { DirectorySitesService } from './directory-sites.service';
 
 @Injectable()
-export class DirectoryService {
+export class DirectoryEntriesService {
   constructor(
     @InjectRepository(DirectoryEntry) private readonly entryRepository: Repository<DirectoryEntry>,
-    @InjectRepository(DirectorySite) private readonly siteRepository: Repository<DirectorySite>,
+    private readonly directorySitesService: DirectorySitesService,
   ) {}
 
   findAll(query: DirectorySearchDto) {
@@ -37,7 +32,7 @@ export class DirectoryService {
   }
 
   async create(dto: CreateDirectoryEntryDto) {
-    const site = await this.resolveSite(dto.siteId);
+    const site = await this.directorySitesService.resolve(dto.siteId);
     const entry = this.entryRepository.create({
       ...dto,
       contactLabel: this.optionalText(dto.contactLabel),
@@ -66,7 +61,7 @@ export class DirectoryService {
     if (dto.siteDetails !== undefined) entry.siteDetails = this.optionalText(dto.siteDetails);
 
     if (siteId !== undefined) {
-      entry.site = await this.resolveSite(siteId);
+      entry.site = await this.directorySitesService.resolve(siteId);
       entry.siteId = entry.site?.id ?? null;
     }
 
@@ -76,28 +71,6 @@ export class DirectoryService {
   async remove(id: number) {
     const result = await this.entryRepository.delete(id);
     if (!result.affected) throw new NotFoundException('Directory entry not found');
-    return { deleted: true };
-  }
-
-  findSites() {
-    return this.siteRepository.find({ order: { name: 'asc' } });
-  }
-
-  async createSite(dto: CreateDirectorySiteDto) {
-    return this.saveSite(this.siteRepository.create(dto));
-  }
-
-  async updateSite(id: number, dto: UpdateDirectorySiteDto) {
-    const site = await this.siteRepository.findOneBy({ id });
-    if (!site) throw new NotFoundException('Directory site not found');
-
-    Object.assign(site, dto);
-    return this.saveSite(site);
-  }
-
-  async removeSite(id: number) {
-    const result = await this.siteRepository.delete(id);
-    if (!result.affected) throw new NotFoundException('Directory site not found');
     return { deleted: true };
   }
 
@@ -119,29 +92,11 @@ export class DirectoryService {
     );
   }
 
-  private async resolveSite(siteId?: number | null): Promise<DirectorySite | null> {
-    if (!siteId) return null;
-    const site = await this.siteRepository.findOneBy({ id: siteId });
-    if (!site) throw new NotFoundException('Directory site not found');
-    return site;
-  }
-
   private normalizeNumbers(values: string[]): string[] {
     return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
   }
 
   private optionalText(value?: string | null): string | null {
     return value?.trim() || null;
-  }
-
-  private async saveSite(site: DirectorySite) {
-    try {
-      return await this.siteRepository.save(site);
-    } catch (error) {
-      if (error instanceof QueryFailedError && (error.driverError as { code?: string }).code === '23505') {
-        throw new ConflictException('A directory site with this name already exists');
-      }
-      throw error;
-    }
   }
 }

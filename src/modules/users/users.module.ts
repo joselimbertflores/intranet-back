@@ -3,13 +3,25 @@ import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RolesController, UsersController } from './controllers';
-import { IdentityHubUsersClientService, RolesService, SecurityBootstrapService, UsersService } from './services';
+import {
+  AccessControlBootstrapService,
+  IdentityHubUsersClientService,
+  IdentityUserProvisioningService,
+  RolesService,
+  UsersService,
+} from './services';
 import { Permission, Role, User } from './entities';
 
 @Module({
   controllers: [UsersController, RolesController],
-  providers: [UsersService, RolesService, SecurityBootstrapService, IdentityHubUsersClientService],
+  providers: [
+    UsersService,
+    RolesService,
+    IdentityHubUsersClientService,
+    IdentityUserProvisioningService,
+    AccessControlBootstrapService,
+  ],
   imports: [HttpModule, TypeOrmModule.forFeature([User, Role, Permission])],
-  exports: [TypeOrmModule, UsersService, RolesService, SecurityBootstrapService],
+  exports: [TypeOrmModule, UsersService, RolesService, IdentityUserProvisioningService, AccessControlBootstrapService],
 })
 export class UsersModule {}

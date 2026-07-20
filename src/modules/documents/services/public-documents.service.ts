@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
@@ -6,7 +6,6 @@ import { MoreThanOrEqual, Repository } from 'typeorm';
 
 import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
 import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
-import { FilesService } from 'src/modules/files/files.service';
 import { SearchPublicDocumentsDto } from '../dtos';
 import { EnvironmentVariables } from 'src/config';
 
@@ -25,7 +24,6 @@ export class PublicDocumentsService {
     @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
     @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
     @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
-    private filesService: FilesService,
     private configService: ConfigService<EnvironmentVariables>,
   ) {}
 
@@ -100,28 +98,6 @@ export class PublicDocumentsService {
     });
 
     return this.plainDocuments(documents);
-  }
-
-  async getDocumentFileStream(documentId: string, options?: { countDownload?: boolean }) {
-    const document = await this.documentRepository.findOne({
-      where: {
-        id: documentId,
-        status: DocumentStatus.ACTIVE,
-      },
-      relations: {
-        file: true,
-      },
-    });
-
-    if (!document) throw new NotFoundException('Document not found');
-
-    const result = await this.filesService.getActiveFileStream(document.file.id);
-
-    if (options?.countDownload) {
-      await this.documentRepository.increment({ id: document.id }, 'downloadCount', 1);
-    }
-
-    return result;
   }
 
   private buildTreeOrganizationalUnits(organizationalUnits: OrganizationalUnit[]): PortalOrganizationalUnit[] {

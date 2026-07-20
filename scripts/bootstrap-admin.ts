@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { INestApplicationContext, NotFoundException } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
-import { SecurityBootstrapService } from 'src/modules/users/services';
+import { AccessControlBootstrapService } from 'src/modules/users/services';
 import { AppModule } from 'src/app.module';
 
 async function bootstrap() {
@@ -12,8 +12,8 @@ async function bootstrap() {
     const externalKey = getBootstrapAdminExternalKey();
     app = await NestFactory.createApplicationContext(AppModule);
 
-    const securityBootstrapService = app.get(SecurityBootstrapService);
-    const result = await securityBootstrapService.bootstrapInitialAdmin(externalKey);
+    const accessControlBootstrapService = app.get(AccessControlBootstrapService);
+    const result = await accessControlBootstrapService.bootstrapInitialAdmin(externalKey);
 
     console.log('Permisos y rol ADMIN sincronizados correctamente.');
 

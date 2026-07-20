@@ -6,7 +6,7 @@ import { FilesService } from '../../files/files.service';
 import { FeaturedBanner, HeroSlide, LandingNotice, QuickAccess } from '../entities';
 
 @Injectable()
-export class PublicContentService {
+export class PublicLandingContentService {
   constructor(
     @InjectRepository(HeroSlide) private readonly heroSlidesRepository: Repository<HeroSlide>,
     @InjectRepository(QuickAccess) private readonly quickAccessesRepository: Repository<QuickAccess>,

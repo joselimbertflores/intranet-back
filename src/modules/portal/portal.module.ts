@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { CommunicationsModule } from '../communications/communications.module';
 import { DocumentsModule } from '../documents/documents.module';
-import { ContentModule } from '../content/content.module';
+import { PortalContentModule } from '../portal-content/portal-content.module';
 import {
   PortalCommunicationsController,
   PortalTutorialsController,
@@ -26,6 +26,13 @@ import { CalendarModule } from '../calendar/calendar.module';
     PortalDirectoryController,
   ],
   providers: [PortalService],
-  imports: [DocumentsModule, ContentModule, CommunicationsModule, DirectoryModule, TutorialModule, CalendarModule],
+  imports: [
+    DocumentsModule,
+    PortalContentModule,
+    CommunicationsModule,
+    DirectoryModule,
+    TutorialModule,
+    CalendarModule,
+  ],
 })
 export class PortalModule {}

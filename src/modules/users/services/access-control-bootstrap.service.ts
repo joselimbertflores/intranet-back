@@ -4,21 +4,21 @@ import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm
 
 import { Permission, Role, User } from '../entities';
 import { PERMISSIONS_SEED } from '../constants';
-import type { InitialAdminBootstrapResult } from '../types/security-bootstrap.types';
-import { IdentityHubUsersClientService } from './identity-hub-users-client.service';
+import type { InitialAdminBootstrapResult } from '../types/access-control-bootstrap.types';
+import { IdentityUserProvisioningService } from './identity-user-provisioning.service';
 
 const ADMIN_ROLE_NAME = 'ADMIN';
 
 type PermissionDefinition = Pick<Permission, 'resource' | 'action'>;
 
 @Injectable()
-export class SecurityBootstrapService {
+export class AccessControlBootstrapService {
   constructor(
     @InjectRepository(Permission) private readonly permissionRepository: Repository<Permission>,
     @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
-    private readonly identityHubUsersClient: IdentityHubUsersClientService,
+    private readonly identityUserProvisioningService: IdentityUserProvisioningService,
   ) {}
 
   private async ensurePermissions(manager?: EntityManager): Promise<void> {
@@ -92,7 +92,7 @@ export class SecurityBootstrapService {
       return localBootstrap;
     }
 
-    const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
+    const identityUser = await this.identityUserProvisioningService.findIdentityCandidateByExternalKey(externalKey);
 
     if (identityUser.externalKey !== externalKey) {
       throw new Error('El servicio de usuarios devolvio un identificador externo diferente al solicitado.');

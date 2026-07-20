@@ -1,15 +1,16 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { DirectoryService } from './directory.service';
 import { DirectoryController } from './directory.controller';
+import { DirectoryEntriesService } from './directory-entries.service';
+import { DirectorySitesService } from './directory-sites.service';
 import { DirectoryEntry, DirectorySite } from './entities';
 import { PublicDirectoryService } from './public-directory.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([DirectoryEntry, DirectorySite])],
   controllers: [DirectoryController],
-  providers: [DirectoryService, PublicDirectoryService],
+  providers: [DirectoryEntriesService, DirectorySitesService, PublicDirectoryService],
   exports: [PublicDirectoryService],
 })
 export class DirectoryModule {}

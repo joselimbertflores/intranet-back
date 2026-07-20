@@ -1,23 +1,5 @@
 import { ArrayMinSize, IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class CreateUserDto {
-  @IsNotEmpty()
-  @IsString()
-  fullName: string;
-
-  @IsNotEmpty()
-  @IsOptional()
-  login?: string;
-
-  @IsOptional()
-  password?: string;
-
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsString({ each: true })
-  roleIds: string[];
-}
-
 export class UpdateUserDto {
   @IsOptional()
   @IsString({ each: true })

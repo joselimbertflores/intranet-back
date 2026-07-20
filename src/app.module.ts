@@ -11,7 +11,7 @@ import { DirectoryModule } from './modules/directory/directory.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { TutorialModule } from './modules/tutorial/tutorial.module';
-import { ContentModule } from './modules/content/content.module';
+import { PortalContentModule } from './modules/portal-content/portal-content.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { UsersModule } from './modules/users/users.module';
 import { FilesModule } from './modules/files/files.module';
@@ -43,7 +43,7 @@ import { AuthModule } from './modules/auth/auth.module';
     }),
     CommunicationsModule,
     DocumentsModule,
-    ContentModule,
+    PortalContentModule,
     CalendarModule,
     FilesModule,
     PortalModule,

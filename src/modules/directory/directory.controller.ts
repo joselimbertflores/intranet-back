@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
-import { DirectoryService } from './directory.service';
+import { DirectoryEntriesService } from './directory-entries.service';
+import { DirectorySitesService } from './directory-sites.service';
 import {
   CreateDirectoryEntryDto,
   CreateDirectorySiteDto,
@@ -13,50 +14,53 @@ import { Resource } from '../users/entities';
 @ProtectedResource(Resource.DIRECTORY)
 @Controller('directory')
 export class DirectoryController {
-  constructor(private directoryService: DirectoryService) {}
+  constructor(
+    private readonly directoryEntriesService: DirectoryEntriesService,
+    private readonly directorySitesService: DirectorySitesService,
+  ) {}
 
   @Get()
   findAll(@Query() query: DirectorySearchDto) {
-    return this.directoryService.findAll(query);
+    return this.directoryEntriesService.findAll(query);
   }
 
   @Get('area-names')
   findAreaNames() {
-    return this.directoryService.findAreaNames();
+    return this.directoryEntriesService.findAreaNames();
   }
 
   @Get('sites')
   findSites() {
-    return this.directoryService.findSites();
+    return this.directorySitesService.findAll();
   }
 
   @Post('sites')
   createSite(@Body() dto: CreateDirectorySiteDto) {
-    return this.directoryService.createSite(dto);
+    return this.directorySitesService.create(dto);
   }
 
   @Patch('sites/:id')
   updateSite(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateDirectorySiteDto) {
-    return this.directoryService.updateSite(id, dto);
+    return this.directorySitesService.update(id, dto);
   }
 
   @Delete('sites/:id')
   removeSite(@Param('id', ParseIntPipe) id: number) {
-    return this.directoryService.removeSite(id);
+    return this.directorySitesService.remove(id);
   }
 
   @Post()
   create(@Body() dto: CreateDirectoryEntryDto) {
-    return this.directoryService.create(dto);
+    return this.directoryEntriesService.create(dto);
   }
 
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateDirectoryEntryDto) {
-    return this.directoryService.update(id, dto);
+    return this.directoryEntriesService.update(id, dto);
   }
 
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
-    return this.directoryService.remove(id);
+    return this.directoryEntriesService.remove(id);
   }
 }

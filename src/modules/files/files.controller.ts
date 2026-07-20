@@ -2,6 +2,7 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
+  NotFoundException,
   Param,
   ParseBoolPipe,
   ParseFilePipeBuilder,
@@ -18,6 +19,7 @@ import type { Response } from 'express';
 
 import { CustomFileTypeValidator } from './validators/custom-file-type.validator';
 import { FileContext } from './enums/file-context.enum';
+import { StoredFileKind } from './entities/stored-file.entity';
 import { FILE_UPLOAD_CONFIG } from './constants';
 import { FilesService } from './files.service';
 import { ProtectedResource, Public } from '../auth/decorators';
@@ -152,6 +154,12 @@ export class FilesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download', new DefaultValuePipe(false), ParseBoolPipe) download: boolean,
   ) {
+    const candidate = await this.filesService.findActiveFileOrFail(id);
+
+    if (candidate.context === FileContext.DOCUMENT_RECORDS && candidate.kind === StoredFileKind.ORIGINAL) {
+      throw new NotFoundException('File not found');
+    }
+
     const { file, stream } = await this.filesService.getActiveFileStream(id);
 
     const disposition = download ? 'attachment' : 'inline';

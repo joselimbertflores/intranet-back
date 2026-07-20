@@ -28,12 +28,13 @@ export class FeaturedBannerBatchItemDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(120)
+  @MaxLength(80)
   @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   title: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   @Transform(optionalTrimmedString)
   description?: string | null;
 
@@ -61,7 +62,7 @@ export class FeaturedBannerBatchItemDto {
 
 export class SaveFeaturedBannersBatchDto {
   @IsArray()
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(10)
   @ValidateNested({ each: true })
   @Type(() => FeaturedBannerBatchItemDto)
   items: FeaturedBannerBatchItemDto[];
