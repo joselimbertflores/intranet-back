@@ -12,8 +12,9 @@ export class QuickAccessesService {
     private readonly dataSource: DataSource,
   ) {}
 
-  findAll() {
-    return this.quickAccessRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+  async findAll() {
+    const quickAccesses = await this.quickAccessRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+    return quickAccesses.map((quickAccess) => this.mapQuickAccess(quickAccess));
   }
 
   async saveBatch({ items }: SaveQuickAccessesBatchDto) {
@@ -34,32 +35,46 @@ export class QuickAccessesService {
       }
 
       const quickAccesses = items.map((item, index) => {
-        const patch: Partial<QuickAccess> = {
+        const patch = {
           title: item.title,
-          description: item.description || null,
+          description: item.description ?? null,
           iconKey: item.iconKey,
           url: item.url,
           sortOrder: index,
-          isActive: item.isActive ?? true,
+          backgroundColor: item.backgroundColor,
         };
 
-        if (!item.id) return repository.create(patch);
+        if (!item.id) return repository.create({ ...patch, isActive: item.isActive ?? true });
 
         const current = quickAccessesMap.get(item.id);
         if (!current) throw new NotFoundException(`Quick access with id=${item.id} not found`);
-        return Object.assign(current, patch);
+        return Object.assign(current, patch, { isActive: item.isActive ?? current.isActive });
       });
 
       if (quickAccesses.length) await repository.save(quickAccesses);
 
-      return repository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+      const saved = await repository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+      return saved.map((quickAccess) => this.mapQuickAccess(quickAccess));
     });
   }
 
-  async remove(id: number) {
+  async remove(id: number): Promise<{ ok: true; message: string }> {
     const result = await this.quickAccessRepository.delete(id);
     if (!result.affected) throw new NotFoundException('Quick access not found');
 
     return { ok: true, message: 'Quick access removed successfully' };
+  }
+
+  private mapQuickAccess(quickAccess: QuickAccess) {
+    return {
+      id: quickAccess.id,
+      title: quickAccess.title,
+      description: quickAccess.description?.trim() || null,
+      iconKey: quickAccess.iconKey,
+      url: quickAccess.url.trim(),
+      backgroundColor: quickAccess.backgroundColor,
+      sortOrder: quickAccess.sortOrder,
+      isActive: quickAccess.isActive,
+    };
   }
 }

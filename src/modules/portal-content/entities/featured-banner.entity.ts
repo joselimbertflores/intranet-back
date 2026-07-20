@@ -1,31 +1,35 @@
-import { Column, Entity, Index, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 
 @Entity('featured_banners')
 @Index(['isActive', 'sortOrder'])
+@Check(
+  'CHK_featured_banners_link',
+  '("linkLabel" IS NULL AND "linkUrl" IS NULL) OR ("linkLabel" IS NOT NULL AND "linkUrl" IS NOT NULL)',
+)
 export class FeaturedBanner {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 120 })
+  @Column({ length: 80 })
   title: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: 'varchar', length: 200, nullable: true })
   description: string | null;
 
-  @Column({ type: 'varchar', length: 80, nullable: true })
+  @Column({ type: 'varchar', length: 40, nullable: true })
   linkLabel: string | null;
 
-  @Column({ type: 'text', nullable: true })
-  url: string | null;
+  @Column({ type: 'varchar', length: 2048, nullable: true })
+  linkUrl: string | null;
 
   @Column({ type: 'uuid' })
-  imageFileId: string;
+  imageId: string;
 
   @OneToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'imageFileId' })
-  imageFile: StoredFile;
+  @JoinColumn({ name: 'imageId' })
+  image: StoredFile;
 
   @Column({ type: 'int', default: 0 })
   sortOrder: number;

@@ -38,10 +38,6 @@ export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
     ],
     maxSizeBytes: 20 * 1024 * 1024,
   },
-  [FileContext.QUICK_ACCESS]: {
-    validTypes: [],
-    maxSizeBytes: 0,
-  },
   [FileContext.COMMUNICATIONS]: {
     validTypes: ['pdf'],
     maxSizeBytes: 10 * 1024 * 1024,
@@ -57,7 +53,6 @@ export const ALLOWED_FILE_TYPES: Record<FileContext, string[]> = {
   [FileContext.FEATURED_BANNERS]: FILE_UPLOAD_CONFIG[FileContext.FEATURED_BANNERS].validTypes,
   [FileContext.LANDING_NOTICES]: FILE_UPLOAD_CONFIG[FileContext.LANDING_NOTICES].validTypes,
   [FileContext.DOCUMENT_RECORDS]: FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS].validTypes,
-  [FileContext.QUICK_ACCESS]: FILE_UPLOAD_CONFIG[FileContext.QUICK_ACCESS].validTypes,
   [FileContext.COMMUNICATIONS]: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].validTypes,
   [FileContext.TUTORIALS]: FILE_UPLOAD_CONFIG[FileContext.TUTORIALS].validTypes,
 };

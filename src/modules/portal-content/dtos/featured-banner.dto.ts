@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsInt,
@@ -12,6 +13,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 
 const absoluteOrInternalPathRegex = /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i;
@@ -19,6 +21,7 @@ const optionalTrimmedString = ({ value }: { value: unknown }): unknown => {
   if (typeof value !== 'string') return value;
   return value.trim() || null;
 };
+const hasLink = (dto: FeaturedBannerBatchItemDto): boolean => dto.linkLabel != null || dto.linkUrl != null;
 
 export class FeaturedBannerBatchItemDto {
   @IsOptional()
@@ -38,22 +41,25 @@ export class FeaturedBannerBatchItemDto {
   @Transform(optionalTrimmedString)
   description?: string | null;
 
-  @IsOptional()
+  @ValidateIf(hasLink)
   @IsString()
-  @MaxLength(80)
+  @IsNotEmpty()
+  @MaxLength(40)
   @Transform(optionalTrimmedString)
   linkLabel?: string | null;
 
-  @IsOptional()
+  @ValidateIf(hasLink)
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
   @Matches(absoluteOrInternalPathRegex, {
-    message: 'url must be an absolute http(s) URL or an internal path like /documents',
+    message: 'linkUrl must be an absolute http(s) URL or an internal path like /documents',
   })
   @Transform(optionalTrimmedString)
-  url?: string | null;
+  linkUrl?: string | null;
 
   @IsUUID()
-  imageFileId: string;
+  imageId: string;
 
   @IsOptional()
   @IsBoolean()
@@ -62,6 +68,7 @@ export class FeaturedBannerBatchItemDto {
 
 export class SaveFeaturedBannersBatchDto {
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(10)
   @ValidateNested({ each: true })
   @Type(() => FeaturedBannerBatchItemDto)

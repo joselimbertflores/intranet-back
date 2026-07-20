@@ -13,6 +13,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -21,6 +22,7 @@ const optionalTrimmedString = ({ value }: { value: unknown }): unknown => {
   if (typeof value !== 'string') return value;
   return value.trim() || null;
 };
+const hasLink = (dto: HeroSlideBatchItemDto): boolean => dto.linkLabel != null || dto.linkUrl != null;
 
 export class HeroSlideBatchItemDto {
   @IsOptional()
@@ -40,14 +42,17 @@ export class HeroSlideBatchItemDto {
   @Transform(optionalTrimmedString)
   description?: string | null;
 
-  @IsOptional()
+  @ValidateIf(hasLink)
   @IsString()
+  @IsNotEmpty()
   @MaxLength(40)
   @Transform(optionalTrimmedString)
   linkLabel?: string | null;
 
-  @IsOptional()
+  @ValidateIf(hasLink)
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
   @Matches(absoluteOrInternalPathRegex, {
     message: 'linkUrl must be an absolute http(s) URL or an internal path like /documents',
   })
@@ -55,7 +60,7 @@ export class HeroSlideBatchItemDto {
   linkUrl?: string | null;
 
   @IsUUID()
-  imageFileId: string;
+  imageId: string;
 
   @IsOptional()
   @IsBoolean()
@@ -66,11 +71,11 @@ export class SaveHeroSlidesBatchDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(5)
-  @ArrayUnique((item: HeroSlideBatchItemDto) => item.id ?? item.imageFileId, {
+  @ArrayUnique((item: HeroSlideBatchItemDto) => item.id ?? item.imageId, {
     message: 'Duplicate hero slide IDs are not allowed',
   })
-  @ArrayUnique((item: HeroSlideBatchItemDto) => item.imageFileId, {
-    message: 'Duplicate hero slide image file IDs are not allowed',
+  @ArrayUnique((item: HeroSlideBatchItemDto) => item.imageId, {
+    message: 'Duplicate hero slide image IDs are not allowed',
   })
   @ValidateNested({ each: true })
   @Type(() => HeroSlideBatchItemDto)

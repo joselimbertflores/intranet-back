@@ -2,7 +2,6 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
-  NotFoundException,
   Param,
   ParseBoolPipe,
   ParseFilePipeBuilder,
@@ -19,7 +18,6 @@ import type { Response } from 'express';
 
 import { CustomFileTypeValidator } from './validators/custom-file-type.validator';
 import { FileContext } from './enums/file-context.enum';
-import { StoredFileKind } from './entities/stored-file.entity';
 import { FILE_UPLOAD_CONFIG } from './constants';
 import { FilesService } from './files.service';
 import { ProtectedResource, Public } from '../auth/decorators';
@@ -38,10 +36,10 @@ export class FilesController {
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: FILE_UPLOAD_CONFIG.hero_slides.validTypes,
+            validTypes: FILE_UPLOAD_CONFIG[FileContext.HERO_SLIDES].validTypes,
           }),
         )
-        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG.hero_slides.maxSizeBytes })
+        .addMaxSizeValidator({ maxSize: FILE_UPLOAD_CONFIG[FileContext.HERO_SLIDES].maxSizeBytes })
         .build(),
     )
     file: Express.Multer.File,
@@ -154,12 +152,6 @@ export class FilesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('download', new DefaultValuePipe(false), ParseBoolPipe) download: boolean,
   ) {
-    const candidate = await this.filesService.findActiveFileOrFail(id);
-
-    if (candidate.context === FileContext.DOCUMENT_RECORDS && candidate.kind === StoredFileKind.ORIGINAL) {
-      throw new NotFoundException('File not found');
-    }
-
     const { file, stream } = await this.filesService.getActiveFileStream(id);
 
     const disposition = download ? 'attachment' : 'inline';

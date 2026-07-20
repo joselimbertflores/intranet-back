@@ -1,5 +1,6 @@
 import {
   Column,
+  Check,
   CreateDateColumn,
   Entity,
   Index,
@@ -15,6 +16,15 @@ import { User } from '../../users/entities/user.entity';
 
 @Entity('landing_notices')
 @Index(['isActive', 'isPinned', 'createdAt'])
+@Check('CHK_landing_notices_content', '"contentHtml" IS NOT NULL OR "imageId" IS NOT NULL')
+@Check(
+  'CHK_landing_notices_image_metadata',
+  '("imageId" IS NULL AND "imageAlt" IS NULL AND "imageLinkUrl" IS NULL) OR ("imageId" IS NOT NULL AND "imageAlt" IS NOT NULL)',
+)
+@Check(
+  'CHK_landing_notices_visibility',
+  '"visibleFrom" IS NULL OR "visibleUntil" IS NULL OR "visibleFrom" <= "visibleUntil"',
+)
 export class LandingNotice {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -29,13 +39,13 @@ export class LandingNotice {
   imageId: string | null;
 
   @OneToOne(() => StoredFile, { nullable: true, onDelete: 'RESTRICT' })
-  @JoinColumn()
+  @JoinColumn({ name: 'imageId' })
   image: StoredFile | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   imageAlt: string | null;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: 'varchar', length: 2048, nullable: true })
   imageLinkUrl: string | null;
 
   @Column({ default: true })
@@ -50,18 +60,18 @@ export class LandingNotice {
   @Column({ default: false })
   isPinned: boolean;
 
-  @Column()
+  @Column({ type: 'uuid' })
   createdById: string;
 
   @ManyToOne(() => User, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn()
+  @JoinColumn({ name: 'createdById' })
   createdBy: User;
 
   @Column({ type: 'uuid', nullable: true })
   updatedById: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
-  @JoinColumn()
+  @JoinColumn({ name: 'updatedById' })
   updatedBy: User | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

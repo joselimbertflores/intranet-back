@@ -8,7 +8,7 @@ import {
   IsNotEmpty,
   IsOptional,
   ValidateIf,
-  IsUrl,
+  Matches,
 } from 'class-validator';
 import { sanitizeBasicRichTextHtml } from '../../../helpers/sanitize-basic-rich-text-html.helper';
 
@@ -16,6 +16,8 @@ const trimOrNull = ({ value }: { value: unknown }): unknown => {
   if (typeof value !== 'string') return value;
   return value.trim() || null;
 };
+
+const absoluteOrInternalPathRegex = /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i;
 
 const toNullableDate = ({ value }: { value: unknown }): unknown => {
   if (value === undefined) return undefined;
@@ -62,9 +64,9 @@ class LandingNoticeFieldsDto {
   @Transform(trimOrNull)
   @IsOptional()
   @IsString()
-  @IsUrl({
-    protocols: ['http', 'https'],
-    require_protocol: true,
+  @MaxLength(2048)
+  @Matches(absoluteOrInternalPathRegex, {
+    message: 'imageLinkUrl must be an absolute http(s) URL or an internal path like /communications',
   })
   imageLinkUrl?: string | null;
 
