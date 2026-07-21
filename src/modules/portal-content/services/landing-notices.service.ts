@@ -15,7 +15,6 @@ export interface LandingNoticeAdminResponse {
   contentHtml: string | null;
   imageId: string | null;
   imageUrl: string | null;
-  imageAlt: string | null;
   imageLinkUrl: string | null;
   isActive: boolean;
   visibleFrom: Date | null;
@@ -36,9 +35,9 @@ export class LandingNoticesService {
     private readonly filesService: FilesService,
   ) {}
 
-  async findAll(): Promise<LandingNoticeAdminResponse[]> {
-    const notices = await this.noticesRepository.find({ order: { createdAt: 'DESC' } });
-    return notices.map((notice) => this.mapToAdminResponse(notice));
+  async findAll() {
+    const [notices, total] = await this.noticesRepository.findAndCount({ order: { createdAt: 'DESC' } });
+    return { notices: notices.map((notice) => this.mapToAdminResponse(notice)), total };
   }
 
   async create(dto: CreateLandingNoticeDto, currentUser: User): Promise<LandingNoticeAdminResponse> {
@@ -54,7 +53,6 @@ export class LandingNoticesService {
         contentHtml: props.contentHtml ?? null,
         imageId: image?.id ?? null,
         image,
-        imageAlt: props.imageAlt ?? null,
         imageLinkUrl: props.imageLinkUrl ?? null,
         isActive: props.isActive ?? true,
         visibleFrom: props.visibleFrom ?? null,
@@ -110,12 +108,6 @@ export class LandingNoticesService {
     if (!notice.contentHtml && !notice.imageId) {
       throw new BadRequestException('contentHtml or imageId is required');
     }
-    if (notice.imageId && !notice.imageAlt) {
-      throw new BadRequestException('imageAlt is required when imageId is provided');
-    }
-    if (!notice.imageId && (notice.imageAlt || notice.imageLinkUrl)) {
-      throw new BadRequestException('imageAlt and imageLinkUrl require imageId');
-    }
     if (notice.visibleFrom && notice.visibleUntil && notice.visibleFrom > notice.visibleUntil) {
       throw new BadRequestException('visibleFrom must be before or equal to visibleUntil');
     }
@@ -132,7 +124,6 @@ export class LandingNoticesService {
       }
       notice.image = null;
       notice.imageId = null;
-      notice.imageAlt = null;
       notice.imageLinkUrl = null;
       return;
     }
@@ -149,7 +140,6 @@ export class LandingNoticesService {
     }
 
     notice.imageId = imageId;
-    notice.imageAlt = null;
     notice.imageLinkUrl = null;
   }
 
@@ -160,7 +150,6 @@ export class LandingNoticesService {
       contentHtml: notice.contentHtml ?? null,
       imageId: notice.imageId,
       imageUrl: notice.imageId ? this.filesService.buildPublicFileUrl(notice.imageId) : null,
-      imageAlt: notice.imageAlt ?? null,
       imageLinkUrl: notice.imageLinkUrl ?? null,
       isActive: notice.isActive,
       visibleFrom: notice.visibleFrom ?? null,

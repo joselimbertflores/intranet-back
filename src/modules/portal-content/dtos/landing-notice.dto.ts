@@ -57,13 +57,6 @@ class LandingNoticeFieldsDto {
   @Transform(trimOrNull)
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  imageAlt?: string | null;
-
-  @Transform(trimOrNull)
-  @IsOptional()
-  @IsString()
   @MaxLength(2048)
   @Matches(absoluteOrInternalPathRegex, {
     message: 'imageLinkUrl must be an absolute http(s) URL or an internal path like /communications',

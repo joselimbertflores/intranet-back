@@ -37,7 +37,6 @@ export interface PublicLandingNoticeResponse {
   title: string;
   contentHtml: string | null;
   imageUrl: string | null;
-  imageAlt: string | null;
   imageLinkUrl: string | null;
   updatedAt: Date;
 }
@@ -139,7 +138,6 @@ export class PublicLandingContentService {
       title: notice.title,
       contentHtml: notice.contentHtml ?? null,
       imageUrl: notice.imageId ? this.filesService.buildPublicFileUrl(notice.imageId) : null,
-      imageAlt: notice.imageAlt ?? null,
       imageLinkUrl: notice.imageLinkUrl ?? null,
       updatedAt: notice.updatedAt,
     }));

@@ -16,11 +16,8 @@ import { User } from '../../users/entities/user.entity';
 
 @Entity('landing_notices')
 @Index(['isActive', 'isPinned', 'createdAt'])
-@Check('CHK_landing_notices_content', '"contentHtml" IS NOT NULL OR "imageId" IS NOT NULL')
-@Check(
-  'CHK_landing_notices_image_metadata',
-  '("imageId" IS NULL AND "imageAlt" IS NULL AND "imageLinkUrl" IS NULL) OR ("imageId" IS NOT NULL AND "imageAlt" IS NOT NULL)',
-)
+@Check('CHK_landing_notices_content_or_image', '"contentHtml" IS NOT NULL OR "imageId" IS NOT NULL')
+@Check('CHK_landing_notices_image_link', '"imageLinkUrl" IS NULL OR "imageId" IS NOT NULL')
 @Check(
   'CHK_landing_notices_visibility',
   '"visibleFrom" IS NULL OR "visibleUntil" IS NULL OR "visibleFrom" <= "visibleUntil"',
@@ -41,9 +38,6 @@ export class LandingNotice {
   @OneToOne(() => StoredFile, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'imageId' })
   image: StoredFile | null;
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  imageAlt: string | null;
 
   @Column({ type: 'varchar', length: 2048, nullable: true })
   imageLinkUrl: string | null;
