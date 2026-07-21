@@ -34,7 +34,7 @@ export class HeroSlidesService {
   }
 
   async saveBatch({ items, deletedIds = [] }: SaveHeroSlidesBatchDto): Promise<HeroSlideAdminResponse[]> {
-    const itemIds = items.map((item) => item.id).filter((id) => id !== null && id !== undefined);
+    const itemIds = items.flatMap((item) => (item.id ? [item.id] : []));
 
     const deletedIdSet = new Set(deletedIds);
 
@@ -118,20 +118,6 @@ export class HeroSlidesService {
       const result = await slideRepository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
 
       return result.map((slide) => this.mapHeroSlide(slide));
-    });
-  }
-
-  async remove(id: number): Promise<{ ok: true; message: string }> {
-    return this.dataSource.transaction(async (manager) => {
-      const slideRepository = manager.getRepository(HeroSlide);
-      const slide = await slideRepository.findOne({ where: { id } });
-
-      if (!slide) throw new NotFoundException('Hero slide not found');
-
-      await this.filesService.markActiveFileAsOrphaned(slide.imageId, manager, FileContext.HERO_SLIDES);
-      await slideRepository.delete(id);
-
-      return { ok: true, message: 'Hero slide removed successfully' };
     });
   }
 

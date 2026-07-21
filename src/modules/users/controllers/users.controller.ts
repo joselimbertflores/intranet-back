@@ -1,5 +1,5 @@
 import { Controller, Get, Body, Patch, Param, Query, Post } from '@nestjs/common';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { IdentityUserProvisioningService, RolesService, UsersService } from '../services';

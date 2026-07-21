@@ -10,7 +10,7 @@ import {
   ValidateNested,
   IsUUID,
 } from 'class-validator';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 import { DocumentStatus } from '../entities';
 
 export class CreateDocumentBatchItemDto {

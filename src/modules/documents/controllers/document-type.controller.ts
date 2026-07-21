@@ -3,7 +3,7 @@ import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos';
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { DocumentTypeService } from '../services';
 import { Resource } from 'src/modules/users/entities';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 
 @ProtectedResource(Resource.DOCUMENTS)
 @Controller('document-types')

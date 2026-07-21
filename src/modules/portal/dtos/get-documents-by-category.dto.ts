@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsDate, IsIn, IsInt, IsOptional } from 'class-validator';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 
 type FilterField = 'originalName' | 'createdAt';
 type OrderDirection = 'asc' | 'desc';

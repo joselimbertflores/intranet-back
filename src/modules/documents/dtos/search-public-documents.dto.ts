@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 
 export class SearchPublicDocumentsDto extends PaginationParamsDto {
   @IsString()

@@ -34,6 +34,6 @@ async function bootstrap() {
   }
 
   app.use(cookieParser());
-  await app.listen(configService.get<number>('PORT') || 3000, '192.168.30.34');
+  await app.listen(configService.get<number>('PORT') || 3000);
 }
 void bootstrap();

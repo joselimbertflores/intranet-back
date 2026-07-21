@@ -12,7 +12,7 @@ import {
   UpdateCalendarEventDto,
   WeekDay,
 } from './dtos';
-import { PaginationParamsDto } from '../common';
+import { PaginationParamsDto } from '../../common/dtos';
 import { CommunicationsService } from '../communications/communications.service';
 import { Communication } from '../communications/entities';
 

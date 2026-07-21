@@ -17,21 +17,35 @@ export class QuickAccessesService {
     return quickAccesses.map((quickAccess) => this.mapQuickAccess(quickAccess));
   }
 
-  async saveBatch({ items }: SaveQuickAccessesBatchDto) {
+  async saveBatch({ items, deletedIds = [] }: SaveQuickAccessesBatchDto) {
     const ids = items.flatMap((item) => (item.id ? [item.id] : []));
-    if (new Set(ids).size !== ids.length) {
-      throw new BadRequestException('Duplicate quick access IDs are not allowed in the payload');
+
+    const deletedIdSet = new Set(deletedIds);
+    const conflictingIds = ids.filter((id) => deletedIdSet.has(id));
+
+    if (conflictingIds.length) {
+      throw new BadRequestException(
+        `Quick access items cannot be updated and deleted simultaneously: ${conflictingIds.join(', ')}`,
+      );
     }
+
+    const affectedIds = [...ids, ...deletedIds];
 
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(QuickAccess);
 
-      const existingQuickAccesses = await repository.find({ where: { id: In(ids) } });
+      const existingQuickAccesses = await repository.find({ where: { id: In(affectedIds) } });
       const quickAccessesMap = new Map(existingQuickAccesses.map((item) => [item.id, item]));
       const missingIds = ids.filter((id) => !quickAccessesMap.has(id));
 
       if (missingIds.length) {
         throw new NotFoundException(`Quick accesses not found: ${missingIds.join(', ')}`);
+      }
+
+      const slidesToDelete = deletedIds.map((id) => quickAccessesMap.get(id)).filter((item) => item !== undefined);
+
+      if (slidesToDelete.length) {
+        await repository.remove(slidesToDelete);
       }
 
       const quickAccesses = items.map((item, index) => {
@@ -53,16 +67,9 @@ export class QuickAccessesService {
 
       if (quickAccesses.length) await repository.save(quickAccesses);
 
-      const saved = await repository.find({ order: { sortOrder: 'ASC', id: 'ASC' } });
+      const saved = await repository.find({ order: { sortOrder: 'ASC' } });
       return saved.map((quickAccess) => this.mapQuickAccess(quickAccess));
     });
-  }
-
-  async remove(id: number): Promise<{ ok: true; message: string }> {
-    const result = await this.quickAccessRepository.delete(id);
-    if (!result.affected) throw new NotFoundException('Quick access not found');
-
-    return { ok: true, message: 'Quick access removed successfully' };
   }
 
   private mapQuickAccess(quickAccess: QuickAccess) {

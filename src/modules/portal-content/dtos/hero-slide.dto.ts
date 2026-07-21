@@ -16,13 +16,16 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { ArrayUniqueBy } from 'src/common/validation/decorators';
 
 const absoluteOrInternalPathRegex = /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i;
 const optionalTrimmedString = ({ value }: { value: unknown }): unknown => {
   if (typeof value !== 'string') return value;
   return value.trim() || null;
 };
-const hasLink = (dto: HeroSlideBatchItemDto): boolean => dto.linkLabel != null || dto.linkUrl != null;
+
+const isProvided = (value: unknown): boolean => value !== undefined && value !== null;
+export const hasLink = (dto: HeroSlideBatchItemDto): boolean => isProvided(dto.linkLabel) || isProvided(dto.linkUrl);
 
 export class HeroSlideBatchItemDto {
   @IsOptional()
@@ -30,25 +33,26 @@ export class HeroSlideBatchItemDto {
   @Min(1)
   id?: number;
 
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
-  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   title: string;
 
+  @Transform(optionalTrimmedString)
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  @Transform(optionalTrimmedString)
   description?: string | null;
 
+  @Transform(optionalTrimmedString)
   @ValidateIf(hasLink)
   @IsString()
   @IsNotEmpty()
   @MaxLength(40)
-  @Transform(optionalTrimmedString)
   linkLabel?: string | null;
 
+  @Transform(optionalTrimmedString)
   @ValidateIf(hasLink)
   @IsString()
   @IsNotEmpty()
@@ -56,7 +60,6 @@ export class HeroSlideBatchItemDto {
   @Matches(absoluteOrInternalPathRegex, {
     message: 'linkUrl must be an absolute http(s) URL or an internal path like /documents',
   })
-  @Transform(optionalTrimmedString)
   linkUrl?: string | null;
 
   @IsUUID()
@@ -71,23 +74,24 @@ export class SaveHeroSlidesBatchDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(5)
-  @ArrayUnique((item: HeroSlideBatchItemDto) => item.id ?? item.imageId, {
-    message: 'Duplicate hero slide IDs are not allowed',
+  @ValidateNested({ each: true })
+  @Type(() => HeroSlideBatchItemDto)
+  @ArrayUniqueBy<HeroSlideBatchItemDto>((item) => item.id, {
+    ignoreNullish: true,
+    message: 'Duplicate hero slide IDs are not allowed in the payload',
   })
   @ArrayUnique((item: HeroSlideBatchItemDto) => item.imageId, {
     message: 'Duplicate hero slide image IDs are not allowed',
   })
-  @ValidateNested({ each: true })
-  @Type(() => HeroSlideBatchItemDto)
   items: HeroSlideBatchItemDto[];
 
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(5)
+  @IsInt({ each: true })
   @Min(1, { each: true })
   @ArrayUnique({
     message: 'Duplicate deleted hero slide IDs are not allowed',
   })
-  @IsInt({ each: true })
   deletedIds?: number[];
 }

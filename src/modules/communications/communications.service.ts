@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, QueryFailedError, Repository } from 'typeorm';
 
-import { PaginationParamsDto } from '../common';
+import { PaginationParamsDto } from '../../common/dtos';
 import { FileContext } from '../files/enums/file-context.enum';
 import { FilesService } from '../files/files.service';
 import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos';

@@ -7,7 +7,7 @@ import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.e
 import { Tutorial, TutorialBlock, TutorialCategory } from '../entities';
 import { CreateTutorialDto, UpdateTutorialDto } from '../dtos';
 import { TutorialBlockService } from './tutorial-block.service';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 import { generateSlug } from 'src/helpers';
 
 @Injectable()

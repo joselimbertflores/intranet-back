@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 
 import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos';
 import { CommunicationsService } from './communications.service';
-import { PaginationParamsDto } from '../common';
+import { PaginationParamsDto } from '../../common/dtos';
 import { ProtectedResource } from '../auth/decorators';
 import { Resource } from '../users/entities';
 

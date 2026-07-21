@@ -32,11 +32,6 @@ export class PortalContentAdminController {
     return this.heroSlidesService.saveBatch(dto);
   }
 
-  @Delete('hero-slides/:id')
-  removeHeroSlide(@Param('id', ParseIntPipe) id: number) {
-    return this.heroSlidesService.remove(id);
-  }
-
   @Get('quick-accesses')
   getQuickAccesses() {
     return this.quickAccessesService.findAll();
@@ -47,11 +42,6 @@ export class PortalContentAdminController {
     return this.quickAccessesService.saveBatch(dto);
   }
 
-  @Delete('quick-accesses/:id')
-  removeQuickAccess(@Param('id', ParseIntPipe) id: number) {
-    return this.quickAccessesService.remove(id);
-  }
-
   @Get('featured-banners')
   getFeaturedBanners() {
     return this.featuredBannersService.findAll();
@@ -60,11 +50,6 @@ export class PortalContentAdminController {
   @Put('featured-banners/batch')
   saveFeaturedBannersBatch(@Body() dto: SaveFeaturedBannersBatchDto) {
     return this.featuredBannersService.saveBatch(dto);
-  }
-
-  @Delete('featured-banners/:id')
-  removeFeaturedBanner(@Param('id', ParseIntPipe) id: number) {
-    return this.featuredBannersService.remove(id);
   }
 
   @Get('landing-notices')

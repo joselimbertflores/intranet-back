@@ -11,7 +11,7 @@ import { ILike, QueryFailedError, Repository } from 'typeorm';
 
 import { CreateDocumentTypeDto, DocumentSubtypeDto, UpdateDocumentTypeDto } from '../dtos';
 import { DocumentType, DocumentRecord, DocumentSubtype } from '../entities';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 
 @Injectable()
 export class DocumentTypeService {

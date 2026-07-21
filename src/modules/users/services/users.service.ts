@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, Repository } from 'typeorm';
 
-import type { PaginationParamsDto } from 'src/modules/common';
+import type { PaginationParamsDto } from 'src/common/dtos';
 import { UpdateUserDto } from '../dtos';
 import { Role, User } from '../entities';
 

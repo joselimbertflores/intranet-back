@@ -14,7 +14,9 @@ import {
   Min,
   ValidateNested,
   ValidateIf,
+  ArrayUnique,
 } from 'class-validator';
+import { ArrayUniqueBy } from 'src/common/validation/decorators';
 
 const absoluteOrInternalPathRegex = /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i;
 const optionalTrimmedString = ({ value }: { value: unknown }): unknown => {
@@ -72,5 +74,22 @@ export class SaveFeaturedBannersBatchDto {
   @ArrayMaxSize(10)
   @ValidateNested({ each: true })
   @Type(() => FeaturedBannerBatchItemDto)
+  @ArrayUniqueBy<FeaturedBannerBatchItemDto>((item) => item.id, {
+    ignoreNullish: true,
+    message: 'Duplicate featured banner IDs are not allowed in the payload',
+  })
+  @ArrayUnique((item: FeaturedBannerBatchItemDto) => item.imageId, {
+    message: 'Duplicate featured banner image IDs are not allowed',
+  })
   items: FeaturedBannerBatchItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @ArrayUnique({
+    message: 'Duplicate deleted featured banner IDs are not allowed',
+  })
+  deletedIds?: number[];
 }

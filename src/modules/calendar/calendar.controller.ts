@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query
 
 import { CalendarService } from './calendar.service';
 import { CreateCalendarEventDto, UpdateCalendarEventDto } from './dtos';
-import { PaginationParamsDto } from '../common';
+import { PaginationParamsDto } from '../../common/dtos';
 import { ProtectedResource } from '../auth/decorators';
 import { Resource } from '../users/entities';
 

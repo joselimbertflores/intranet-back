@@ -7,7 +7,7 @@ import {
   UpdateTutorialBlockDto,
   UpdateTutorialDto,
 } from '../dtos';
-import { PaginationParamsDto } from 'src/modules/common';
+import { PaginationParamsDto } from 'src/common/dtos';
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { Resource } from 'src/modules/users/entities';
 

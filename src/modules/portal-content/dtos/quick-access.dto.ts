@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsIn,
@@ -16,6 +17,7 @@ import {
 } from 'class-validator';
 import { QUICK_ACCESS_ICON_KEYS } from '../entities';
 import type { QuickAccessIconKey } from '../entities';
+import { ArrayUniqueBy } from 'src/common/validation/decorators';
 
 const absoluteOrInternalPathRegex = /^(https?:\/\/[^\s]+|\/(?!\/)[^\s]*)$/i;
 const trimString = ({ value }: { value: unknown }): unknown => (typeof value === 'string' ? value.trim() : value);
@@ -71,8 +73,22 @@ export class QuickAccessBatchItemDto {
 
 export class SaveQuickAccessesBatchDto {
   @IsArray()
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(20)
   @ValidateNested({ each: true })
   @Type(() => QuickAccessBatchItemDto)
+  @ArrayUniqueBy<QuickAccessBatchItemDto>((item) => item.id, {
+    ignoreNullish: true,
+    message: 'Duplicate quick access IDs are not allowed in the payload',
+  })
   items: QuickAccessBatchItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @Min(1, { each: true })
+  @ArrayUnique({
+    message: 'Duplicate deleted hero slide IDs are not allowed',
+  })
+  @IsInt({ each: true })
+  deletedIds?: number[];
 }
