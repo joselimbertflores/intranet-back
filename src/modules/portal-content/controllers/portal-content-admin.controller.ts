@@ -1,16 +1,17 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 
 import { GetAuthUser, ProtectedResource } from 'src/modules/auth/decorators';
 import { Resource, User } from 'src/modules/users/entities';
 
 import {
-  CreateLandingNoticeDto,
   SaveFeaturedBannersBatchDto,
-  SaveHeroSlidesBatchDto,
   SaveQuickAccessesBatchDto,
+  SaveHeroSlidesBatchDto,
+  CreateLandingNoticeDto,
   UpdateLandingNoticeDto,
 } from '../dtos';
 import { LandingNoticesService, FeaturedBannersService, HeroSlidesService, QuickAccessesService } from '../services';
+import { PaginationParamsDto } from 'src/common/dtos';
 
 @ProtectedResource(Resource.CONTENT)
 @Controller('content')
@@ -53,8 +54,8 @@ export class PortalContentAdminController {
   }
 
   @Get('landing-notices')
-  getLandingNotices() {
-    return this.landingNoticesService.findAll();
+  getLandingNotices(@Query() queryParams: PaginationParamsDto) {
+    return this.landingNoticesService.findAll(queryParams);
   }
 
   @Post('landing-notices')

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+
+import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
 
 import { FilesService } from '../../files/files.service';
 import { FileContext } from '../../files/enums/file-context.enum';
@@ -8,23 +9,7 @@ import { FileContext } from '../../files/enums/file-context.enum';
 import { CreateLandingNoticeDto, UpdateLandingNoticeDto } from '../dtos';
 import { LandingNotice } from '../entities/landing-notice.entity';
 import { User } from 'src/modules/users/entities';
-
-export interface LandingNoticeAdminResponse {
-  id: string;
-  title: string;
-  contentHtml: string | null;
-  imageId: string | null;
-  imageUrl: string | null;
-  imageLinkUrl: string | null;
-  isActive: boolean;
-  visibleFrom: Date | null;
-  visibleUntil: Date | null;
-  isPinned: boolean;
-  createdById: string;
-  updatedById: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { PaginationParamsDto } from 'src/common/dtos';
 
 @Injectable()
 export class LandingNoticesService {
@@ -35,12 +20,17 @@ export class LandingNoticesService {
     private readonly filesService: FilesService,
   ) {}
 
-  async findAll() {
-    const [notices, total] = await this.noticesRepository.findAndCount({ order: { createdAt: 'DESC' } });
+  async findAll({ limit, offset, term }: PaginationParamsDto) {
+    const [notices, total] = await this.noticesRepository.findAndCount({
+      where: { ...(term && { title: ILike(`%${term}%`) }) },
+      skip: offset,
+      take: limit,
+      order: { createdAt: 'DESC' },
+    });
     return { notices: notices.map((notice) => this.mapToAdminResponse(notice)), total };
   }
 
-  async create(dto: CreateLandingNoticeDto, currentUser: User): Promise<LandingNoticeAdminResponse> {
+  async create(dto: CreateLandingNoticeDto, currentUser: User) {
     const { imageId, ...props } = dto;
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(LandingNotice);
@@ -69,7 +59,7 @@ export class LandingNoticesService {
     });
   }
 
-  async update(id: string, dto: UpdateLandingNoticeDto, currentUser: User): Promise<LandingNoticeAdminResponse> {
+  async update(id: string, dto: UpdateLandingNoticeDto, currentUser: User) {
     const { imageId, ...updateProps } = dto;
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(LandingNotice);
@@ -143,7 +133,7 @@ export class LandingNoticesService {
     notice.imageLinkUrl = null;
   }
 
-  private mapToAdminResponse(notice: LandingNotice): LandingNoticeAdminResponse {
+  private mapToAdminResponse(notice: LandingNotice) {
     return {
       id: notice.id,
       title: notice.title,
