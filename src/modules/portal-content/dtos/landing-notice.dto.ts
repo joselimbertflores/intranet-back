@@ -11,6 +11,7 @@ import {
   Matches,
 } from 'class-validator';
 import { sanitizeBasicRichTextHtml } from '../../../helpers/sanitize-basic-rich-text-html.helper';
+import { PartialType } from '@nestjs/mapped-types';
 
 const trimOrNull = ({ value }: { value: unknown }): unknown => {
   if (typeof value !== 'string') return value;
@@ -43,13 +44,18 @@ const sanitizeContentHtml = ({ value }: { value: unknown }): unknown => {
   return plainText ? normalized : null;
 };
 
-class LandingNoticeFieldsDto {
+export class CreateLandingNoticeDto {
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  title: string;
+
   @Transform(sanitizeContentHtml)
   @IsOptional()
   @IsString()
   contentHtml?: string | null;
 
-  @Transform(trimOrNull)
   @IsOptional()
   @IsUUID()
   imageId?: string | null;
@@ -82,19 +88,4 @@ class LandingNoticeFieldsDto {
   isPinned?: boolean;
 }
 
-export class CreateLandingNoticeDto extends LandingNoticeFieldsDto {
-  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(160)
-  title: string;
-}
-
-export class UpdateLandingNoticeDto extends LandingNoticeFieldsDto {
-  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
-  @ValidateIf((_dto, value: unknown) => value !== undefined)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(160)
-  title?: string;
-}
+export class UpdateLandingNoticeDto extends PartialType(CreateLandingNoticeDto) {}

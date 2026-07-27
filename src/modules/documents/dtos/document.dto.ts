@@ -24,7 +24,8 @@ export class CreateDocumentBatchItemDto {
 
 export class CreateDocumentBatchDto {
   @IsUUID()
-  organizationalUnitId: string;
+  @IsOptional()
+  organizationalUnitId?: string | null;
 
   @IsInt()
   @Type(() => Number)
@@ -63,7 +64,7 @@ export class UpdateDocumentDto {
 
   @IsUUID()
   @IsOptional()
-  organizationalUnitId?: string;
+  organizationalUnitId?: string | null;
 
   @IsInt()
   @Type(() => Number)

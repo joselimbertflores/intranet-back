@@ -38,21 +38,13 @@ export class LandingNoticesService {
       const image = imageId
         ? await this.filesService.claimPendingFile(imageId, FileContext.LANDING_NOTICES, manager)
         : null;
+
       const model = repository.create({
-        title: props.title,
-        contentHtml: props.contentHtml ?? null,
-        imageId: image?.id ?? null,
+        ...props,
         image,
-        imageLinkUrl: props.imageLinkUrl ?? null,
-        isActive: props.isActive ?? true,
-        visibleFrom: props.visibleFrom ?? null,
-        visibleUntil: props.visibleUntil ?? null,
-        isPinned: props.isPinned ?? false,
-        createdById: currentUser.id,
         createdBy: currentUser,
-        updatedById: null,
-        updatedBy: null,
       });
+
       this.assertValidNoticeState(model);
       const createdNotice = await repository.save(model);
       return this.mapToAdminResponse(createdNotice);
@@ -67,20 +59,21 @@ export class LandingNoticesService {
 
       if (!notice) throw new NotFoundException('Landing notice not found');
 
-      await this.applyImageChange(notice, imageId, manager);
+      if (imageId !== undefined) {
+        await this.applyImageChange(notice, imageId, manager);
+      }
 
       Object.assign(notice, updateProps);
 
-      notice.updatedById = currentUser.id;
       notice.updatedBy = currentUser;
 
       this.assertValidNoticeState(notice);
-
-      return this.mapToAdminResponse(await repository.save(notice));
+      const updatedNotice = await repository.save(notice);
+      return this.mapToAdminResponse(updatedNotice);
     });
   }
 
-  async remove(id: string): Promise<{ ok: true; message: string }> {
+  async remove(id: string) {
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(LandingNotice);
       const notice = await repository.findOne({ where: { id } });
@@ -96,16 +89,19 @@ export class LandingNoticesService {
 
   private assertValidNoticeState(notice: LandingNotice): void {
     if (!notice.contentHtml && !notice.imageId) {
-      throw new BadRequestException('contentHtml or imageId is required');
+      throw new BadRequestException('El aviso debe tener contenido o una imagen');
     }
+
+    if (notice.imageLinkUrl && !notice.imageId) {
+      throw new BadRequestException('El enlace de imagen requiere una imagen');
+    }
+
     if (notice.visibleFrom && notice.visibleUntil && notice.visibleFrom > notice.visibleUntil) {
-      throw new BadRequestException('visibleFrom must be before or equal to visibleUntil');
+      throw new BadRequestException('La fecha inicial no puede ser posterior a la fecha final');
     }
   }
 
-  private async applyImageChange(notice: LandingNotice, imageId: string | null | undefined, manager: EntityManager) {
-    if (imageId === undefined) return;
-
+  private async applyImageChange(notice: LandingNotice, imageId: string | null, manager: EntityManager) {
     if (notice.imageId === imageId) return;
 
     if (imageId === null) {
@@ -145,8 +141,6 @@ export class LandingNoticesService {
       visibleFrom: notice.visibleFrom ?? null,
       visibleUntil: notice.visibleUntil ?? null,
       isPinned: notice.isPinned,
-      createdById: notice.createdById,
-      updatedById: notice.updatedById ?? null,
       createdAt: notice.createdAt,
       updatedAt: notice.updatedAt,
     };

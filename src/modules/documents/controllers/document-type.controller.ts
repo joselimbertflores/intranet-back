@@ -8,7 +8,7 @@ import { PaginationParamsDto } from 'src/common/dtos';
 @ProtectedResource(Resource.DOCUMENTS)
 @Controller('document-types')
 export class DocumentTypeController {
-  constructor(private documentTypeService: DocumentTypeService) {}
+  constructor(private readonly documentTypeService: DocumentTypeService) {}
 
   @Get()
   findAll(@Query() queryParams: PaginationParamsDto) {

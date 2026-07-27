@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { once } from 'events';
 
 import { FilesService } from 'src/modules/files/files.service';
+import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
 
 import { DocumentRecord, DocumentStatus } from '../entities';
 
@@ -22,10 +23,18 @@ export class DocumentDownloadService {
       },
       relations: {
         file: true,
+        documentType: true,
+        documentSubtype: true,
       },
     });
 
-    if (!document) throw new NotFoundException('Document not found');
+    const isVisible =
+      document &&
+      document.file.status === FileStatus.ACTIVE &&
+      document.documentType.isActive &&
+      (!document.documentSubtype || document.documentSubtype.isActive);
+
+    if (!isVisible) throw new NotFoundException('Document not found');
 
     const result = await this.filesService.getActiveFileStream(document.file.id);
 

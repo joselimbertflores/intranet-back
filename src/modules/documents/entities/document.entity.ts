@@ -33,12 +33,12 @@ export class DocumentRecord {
   @Column({ type: 'integer', default: 0 })
   downloadCount: number;
 
-  @Column({ name: 'organizational_unit_id', type: 'uuid' })
-  organizationalUnitId: string;
+  @Column({ name: 'organizational_unit_id', type: 'uuid', nullable: true })
+  organizationalUnitId: string | null;
 
-  @ManyToOne(() => OrganizationalUnit, { nullable: false, onDelete: 'RESTRICT' })
+  @ManyToOne(() => OrganizationalUnit, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'organizational_unit_id' })
-  organizationalUnit: OrganizationalUnit;
+  organizationalUnit: OrganizationalUnit | null;
 
   @Column({ name: 'document_type_id', type: 'int' })
   documentTypeId: number;

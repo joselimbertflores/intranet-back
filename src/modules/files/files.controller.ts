@@ -84,6 +84,7 @@ export class FilesController {
   }
 
   @Post('documents')
+  @ProtectedResource(Resource.DOCUMENTS)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: documentUploadConfig.maxSizeBytes } }))
   uploadDocument(
     @UploadedFile(

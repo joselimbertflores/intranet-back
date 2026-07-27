@@ -9,9 +9,9 @@ import { Resource, User } from 'src/modules/users/entities';
 @Controller('documents')
 export class DocumentController {
   constructor(
-    private organizationalUnitService: OrganizationalUnitService,
-    private documentTypeService: DocumentTypeService,
-    private documentsService: DocumentsService,
+    private readonly organizationalUnitService: OrganizationalUnitService,
+    private readonly documentTypeService: DocumentTypeService,
+    private readonly documentsService: DocumentsService,
   ) {}
 
   @Get()
@@ -36,7 +36,7 @@ export class DocumentController {
 
   @Get('types')
   getDocumentTypes() {
-    return this.documentTypeService.getActiveTypesWithSubtypes();
+    return this.documentTypeService.getActiveDocumentTypesWithSubtypes();
   }
 
   @Get(':id')

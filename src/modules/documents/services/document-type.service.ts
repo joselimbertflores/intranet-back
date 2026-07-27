@@ -16,9 +16,9 @@ import { PaginationParamsDto } from 'src/common/dtos';
 @Injectable()
 export class DocumentTypeService {
   constructor(
-    @InjectRepository(DocumentType) private documentTypeRepository: Repository<DocumentType>,
-    @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
-    @InjectRepository(DocumentSubtype) private documentSubTypeRepository: Repository<DocumentSubtype>,
+    @InjectRepository(DocumentType) private readonly documentTypeRepository: Repository<DocumentType>,
+    @InjectRepository(DocumentRecord) private readonly documentRepository: Repository<DocumentRecord>,
+    @InjectRepository(DocumentSubtype) private readonly documentSubtypeRepository: Repository<DocumentSubtype>,
   ) {}
 
   async findAll(params: PaginationParamsDto) {
@@ -43,7 +43,7 @@ export class DocumentTypeService {
       const { subtypes, ...props } = dto;
       const model = this.documentTypeRepository.create({
         ...props,
-        subtypes: subtypes?.length ? subtypes.map((st) => this.documentSubTypeRepository.create(st)) : [],
+        subtypes: subtypes?.length ? subtypes.map((subtype) => this.documentSubtypeRepository.create(subtype)) : [],
       });
       return await this.documentTypeRepository.save(model);
     } catch (error: unknown) {
@@ -75,7 +75,7 @@ export class DocumentTypeService {
     if (documentsCountUsingSubtype > 0) {
       throw new BadRequestException(`Cannot delete document subtype ${id} because it is in use.`);
     }
-    const result = await this.documentSubTypeRepository.delete({ id });
+    const result = await this.documentSubtypeRepository.delete({ id });
     return (result.affected ?? 0) > 0
       ? { ok: true, message: `Document subtype ${id} deleted successfully.` }
       : { ok: false, message: `Document subtype ${id} not found.` };
@@ -90,7 +90,7 @@ export class DocumentTypeService {
         }
         existingSubtypes[index] = Object.assign(existingSubtypes[index], subtype);
       } else {
-        existingSubtypes.push(this.documentSubTypeRepository.create(subtype));
+        existingSubtypes.push(this.documentSubtypeRepository.create(subtype));
       }
     }
     return existingSubtypes;
@@ -100,14 +100,17 @@ export class DocumentTypeService {
     if (error instanceof HttpException) {
       throw error;
     }
-    if (error instanceof QueryFailedError && error['code'] === '23505') {
+    if (error instanceof QueryFailedError && (error.driverError as { code?: string }).code === '23505') {
       throw new ConflictException('Duplicate slug detected');
     }
     throw new InternalServerErrorException('Failed to modify document type');
   }
 
-  async getActiveTypesWithSubtypes() {
-    const types = await this.documentTypeRepository.find({ where: { isActive: true }, relations: { subtypes: true } });
+  async getActiveDocumentTypesWithSubtypes() {
+    const types = await this.documentTypeRepository.find({
+      where: { isActive: true },
+      relations: { subtypes: true },
+    });
     return types.map((type) => ({
       ...type,
       subtypes: type.subtypes.filter((subtype) => subtype.isActive),

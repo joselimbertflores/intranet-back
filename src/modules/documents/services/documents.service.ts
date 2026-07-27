@@ -13,18 +13,18 @@ import { User } from 'src/modules/users/entities';
 @Injectable()
 export class DocumentsService {
   constructor(
-    @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
-    @InjectRepository(DocumentRecord) private docRepository: Repository<DocumentRecord>,
-    @InjectRepository(OrganizationalUnit) private orgUnitRepository: Repository<OrganizationalUnit>,
-    @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
-    private organizationalUnitService: OrganizationalUnitService,
-    private filesService: FilesService,
-    private dataSource: DataSource,
+    @InjectRepository(DocumentType) private readonly documentTypeRepository: Repository<DocumentType>,
+    @InjectRepository(DocumentRecord) private readonly documentRepository: Repository<DocumentRecord>,
+    @InjectRepository(OrganizationalUnit)
+    private readonly organizationalUnitRepository: Repository<OrganizationalUnit>,
+    @InjectRepository(DocumentSubtype) private readonly documentSubtypeRepository: Repository<DocumentSubtype>,
+    private readonly organizationalUnitService: OrganizationalUnitService,
+    private readonly filesService: FilesService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(filterParamsDto: FilterDocumentsDto) {
     const { limit, offset, term, ...docFilters } = filterParamsDto;
-
     const organizationalUnitIds = docFilters.organizationalUnitId
       ? await this.organizationalUnitService.getOrganizationalUnitAndDescendantIds(docFilters.organizationalUnitId)
       : undefined;
@@ -37,25 +37,25 @@ export class DocumentsService {
       ...(docFilters.year && { year: docFilters.year }),
       ...(docFilters.status && { status: docFilters.status }),
     };
-    const [documents, total] = await this.docRepository.findAndCount({
+    const [documents, total] = await this.documentRepository.findAndCount({
       where,
       relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: true },
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
     });
-    return { documents: documents.map((document) => this.toAdminResponse(document)), total };
+    return { documents: documents.map((document) => this.mapToAdminResponse(document)), total };
   }
 
   async findOne(id: string) {
-    const document = await this.docRepository.findOne({
+    const document = await this.documentRepository.findOne({
       where: { id },
       relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: { derivedFiles: true } },
     });
 
     if (!document) throw new NotFoundException(`Document ${id} not found`);
 
-    return this.toAdminResponse(document);
+    return this.mapToAdminResponse(document);
   }
 
   async createBatch(dto: CreateDocumentBatchDto, currentUser: User) {
@@ -69,8 +69,8 @@ export class DocumentsService {
     }
 
     const [organizationalUnit, { documentType, documentSubtype }] = await Promise.all([
-      this.getActiveOrganizationalUnitOrFail(organizationalUnitId),
-      this.getActiveDocumentTypeWithSubtypeOrFail(documentTypeId, documentSubtypeId),
+      organizationalUnitId == null ? null : this.getActiveOrganizationalUnitOrFail(organizationalUnitId),
+      this.resolveActiveDocumentClassificationOrFail(documentTypeId, documentSubtypeId),
     ]);
 
     return this.dataSource.transaction(async (manager) => {
@@ -81,23 +81,23 @@ export class DocumentsService {
           organizationalUnit,
           documentType,
           documentSubtype,
+          file,
           title: item.title,
           year: year ?? null,
-          file,
           createdBy: currentUser,
         });
         records.push(record);
       }
 
       const savedDocuments = await manager.save(records);
-      return savedDocuments.map((document) => this.toAdminResponse(document));
+      return savedDocuments.map((document) => this.mapToAdminResponse(document));
     });
   }
 
   async update(id: string, dto: UpdateDocumentDto) {
     const { fileId, organizationalUnitId, documentTypeId, documentSubtypeId, ...toUpdate } = dto;
 
-    const document = await this.docRepository.findOne({
+    const document = await this.documentRepository.findOne({
       where: { id },
       relations: {
         organizationalUnit: true,
@@ -111,16 +111,25 @@ export class DocumentsService {
 
     Object.assign(document, toUpdate);
 
-    if (organizationalUnitId) {
-      document.organizationalUnit = await this.getActiveOrganizationalUnitOrFail(organizationalUnitId);
+    const organizationalUnitChanged =
+      organizationalUnitId !== undefined && organizationalUnitId !== document.organizationalUnitId;
+
+    if (organizationalUnitChanged) {
+      document.organizationalUnit =
+        organizationalUnitId === null ? null : await this.getActiveOrganizationalUnitOrFail(organizationalUnitId);
     }
 
-    if (documentTypeId !== undefined || documentSubtypeId !== undefined) {
+    const documentTypeChanged = documentTypeId !== undefined && documentTypeId !== document.documentTypeId;
+
+    const documentSubtypeChanged = documentSubtypeId !== undefined && documentSubtypeId !== document.documentSubtypeId;
+
+    if (documentTypeChanged || documentSubtypeChanged) {
       const nextTypeId = documentTypeId ?? document.documentType.id;
-      const shouldClearSubtype = documentTypeId !== undefined && documentTypeId !== document.documentType.id;
+
       const nextSubtypeId =
-        documentSubtypeId !== undefined ? documentSubtypeId : shouldClearSubtype ? null : document.documentSubtypeId;
-      const { documentType, documentSubtype } = await this.getActiveDocumentTypeWithSubtypeOrFail(
+        documentSubtypeId !== undefined ? documentSubtypeId : documentTypeChanged ? null : document.documentSubtypeId;
+
+      const { documentType, documentSubtype } = await this.resolveActiveDocumentClassificationOrFail(
         nextTypeId,
         nextSubtypeId,
       );
@@ -139,24 +148,24 @@ export class DocumentsService {
         document.file = newFile;
       }
       const savedDocument = await manager.save(document);
-      return this.toAdminResponse(savedDocument);
+      return this.mapToAdminResponse(savedDocument);
     });
   }
 
   private async getActiveOrganizationalUnitOrFail(id: string) {
-    const organizationalUnit = await this.orgUnitRepository.findOneBy({ id, isActive: true });
+    const organizationalUnit = await this.organizationalUnitRepository.findOneBy({ id, isActive: true });
     if (!organizationalUnit) throw new BadRequestException(`Organizational unit ${id} not found or inactive`);
     return organizationalUnit;
   }
 
-  private async getActiveDocumentTypeWithSubtypeOrFail(typeId: number, subtypeId?: number | null) {
-    const documentType = await this.docTypeRepository.findOneBy({ id: typeId, isActive: true });
+  private async resolveActiveDocumentClassificationOrFail(typeId: number, subtypeId?: number | null) {
+    const documentType = await this.documentTypeRepository.findOneBy({ id: typeId, isActive: true });
     if (!documentType) throw new BadRequestException(`Document type ${typeId} not found or inactive`);
 
     let documentSubtype: DocumentSubtype | null = null;
 
     if (subtypeId !== undefined && subtypeId !== null) {
-      documentSubtype = await this.docSubtypeRepository.findOne({
+      documentSubtype = await this.documentSubtypeRepository.findOne({
         where: {
           id: subtypeId,
           isActive: true,
@@ -171,12 +180,14 @@ export class DocumentsService {
     return { documentType, documentSubtype };
   }
 
-  private toAdminResponse(document: DocumentRecord) {
+  private mapToAdminResponse(document: DocumentRecord) {
     const { file, ...props } = document;
     const url = this.filesService.buildPublicFileUrl(file.id);
 
     return {
       ...props,
+      organizationalUnitId: document.organizationalUnitId ?? null,
+      organizationalUnit: document.organizationalUnit ?? null,
       file: {
         id: file.id,
         originalName: file.originalName,

@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 
 import { DocumentRecord, DocumentStatus, DocumentSubtype, DocumentType, OrganizationalUnit } from '../entities';
 import { FileStatus } from 'src/modules/files/entities/stored-file.entity';
 import { SearchPublicDocumentsDto } from '../dtos';
 import { EnvironmentVariables } from 'src/config';
+import { OrganizationalUnitService } from './organizational-unit.service';
 
 export interface PortalOrganizationalUnit {
   id: string;
@@ -20,24 +21,28 @@ export interface PortalOrganizationalUnit {
 @Injectable()
 export class PublicDocumentsService {
   constructor(
-    @InjectRepository(DocumentType) private docTypeRepository: Repository<DocumentType>,
-    @InjectRepository(DocumentRecord) private documentRepository: Repository<DocumentRecord>,
-    @InjectRepository(DocumentSubtype) private docSubtypeRepository: Repository<DocumentSubtype>,
-    @InjectRepository(OrganizationalUnit) private organizationalUnitRepository: Repository<OrganizationalUnit>,
-    private configService: ConfigService<EnvironmentVariables>,
+    @InjectRepository(DocumentType) private readonly documentTypeRepository: Repository<DocumentType>,
+    @InjectRepository(DocumentRecord) private readonly documentRepository: Repository<DocumentRecord>,
+    @InjectRepository(DocumentSubtype) private readonly documentSubtypeRepository: Repository<DocumentSubtype>,
+    @InjectRepository(OrganizationalUnit)
+    private readonly organizationalUnitRepository: Repository<OrganizationalUnit>,
+    private readonly organizationalUnitService: OrganizationalUnitService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
-  async getOrganizationalUnits() {
+  async getActiveOrganizationalUnitTree() {
     const organizationalUnits = await this.organizationalUnitRepository.find({
       where: { isActive: true },
-      relations: { parent: true },
       order: { name: 'ASC' },
     });
-    return this.buildTreeOrganizationalUnits(organizationalUnits);
+    return this.buildOrganizationalUnitTree(organizationalUnits);
   }
 
-  async getTypes() {
-    const types = await this.docTypeRepository.find({ where: { isActive: true }, relations: { subtypes: true } });
+  async getActiveDocumentTypes() {
+    const types = await this.documentTypeRepository.find({
+      where: { isActive: true },
+      relations: { subtypes: true },
+    });
     return types.map((type) => ({
       id: type.id,
       name: type.name,
@@ -54,9 +59,15 @@ export class PublicDocumentsService {
 
   async searchDocuments(searchParamsDto: SearchPublicDocumentsDto) {
     const { limit, offset, term, ...props } = searchParamsDto;
-    const { organizationalUnitId, documentTypeId, documentSubtypeId, year } = await this.resolveFilters(props);
+    const filters = await this.resolveFilters(props);
+
+    if (!filters) {
+      return { documents: [], total: 0 };
+    }
+
+    const { organizationalUnitId, documentTypeId, documentSubtypeId, year } = filters;
     const organizationalUnitIds = organizationalUnitId
-      ? await this.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
+      ? await this.organizationalUnitService.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
       : [];
 
     const query = this.createVisibleDocumentsQuery();
@@ -75,32 +86,21 @@ export class PublicDocumentsService {
       .skip(offset)
       .getManyAndCount();
 
-    return { documents: this.plainDocuments(documents), total };
+    return { documents: this.mapToPublicDocuments(documents), total };
   }
 
   async findMostDownloaded() {
-    const documents = await this.documentRepository.find({
-      where: {
-        status: DocumentStatus.ACTIVE,
-        downloadCount: MoreThanOrEqual(1),
-      },
-      relations: {
-        file: true,
-        documentType: true,
-        documentSubtype: true,
-        organizationalUnit: true,
-      },
-      order: {
-        downloadCount: 'DESC',
-        createdAt: 'DESC',
-      },
-      take: 8,
-    });
+    const documents = await this.createVisibleDocumentsQuery()
+      .andWhere('document.downloadCount >= :minimumDownloadCount', { minimumDownloadCount: 1 })
+      .orderBy('document.downloadCount', 'DESC')
+      .addOrderBy('document.createdAt', 'DESC')
+      .take(8)
+      .getMany();
 
-    return this.plainDocuments(documents);
+    return this.mapToPublicDocuments(documents);
   }
 
-  private buildTreeOrganizationalUnits(organizationalUnits: OrganizationalUnit[]): PortalOrganizationalUnit[] {
+  private buildOrganizationalUnitTree(organizationalUnits: OrganizationalUnit[]): PortalOrganizationalUnit[] {
     const map = new Map<string, PortalOrganizationalUnit>();
     const roots: PortalOrganizationalUnit[] = [];
 
@@ -137,23 +137,26 @@ export class PublicDocumentsService {
     } = {};
 
     if (dto.organizationalUnit) {
-      const organizationalUnit = await this.organizationalUnitRepository.findOne({
+      const matchingOrganizationalUnits = await this.organizationalUnitRepository.find({
         where: { slug: dto.organizationalUnit, isActive: true },
         select: { id: true },
+        take: 2,
       });
-      if (organizationalUnit) filters.organizationalUnitId = organizationalUnit.id;
+      if (matchingOrganizationalUnits.length !== 1) return null;
+      filters.organizationalUnitId = matchingOrganizationalUnits[0].id;
     }
 
     if (dto.documentType) {
-      const type = await this.docTypeRepository.findOne({
+      const type = await this.documentTypeRepository.findOne({
         where: { slug: dto.documentType, isActive: true },
         select: { id: true },
       });
-      if (type) filters.documentTypeId = type.id;
+      if (!type) return null;
+      filters.documentTypeId = type.id;
     }
 
     if (dto.documentSubtype) {
-      const matchingSubtypes = await this.docSubtypeRepository.find({
+      const matchingSubtypes = await this.documentSubtypeRepository.find({
         where: {
           slug: dto.documentSubtype,
           isActive: true,
@@ -166,32 +169,13 @@ export class PublicDocumentsService {
         select: { id: true },
         take: filters.documentTypeId ? 1 : 2,
       });
-      if (matchingSubtypes.length === 1) filters.documentSubtypeId = matchingSubtypes[0].id;
+      if (matchingSubtypes.length !== 1) return null;
+      filters.documentSubtypeId = matchingSubtypes[0].id;
     }
 
     if (dto.year) filters.year = dto.year;
 
     return filters;
-  }
-
-  private async getOrganizationalUnitAndDescendantIds(id: string): Promise<string[]> {
-    const ids: string[] = [];
-
-    const collect = async (parentId: string) => {
-      ids.push(parentId);
-
-      const children = await this.organizationalUnitRepository.find({
-        where: { parentId },
-        select: { id: true },
-      });
-
-      for (const child of children) {
-        await collect(child.id);
-      }
-    };
-
-    await collect(id);
-    return ids;
   }
 
   private createVisibleDocumentsQuery() {
@@ -200,25 +184,25 @@ export class PublicDocumentsService {
       .innerJoinAndSelect('document.file', 'file', 'file.status = :fileStatus', { fileStatus: FileStatus.ACTIVE })
       .innerJoinAndSelect('document.documentType', 'document_type', 'document_type.isActive = true')
       .leftJoinAndSelect('document.documentSubtype', 'document_subtype')
-      .innerJoinAndSelect('document.organizationalUnit', 'organizational_unit')
+      .leftJoinAndSelect('document.organizationalUnit', 'organizational_unit')
       .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE })
       .andWhere('(document.documentSubtypeId IS NULL OR document_subtype.isActive = true)');
   }
 
-  private plainDocuments(documents: DocumentRecord[]) {
-    return documents.map((doc) => ({
-      id: doc.id,
-      title: doc.title,
-      year: doc.year,
-      organizationalUnit: doc.organizationalUnit.name,
-      documentType: doc.documentType.name,
-      documentSubtype: doc.documentSubtype?.name,
-      downloadCount: doc.downloadCount ?? 0,
+  private mapToPublicDocuments(documents: DocumentRecord[]) {
+    return documents.map((document) => ({
+      id: document.id,
+      title: document.title,
+      year: document.year,
+      organizationalUnit: document.organizationalUnit?.name ?? null,
+      documentType: document.documentType.name,
+      documentSubtype: document.documentSubtype?.name,
+      downloadCount: document.downloadCount ?? 0,
       file: {
-        name: doc.file.originalName,
-        mimeType: doc.file.mimeType,
-        size: Number(doc.file.sizeBytes),
-        downloadUrl: this.buildDocumentDownloadUrl(doc.id),
+        name: document.file.originalName,
+        mimeType: document.file.mimeType,
+        size: Number(document.file.sizeBytes),
+        downloadUrl: this.buildDocumentDownloadUrl(document.id),
       },
     }));
   }

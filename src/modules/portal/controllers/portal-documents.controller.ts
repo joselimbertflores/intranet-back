@@ -26,8 +26,8 @@ export class PortalDocumentsController {
   @Get('filters')
   async getDocumentFilters() {
     const [organizationalUnits, types] = await Promise.all([
-      this.publicDocumentsService.getOrganizationalUnits(),
-      this.publicDocumentsService.getTypes(),
+      this.publicDocumentsService.getActiveOrganizationalUnitTree(),
+      this.publicDocumentsService.getActiveDocumentTypes(),
     ]);
     return { organizationalUnits, types };
   }

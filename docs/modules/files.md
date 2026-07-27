@@ -39,7 +39,7 @@ Tipos relevantes:
 - `ORIGINAL`: archivo principal subido por el usuario.
 - `PREVIEW`: derivado generado por el sistema.
 
-La entidad también define `THUMBNAIL`, aunque el flujo de comunicados utiliza `PREVIEW`.
+Los archivos derivados generados actualmente usan `PREVIEW`.
 
 ## Carga y reclamo
 
@@ -60,6 +60,8 @@ El flujo normal es:
 - no tenga `sourceFileId`.
 
 Los previews no se reclaman directamente desde módulos externos.
+
+La carga bajo `FileContext.DOCUMENT_RECORDS` requiere permiso de creación sobre el recurso `DOCUMENTS`.
 
 ## Reemplazo
 

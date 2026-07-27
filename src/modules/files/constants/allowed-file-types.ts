@@ -47,12 +47,3 @@ export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
     maxSizeBytes: 300 * 1024 * 1024,
   },
 };
-
-export const ALLOWED_FILE_TYPES: Record<FileContext, string[]> = {
-  [FileContext.HERO_SLIDES]: FILE_UPLOAD_CONFIG[FileContext.HERO_SLIDES].validTypes,
-  [FileContext.FEATURED_BANNERS]: FILE_UPLOAD_CONFIG[FileContext.FEATURED_BANNERS].validTypes,
-  [FileContext.LANDING_NOTICES]: FILE_UPLOAD_CONFIG[FileContext.LANDING_NOTICES].validTypes,
-  [FileContext.DOCUMENT_RECORDS]: FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS].validTypes,
-  [FileContext.COMMUNICATIONS]: FILE_UPLOAD_CONFIG[FileContext.COMMUNICATIONS].validTypes,
-  [FileContext.TUTORIALS]: FILE_UPLOAD_CONFIG[FileContext.TUTORIALS].validTypes,
-};

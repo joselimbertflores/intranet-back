@@ -66,7 +66,6 @@ export class FilesService {
 
     try {
       const previewBuffer = await generatePdfPreview(pdfPath);
-      console.log(previewBuffer);
       if (previewBuffer) {
         await this.saveDerivedPreview(previewBuffer, savedPdf, context);
       } else {
