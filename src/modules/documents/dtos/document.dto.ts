@@ -11,7 +11,7 @@ import {
   IsUUID,
 } from 'class-validator';
 import { PaginationParamsDto } from 'src/common/dtos';
-import { DocumentStatus } from '../entities';
+import { DocumentStatus, DocumentValidityStatus } from '../entities';
 
 export class CreateDocumentBatchItemDto {
   @IsUUID()
@@ -40,6 +40,10 @@ export class CreateDocumentBatchDto {
   @IsOptional()
   @Type(() => Number)
   year?: number;
+
+  @IsEnum(DocumentValidityStatus)
+  @IsOptional()
+  validityStatus?: DocumentValidityStatus;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -79,6 +83,10 @@ export class UpdateDocumentDto {
   @IsEnum(DocumentStatus)
   @IsOptional()
   status?: DocumentStatus;
+
+  @IsEnum(DocumentValidityStatus)
+  @IsOptional()
+  validityStatus?: DocumentValidityStatus;
 }
 
 export class FilterDocumentsDto extends PaginationParamsDto {
@@ -104,4 +112,8 @@ export class FilterDocumentsDto extends PaginationParamsDto {
   @IsEnum(DocumentStatus)
   @IsOptional()
   status?: DocumentStatus;
+
+  @IsEnum(DocumentValidityStatus)
+  @IsOptional()
+  validityStatus?: DocumentValidityStatus;
 }

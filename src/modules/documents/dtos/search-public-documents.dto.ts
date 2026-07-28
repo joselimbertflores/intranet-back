@@ -11,12 +11,12 @@ export class SearchPublicDocumentsDto extends PaginationParamsDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  documentType?: string;
+  type?: string;
 
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  documentSubtype?: string;
+  subtype?: string;
 
   @Type(() => Number)
   @IsInt()

@@ -1,6 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsInt,
@@ -44,4 +45,11 @@ export class CreateDocumentTypeDto {
   isActive?: boolean;
 }
 
-export class UpdateDocumentTypeDto extends PartialType(CreateDocumentTypeDto) {}
+export class UpdateDocumentTypeDto extends PartialType(CreateDocumentTypeDto) {
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Type(() => Number)
+  subtypeIdsToDelete?: number[];
+}

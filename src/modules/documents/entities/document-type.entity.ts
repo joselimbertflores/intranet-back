@@ -6,11 +6,13 @@ import {
   CreateDateColumn,
   BeforeInsert,
   BeforeUpdate,
+  Unique,
 } from 'typeorm';
 import { DocumentSubtype } from './document-subtype.entity';
 import { generateSlug } from 'src/helpers';
 
 @Entity('document_types')
+@Unique('uq_document_types_slug', ['slug'])
 export class DocumentType {
   @PrimaryGeneratedColumn()
   id: number;
@@ -18,7 +20,7 @@ export class DocumentType {
   @Column({ length: 100 })
   name: string;
 
-  @Column({ length: 100, unique: true })
+  @Column({ length: 100 })
   slug: string;
 
   @Column({ default: true })

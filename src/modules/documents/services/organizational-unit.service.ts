@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
 import { CreateOrganizationalUnitDto, UpdateOrganizationalUnitDto } from '../dtos';
-import { OrganizationalUnit } from '../entities/organizational-unit.entity';
+import { DocumentRecord, OrganizationalUnit } from '../entities';
 import { OrganizationalUnitTreeNode } from '../interfaces';
 
 @Injectable()
@@ -11,6 +11,8 @@ export class OrganizationalUnitService {
   constructor(
     @InjectRepository(OrganizationalUnit)
     private readonly organizationalUnitRepository: Repository<OrganizationalUnit>,
+    @InjectRepository(DocumentRecord)
+    private readonly documentRepository: Repository<DocumentRecord>,
   ) {}
 
   async create(dto: CreateOrganizationalUnitDto) {
@@ -40,6 +42,31 @@ export class OrganizationalUnitService {
     Object.assign(organizationalUnit, dto);
 
     return this.organizationalUnitRepository.save(organizationalUnit);
+  }
+
+  async remove(id: string) {
+    const organizationalUnitExists = await this.organizationalUnitRepository.exists({ where: { id } });
+    if (!organizationalUnitExists) {
+      throw new NotFoundException('La unidad organizacional no existe.');
+    }
+
+    await this.assertOrganizationalUnitHasNoDependencies(id);
+
+    try {
+      const result = await this.organizationalUnitRepository.delete({ id });
+      if ((result.affected ?? 0) === 0) {
+        throw new NotFoundException('La unidad organizacional no existe.');
+      }
+      return { ok: true, message: 'Unidad organizacional eliminada correctamente.' };
+    } catch (error: unknown) {
+      if (this.isForeignKeyViolation(error)) {
+        await this.assertOrganizationalUnitHasNoDependencies(id);
+        throw new ConflictException(
+          'No se puede eliminar la unidad organizacional porque está asignada a documentos o tiene unidades hijas.',
+        );
+      }
+      throw error;
+    }
   }
 
   async getTree(params?: { onlyActive?: boolean }) {
@@ -112,5 +139,21 @@ export class OrganizationalUnitService {
     }
 
     return roots;
+  }
+
+  private async assertOrganizationalUnitHasNoDependencies(id: string): Promise<void> {
+    const isAssignedToDocuments = await this.documentRepository.exists({ where: { organizationalUnitId: id } });
+    if (isAssignedToDocuments) {
+      throw new ConflictException('No se puede eliminar la unidad organizacional porque está asignada a documentos.');
+    }
+
+    const hasChildren = await this.organizationalUnitRepository.exists({ where: { parentId: id } });
+    if (hasChildren) {
+      throw new ConflictException('No se puede eliminar la unidad organizacional porque tiene unidades hijas.');
+    }
+  }
+
+  private isForeignKeyViolation(error: unknown): boolean {
+    return error instanceof QueryFailedError && (error.driverError as { code?: string }).code === '23503';
   }
 }

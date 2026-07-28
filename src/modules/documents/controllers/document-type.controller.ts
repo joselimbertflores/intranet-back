@@ -25,8 +25,8 @@ export class DocumentTypeController {
     return this.documentTypeService.update(+id, body);
   }
 
-  @Delete('subtype/:id')
-  removeSubtype(@Param('id') id: string) {
-    return this.documentTypeService.removeSubtype(+id);
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.documentTypeService.remove(+id);
   }
 }

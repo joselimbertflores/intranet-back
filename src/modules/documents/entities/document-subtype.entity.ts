@@ -13,7 +13,7 @@ import { DocumentType } from './document-type.entity';
 import { generateSlug } from 'src/helpers';
 
 @Entity('document_subtypes')
-@Unique(['documentType', 'slug'])
+@Unique('uq_document_subtypes_type_slug', ['documentType', 'slug'])
 export class DocumentSubtype {
   @PrimaryGeneratedColumn()
   id: number;

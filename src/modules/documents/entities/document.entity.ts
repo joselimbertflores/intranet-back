@@ -2,6 +2,7 @@ import {
   Column,
   Entity,
   ManyToOne,
+  OneToOne,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -19,6 +20,11 @@ export enum DocumentStatus {
   INACTIVE = 'INACTIVE',
 }
 
+export enum DocumentValidityStatus {
+  CURRENT = 'CURRENT',
+  HISTORICAL = 'HISTORICAL',
+}
+
 @Entity('documents')
 export class DocumentRecord {
   @PrimaryGeneratedColumn('uuid')
@@ -29,6 +35,15 @@ export class DocumentRecord {
 
   @Column({ type: 'int', nullable: true })
   year: number | null;
+
+  @Column({
+    name: 'validity_status',
+    type: 'enum',
+    enum: DocumentValidityStatus,
+    nullable: false,
+    default: DocumentValidityStatus.CURRENT,
+  })
+  validityStatus: DocumentValidityStatus;
 
   @Column({ type: 'integer', default: 0 })
   downloadCount: number;
@@ -45,16 +60,16 @@ export class DocumentRecord {
 
   @ManyToOne(() => DocumentType, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'document_type_id' })
-  documentType: DocumentType;
+  type: DocumentType;
 
   @Column({ name: 'document_subtype_id', type: 'int', nullable: true })
   documentSubtypeId: number | null;
 
   @ManyToOne(() => DocumentSubtype, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'document_subtype_id' })
-  documentSubtype: DocumentSubtype | null;
+  subtype: DocumentSubtype | null;
 
-  @ManyToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })
+  @OneToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'file_id' })
   file: StoredFile;
 

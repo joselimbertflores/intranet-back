@@ -23,16 +23,16 @@ export class DocumentDownloadService {
       },
       relations: {
         file: true,
-        documentType: true,
-        documentSubtype: true,
+        type: true,
+        subtype: true,
       },
     });
 
     const isVisible =
       document &&
       document.file.status === FileStatus.ACTIVE &&
-      document.documentType.isActive &&
-      (!document.documentSubtype || document.documentSubtype.isActive);
+      document.type.isActive &&
+      (!document.subtype || document.subtype.isActive);
 
     if (!isVisible) throw new NotFoundException('Document not found');
 

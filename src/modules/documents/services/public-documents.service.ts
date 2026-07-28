@@ -76,8 +76,8 @@ export class PublicDocumentsService {
     if (organizationalUnitIds.length > 0) {
       query.andWhere('organizational_unit.id IN (:...organizationalUnitIds)', { organizationalUnitIds });
     }
-    if (documentTypeId) query.andWhere('document_type.id = :documentTypeId', { documentTypeId });
-    if (documentSubtypeId) query.andWhere('document_subtype.id = :documentSubtypeId', { documentSubtypeId });
+    if (documentTypeId) query.andWhere('type.id = :documentTypeId', { documentTypeId });
+    if (documentSubtypeId) query.andWhere('subtype.id = :documentSubtypeId', { documentSubtypeId });
     if (year) query.andWhere('document.year = :year', { year });
 
     const [documents, total] = await query
@@ -146,19 +146,19 @@ export class PublicDocumentsService {
       filters.organizationalUnitId = matchingOrganizationalUnits[0].id;
     }
 
-    if (dto.documentType) {
+    if (dto.type) {
       const type = await this.documentTypeRepository.findOne({
-        where: { slug: dto.documentType, isActive: true },
+        where: { slug: dto.type, isActive: true },
         select: { id: true },
       });
       if (!type) return null;
       filters.documentTypeId = type.id;
     }
 
-    if (dto.documentSubtype) {
+    if (dto.subtype) {
       const matchingSubtypes = await this.documentSubtypeRepository.find({
         where: {
-          slug: dto.documentSubtype,
+          slug: dto.subtype,
           isActive: true,
           documentType: {
             isActive: true,
@@ -182,11 +182,11 @@ export class PublicDocumentsService {
     return this.documentRepository
       .createQueryBuilder('document')
       .innerJoinAndSelect('document.file', 'file', 'file.status = :fileStatus', { fileStatus: FileStatus.ACTIVE })
-      .innerJoinAndSelect('document.documentType', 'document_type', 'document_type.isActive = true')
-      .leftJoinAndSelect('document.documentSubtype', 'document_subtype')
+      .innerJoinAndSelect('document.type', 'type', 'type.isActive = true')
+      .leftJoinAndSelect('document.subtype', 'subtype')
       .leftJoinAndSelect('document.organizationalUnit', 'organizational_unit')
       .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE })
-      .andWhere('(document.documentSubtypeId IS NULL OR document_subtype.isActive = true)');
+      .andWhere('(document.documentSubtypeId IS NULL OR subtype.isActive = true)');
   }
 
   private mapToPublicDocuments(documents: DocumentRecord[]) {
@@ -195,8 +195,8 @@ export class PublicDocumentsService {
       title: document.title,
       year: document.year,
       organizationalUnit: document.organizationalUnit?.name ?? null,
-      documentType: document.documentType.name,
-      documentSubtype: document.documentSubtype?.name,
+      type: document.type.name,
+      subtype: document.subtype?.name,
       downloadCount: document.downloadCount ?? 0,
       file: {
         name: document.file.originalName,
