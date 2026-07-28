@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
 import { DocumentsService, DocumentTypeService, OrganizationalUnitService } from '../services';
 import { CreateDocumentBatchDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
@@ -29,6 +29,11 @@ export class DocumentController {
     return this.documentsService.update(id, body);
   }
 
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.documentsService.remove(id);
+  }
+
   @Get('organizational-units/tree')
   getOrganizationalUnits() {
     return this.organizationalUnitService.getTree({ onlyActive: true });
@@ -37,10 +42,5 @@ export class DocumentController {
   @Get('types')
   getDocumentTypes() {
     return this.documentTypeService.getActiveDocumentTypesWithSubtypes();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.documentsService.findOne(id);
   }
 }

@@ -47,17 +47,6 @@ export class DocumentsService {
     return { documents: documents.map((document) => this.mapToAdminResponse(document)), total };
   }
 
-  async findOne(id: string) {
-    const document = await this.documentRepository.findOne({
-      where: { id },
-      relations: { organizationalUnit: true, documentType: true, documentSubtype: true, file: { derivedFiles: true } },
-    });
-
-    if (!document) throw new NotFoundException(`Document ${id} not found`);
-
-    return this.mapToAdminResponse(document);
-  }
-
   async createBatch(dto: CreateDocumentBatchDto, currentUser: User) {
     const { organizationalUnitId, documentTypeId, documentSubtypeId, documents, year } = dto;
 
@@ -150,6 +139,25 @@ export class DocumentsService {
       const savedDocument = await manager.save(document);
       return this.mapToAdminResponse(savedDocument);
     });
+  }
+
+  async remove(id: string) {
+    await this.dataSource.transaction(async (manager) => {
+      const document = await manager.findOne(DocumentRecord, {
+        where: { id },
+        relations: {
+          file: true,
+        },
+      });
+
+      if (!document) {
+        throw new NotFoundException('Document not found');
+      }
+
+      await this.filesService.markActiveFileAsOrphaned(document.file.id, manager);
+      await manager.remove(document);
+    });
+    return { message: 'Document deleted success' };
   }
 
   private async getActiveOrganizationalUnitOrFail(id: string) {
