@@ -13,11 +13,11 @@ import { User } from 'src/modules/users/entities';
 @Injectable()
 export class DocumentsService {
   constructor(
-    @InjectRepository(DocumentType) private readonly documentTypeRepository: Repository<DocumentType>,
+    @InjectRepository(DocumentType) private readonly typeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private readonly documentRepository: Repository<DocumentRecord>,
     @InjectRepository(OrganizationalUnit)
     private readonly organizationalUnitRepository: Repository<OrganizationalUnit>,
-    @InjectRepository(DocumentSubtype) private readonly documentSubtypeRepository: Repository<DocumentSubtype>,
+    @InjectRepository(DocumentSubtype) private readonly subtypeRepository: Repository<DocumentSubtype>,
     private readonly organizationalUnitService: OrganizationalUnitService,
     private readonly filesService: FilesService,
     private readonly dataSource: DataSource,
@@ -32,8 +32,8 @@ export class DocumentsService {
     const where: FindOptionsWhere<DocumentRecord> = {
       ...(term && { title: ILike(`%${term}%`) }),
       ...(organizationalUnitIds?.length && { organizationalUnit: { id: In(organizationalUnitIds) } }),
-      ...(docFilters.documentTypeId && { type: { id: docFilters.documentTypeId } }),
-      ...(docFilters.documentSubtypeId && { subtype: { id: docFilters.documentSubtypeId } }),
+      ...(docFilters.typeId && { type: { id: docFilters.typeId } }),
+      ...(docFilters.subtypeId && { subtype: { id: docFilters.subtypeId } }),
       ...(docFilters.year && { year: docFilters.year }),
       ...(docFilters.status && { status: docFilters.status }),
       ...(docFilters.validityStatus && { validityStatus: docFilters.validityStatus }),
@@ -51,8 +51,8 @@ export class DocumentsService {
   async createBatch(dto: CreateDocumentBatchDto, currentUser: User) {
     const {
       organizationalUnitId,
-      documentTypeId,
-      documentSubtypeId,
+      typeId,
+      subtypeId,
       documents,
       year,
       validityStatus = DocumentValidityStatus.CURRENT,
@@ -62,12 +62,12 @@ export class DocumentsService {
     const uniqueFileIds = new Set(fileIds);
 
     if (uniqueFileIds.size !== fileIds.length) {
-      throw new BadRequestException('Duplicate files are not allowed in the same batch');
+      throw new BadRequestException('Duplicate files are not allowed in the same batch.');
     }
 
     const [organizationalUnit, { type, subtype }] = await Promise.all([
       organizationalUnitId == null ? null : this.getActiveOrganizationalUnitOrFail(organizationalUnitId),
-      this.resolveActiveDocumentClassificationOrFail(documentTypeId, documentSubtypeId),
+      this.resolveActiveDocumentClassificationOrFail(typeId, subtypeId),
     ]);
 
     return this.dataSource.transaction(async (manager) => {
@@ -93,7 +93,7 @@ export class DocumentsService {
   }
 
   async update(id: string, dto: UpdateDocumentDto) {
-    const { fileId, organizationalUnitId, documentTypeId, documentSubtypeId, validityStatus, ...toUpdate } = dto;
+    const { fileId, organizationalUnitId, typeId, subtypeId, validityStatus, ...toUpdate } = dto;
 
     const document = await this.documentRepository.findOne({
       where: { id },
@@ -105,7 +105,7 @@ export class DocumentsService {
       },
     });
 
-    if (!document) throw new NotFoundException(`Document ${id} not found`);
+    if (!document) throw new NotFoundException('Document not found.');
 
     Object.assign(document, toUpdate);
 
@@ -121,15 +121,14 @@ export class DocumentsService {
         organizationalUnitId === null ? null : await this.getActiveOrganizationalUnitOrFail(organizationalUnitId);
     }
 
-    const typeChanged = documentTypeId !== undefined && documentTypeId !== document.documentTypeId;
+    const typeChanged = typeId !== undefined && typeId !== document.typeId;
 
-    const subtypeChanged = documentSubtypeId !== undefined && documentSubtypeId !== document.documentSubtypeId;
+    const subtypeChanged = subtypeId !== undefined && subtypeId !== document.subtypeId;
 
     if (typeChanged || subtypeChanged) {
-      const nextTypeId = documentTypeId ?? document.type.id;
+      const nextTypeId = typeId ?? document.type.id;
 
-      const nextSubtypeId =
-        documentSubtypeId !== undefined ? documentSubtypeId : typeChanged ? null : document.documentSubtypeId;
+      const nextSubtypeId = subtypeId !== undefined ? subtypeId : typeChanged ? null : document.subtypeId;
 
       const { type, subtype } = await this.resolveActiveDocumentClassificationOrFail(nextTypeId, nextSubtypeId);
       document.type = type;
@@ -161,7 +160,7 @@ export class DocumentsService {
       });
 
       if (!document) {
-        throw new NotFoundException('Document not found');
+        throw new NotFoundException('Document not found.');
       }
 
       await this.filesService.markActiveFileAsOrphaned(document.file.id, manager);
@@ -170,29 +169,31 @@ export class DocumentsService {
     return { message: 'Document deleted success' };
   }
 
-  private async getActiveOrganizationalUnitOrFail(id: string) {
+  private async getActiveOrganizationalUnitOrFail(id: number) {
     const organizationalUnit = await this.organizationalUnitRepository.findOneBy({ id, isActive: true });
-    if (!organizationalUnit) throw new BadRequestException(`Organizational unit ${id} not found or inactive`);
+    if (!organizationalUnit) throw new BadRequestException('Organizational unit not found or inactive.');
     return organizationalUnit;
   }
 
   private async resolveActiveDocumentClassificationOrFail(typeId: number, subtypeId?: number | null) {
-    const type = await this.documentTypeRepository.findOneBy({ id: typeId, isActive: true });
-    if (!type) throw new BadRequestException(`Document type ${typeId} not found or inactive`);
+    const type = await this.typeRepository.findOneBy({ id: typeId, isActive: true });
+    if (!type) throw new BadRequestException('Document type not found or inactive.');
 
     let subtype: DocumentSubtype | null = null;
 
     if (subtypeId !== undefined && subtypeId !== null) {
-      subtype = await this.documentSubtypeRepository.findOne({
+      subtype = await this.subtypeRepository.findOne({
         where: {
           id: subtypeId,
           isActive: true,
-          documentTypeId: typeId,
+          typeId,
         },
       });
 
       if (!subtype) {
-        throw new BadRequestException(`subtype ${subtypeId} not found, inactive or does not belong to type ${typeId}`);
+        throw new BadRequestException(
+          'The selected subtype was not found, is inactive, or does not belong to the selected type.',
+        );
       }
     }
     return { type, subtype };

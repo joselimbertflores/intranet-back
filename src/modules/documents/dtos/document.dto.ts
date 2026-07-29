@@ -23,18 +23,19 @@ export class CreateDocumentBatchItemDto {
 }
 
 export class CreateDocumentBatchDto {
-  @IsUUID()
-  @IsOptional()
-  organizationalUnitId?: string | null;
-
-  @IsInt()
-  @Type(() => Number)
-  documentTypeId: number;
-
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  documentSubtypeId?: number;
+  organizationalUnitId?: number | null;
+
+  @IsInt()
+  @Type(() => Number)
+  typeId: number;
+
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  subtypeId?: number;
 
   @IsInt()
   @IsOptional()
@@ -66,19 +67,20 @@ export class UpdateDocumentDto {
   @Type(() => Number)
   year?: number | null;
 
-  @IsUUID()
+  @IsInt()
+  @Type(() => Number)
   @IsOptional()
-  organizationalUnitId?: string | null;
+  organizationalUnitId?: number | null;
 
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  documentTypeId?: number;
+  typeId?: number;
 
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  documentSubtypeId?: number | null;
+  subtypeId?: number | null;
 
   @IsEnum(DocumentStatus)
   @IsOptional()
@@ -90,19 +92,20 @@ export class UpdateDocumentDto {
 }
 
 export class FilterDocumentsDto extends PaginationParamsDto {
-  @IsUUID()
+  @IsInt()
+  @Type(() => Number)
   @IsOptional()
-  organizationalUnitId?: string;
+  organizationalUnitId?: number;
 
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  documentTypeId?: number;
+  typeId?: number;
 
   @IsInt()
   @Type(() => Number)
   @IsOptional()
-  documentSubtypeId?: number;
+  subtypeId?: number;
 
   @IsInt()
   @Type(() => Number)

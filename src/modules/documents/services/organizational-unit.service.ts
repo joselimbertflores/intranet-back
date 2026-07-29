@@ -21,7 +21,7 @@ export class OrganizationalUnitService {
 
     if (parentId) {
       parent = await this.organizationalUnitRepository.findOne({ where: { id: parentId, isActive: true } });
-      if (!parent) throw new NotFoundException('Parent organizational unit not found or inactive');
+      if (!parent) throw new NotFoundException('Parent organizational unit not found or inactive.');
     }
 
     const organizationalUnit = this.organizationalUnitRepository.create({
@@ -32,11 +32,11 @@ export class OrganizationalUnitService {
     return this.organizationalUnitRepository.save(organizationalUnit);
   }
 
-  async update(id: string, dto: UpdateOrganizationalUnitDto) {
+  async update(id: number, dto: UpdateOrganizationalUnitDto) {
     const organizationalUnit = await this.organizationalUnitRepository.findOneBy({ id });
 
     if (!organizationalUnit) {
-      throw new NotFoundException('Organizational unit not found');
+      throw new NotFoundException('Organizational unit not found.');
     }
 
     Object.assign(organizationalUnit, dto);
@@ -44,31 +44,27 @@ export class OrganizationalUnitService {
     return this.organizationalUnitRepository.save(organizationalUnit);
   }
 
-  async remove(id: string) {
-    const organizationalUnitExists = await this.organizationalUnitRepository.exists({ where: { id } });
-    if (!organizationalUnitExists) {
-      throw new NotFoundException('La unidad organizacional no existe.');
+  async remove(id: number) {
+    const unit = await this.organizationalUnitRepository.findOneBy({ id });
+
+    if (!unit) throw new NotFoundException('Organizational unit not found.');
+
+    const [isAssignedToDocuments, hasChildren] = await Promise.all([
+      this.documentRepository.exists({ where: { organizationalUnit: { id } } }),
+      this.organizationalUnitRepository.exists({ where: { parent: { id } } }),
+    ]);
+
+    if (isAssignedToDocuments) {
+      throw new ConflictException('The organizational unit cannot be deleted because it is assigned to documents.');
     }
 
-    await this.assertOrganizationalUnitHasNoDependencies(id);
-
-    try {
-      const result = await this.organizationalUnitRepository.delete({ id });
-      if ((result.affected ?? 0) === 0) {
-        throw new NotFoundException('La unidad organizacional no existe.');
-      }
-      return { ok: true, message: 'Unidad organizacional eliminada correctamente.' };
-    } catch (error: unknown) {
-      if (this.isForeignKeyViolation(error)) {
-        await this.assertOrganizationalUnitHasNoDependencies(id);
-        throw new ConflictException(
-          'No se puede eliminar la unidad organizacional porque está asignada a documentos o tiene unidades hijas.',
-        );
-      }
-      throw error;
+    if (hasChildren) {
+      throw new ConflictException('The organizational unit cannot be deleted because it has child units.');
     }
+
+    await this.organizationalUnitRepository.remove(unit);
   }
-
+  
   async getTree(params?: { onlyActive?: boolean }) {
     const organizationalUnits = await this.organizationalUnitRepository.find({
       ...(params?.onlyActive && { where: { isActive: true } }),
@@ -79,7 +75,7 @@ export class OrganizationalUnitService {
     return this.buildTree(organizationalUnits);
   }
 
-  async getOrganizationalUnitAndDescendantIds(id: string): Promise<string[]> {
+  async getOrganizationalUnitAndDescendantIds(id: number): Promise<number[]> {
     const organizationalUnits = await this.organizationalUnitRepository.find({
       select: {
         id: true,
@@ -88,10 +84,10 @@ export class OrganizationalUnitService {
     });
 
     if (!organizationalUnits.some((organizationalUnit) => organizationalUnit.id === id)) {
-      throw new NotFoundException('La unidad organizacional no existe.');
+      throw new NotFoundException('Organizational unit not found.');
     }
 
-    const childIdsByParentId = new Map<string, string[]>();
+    const childIdsByParentId = new Map<number, number[]>();
     for (const organizationalUnit of organizationalUnits) {
       if (organizationalUnit.parentId) {
         const childIds = childIdsByParentId.get(organizationalUnit.parentId) ?? [];
@@ -100,7 +96,7 @@ export class OrganizationalUnitService {
       }
     }
 
-    const descendantIds: string[] = [];
+    const descendantIds: number[] = [];
     const pendingIds = [id];
 
     while (pendingIds.length > 0) {
@@ -113,7 +109,7 @@ export class OrganizationalUnitService {
   }
 
   private buildTree(organizationalUnits: OrganizationalUnit[]): OrganizationalUnitTreeNode[] {
-    const map = new Map<string, OrganizationalUnitTreeNode>();
+    const map = new Map<number, OrganizationalUnitTreeNode>();
     const roots: OrganizationalUnitTreeNode[] = [];
 
     for (const organizationalUnit of organizationalUnits) {
@@ -139,21 +135,5 @@ export class OrganizationalUnitService {
     }
 
     return roots;
-  }
-
-  private async assertOrganizationalUnitHasNoDependencies(id: string): Promise<void> {
-    const isAssignedToDocuments = await this.documentRepository.exists({ where: { organizationalUnitId: id } });
-    if (isAssignedToDocuments) {
-      throw new ConflictException('No se puede eliminar la unidad organizacional porque está asignada a documentos.');
-    }
-
-    const hasChildren = await this.organizationalUnitRepository.exists({ where: { parentId: id } });
-    if (hasChildren) {
-      throw new ConflictException('No se puede eliminar la unidad organizacional porque tiene unidades hijas.');
-    }
-  }
-
-  private isForeignKeyViolation(error: unknown): boolean {
-    return error instanceof QueryFailedError && (error.driverError as { code?: string }).code === '23503';
   }
 }

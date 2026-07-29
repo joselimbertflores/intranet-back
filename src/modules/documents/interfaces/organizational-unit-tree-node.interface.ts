@@ -1,8 +1,8 @@
 export interface OrganizationalUnitTreeNode {
-  id: string;
+  id: number;
   name: string;
   slug: string;
   isActive: boolean;
-  parentId: string | null;
+  parentId: number | null;
   children: OrganizationalUnitTreeNode[];
 }

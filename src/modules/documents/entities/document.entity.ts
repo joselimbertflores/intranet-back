@@ -48,25 +48,25 @@ export class DocumentRecord {
   @Column({ type: 'integer', default: 0 })
   downloadCount: number;
 
-  @Column({ name: 'organizational_unit_id', type: 'uuid', nullable: true })
-  organizationalUnitId: string | null;
+  @Column({ name: 'organizational_unit_id', type: 'int', nullable: true })
+  organizationalUnitId: number | null;
 
   @ManyToOne(() => OrganizationalUnit, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'organizational_unit_id' })
   organizationalUnit: OrganizationalUnit | null;
 
-  @Column({ name: 'document_type_id', type: 'int' })
-  documentTypeId: number;
+  @Column({ name: 'type_id', type: 'int' })
+  typeId: number;
 
   @ManyToOne(() => DocumentType, { nullable: false, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'document_type_id' })
+  @JoinColumn({ name: 'type_id' })
   type: DocumentType;
 
-  @Column({ name: 'document_subtype_id', type: 'int', nullable: true })
-  documentSubtypeId: number | null;
+  @Column({ name: 'subtype_id', type: 'int', nullable: true })
+  subtypeId: number | null;
 
   @ManyToOne(() => DocumentSubtype, { nullable: true, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'document_subtype_id' })
+  @JoinColumn({ name: 'subtype_id' })
   subtype: DocumentSubtype | null;
 
   @OneToOne(() => StoredFile, { nullable: false, onDelete: 'RESTRICT' })

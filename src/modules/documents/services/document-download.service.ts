@@ -34,7 +34,7 @@ export class DocumentDownloadService {
       document.type.isActive &&
       (!document.subtype || document.subtype.isActive);
 
-    if (!isVisible) throw new NotFoundException('Document not found');
+    if (!isVisible) throw new NotFoundException('Document not found.');
 
     const result = await this.filesService.getActiveFileStream(document.file.id);
 

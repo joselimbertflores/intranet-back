@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 
 import { DocumentsService, DocumentTypeService, OrganizationalUnitService } from '../services';
 import { CreateDocumentBatchDto, FilterDocumentsDto, UpdateDocumentDto } from '../dtos';
@@ -10,7 +22,7 @@ import { Resource, User } from 'src/modules/users/entities';
 export class DocumentController {
   constructor(
     private readonly organizationalUnitService: OrganizationalUnitService,
-    private readonly documentTypeService: DocumentTypeService,
+    private readonly typeService: DocumentTypeService,
     private readonly documentsService: DocumentsService,
   ) {}
 
@@ -30,7 +42,8 @@ export class DocumentController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.documentsService.remove(id);
   }
 
@@ -40,7 +53,7 @@ export class DocumentController {
   }
 
   @Get('types')
-  getDocumentTypes() {
-    return this.documentTypeService.getActiveDocumentTypesWithSubtypes();
+  getTypes() {
+    return this.typeService.getActiveTypesWithSubtypes();
   }
 }

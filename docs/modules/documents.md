@@ -6,9 +6,13 @@
 
 Cada documento tiene un tipo, puede tener un subtipo y puede clasificarse en una unidad organizacional.
 
+La nomenclatura del contrato usa `typeId` y `subtypeId` en DTOs de escritura y filtros. Las respuestas exponen
+las relaciones como `type` y `subtype`. En la tabla `documents`, las claves foráneas correspondientes son
+`type_id` y `subtype_id`.
+
 La unidad organizacional es opcional:
 
-- `organizationalUnitId` con un UUID asigna el documento a esa unidad.
+- `organizationalUnitId` con un ID numérico asigna el documento a esa unidad.
 - `organizationalUnitId: null` identifica un documento institucional o transversal, sin una unidad específica.
 - En creación, omitir `organizationalUnitId` equivale a enviar `null`.
 - En actualización, omitir la propiedad conserva el valor actual; enviar `null` retira la unidad.

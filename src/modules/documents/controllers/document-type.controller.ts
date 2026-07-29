@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CreateDocumentTypeDto, UpdateDocumentTypeDto } from '../dtos';
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { DocumentTypeService } from '../services';
@@ -8,25 +20,26 @@ import { PaginationParamsDto } from 'src/common/dtos';
 @ProtectedResource(Resource.DOCUMENTS)
 @Controller('document-types')
 export class DocumentTypeController {
-  constructor(private readonly documentTypeService: DocumentTypeService) {}
+  constructor(private readonly typeService: DocumentTypeService) {}
 
   @Get()
   findAll(@Query() queryParams: PaginationParamsDto) {
-    return this.documentTypeService.findAll(queryParams);
+    return this.typeService.findAll(queryParams);
   }
 
   @Post()
   create(@Body() body: CreateDocumentTypeDto) {
-    return this.documentTypeService.create(body);
+    return this.typeService.create(body);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() body: UpdateDocumentTypeDto) {
-    return this.documentTypeService.update(+id, body);
+    return this.typeService.update(+id, body);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.documentTypeService.remove(+id);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.typeService.remove(id);
   }
 }

@@ -11,19 +11,19 @@ import { EnvironmentVariables } from 'src/config';
 import { OrganizationalUnitService } from './organizational-unit.service';
 
 export interface PortalOrganizationalUnit {
-  id: string;
+  id: number;
   name: string;
   slug: string;
   children: PortalOrganizationalUnit[];
-  parentId: string | null;
+  parentId: number | null;
 }
 
 @Injectable()
 export class PublicDocumentsService {
   constructor(
-    @InjectRepository(DocumentType) private readonly documentTypeRepository: Repository<DocumentType>,
+    @InjectRepository(DocumentType) private readonly typeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private readonly documentRepository: Repository<DocumentRecord>,
-    @InjectRepository(DocumentSubtype) private readonly documentSubtypeRepository: Repository<DocumentSubtype>,
+    @InjectRepository(DocumentSubtype) private readonly subtypeRepository: Repository<DocumentSubtype>,
     @InjectRepository(OrganizationalUnit)
     private readonly organizationalUnitRepository: Repository<OrganizationalUnit>,
     private readonly organizationalUnitService: OrganizationalUnitService,
@@ -38,8 +38,8 @@ export class PublicDocumentsService {
     return this.buildOrganizationalUnitTree(organizationalUnits);
   }
 
-  async getActiveDocumentTypes() {
-    const types = await this.documentTypeRepository.find({
+  async getActiveTypes() {
+    const types = await this.typeRepository.find({
       where: { isActive: true },
       relations: { subtypes: true },
     });
@@ -65,7 +65,7 @@ export class PublicDocumentsService {
       return { documents: [], total: 0 };
     }
 
-    const { organizationalUnitId, documentTypeId, documentSubtypeId, year } = filters;
+    const { organizationalUnitId, typeId, subtypeId, year } = filters;
     const organizationalUnitIds = organizationalUnitId
       ? await this.organizationalUnitService.getOrganizationalUnitAndDescendantIds(organizationalUnitId)
       : [];
@@ -76,8 +76,8 @@ export class PublicDocumentsService {
     if (organizationalUnitIds.length > 0) {
       query.andWhere('organizational_unit.id IN (:...organizationalUnitIds)', { organizationalUnitIds });
     }
-    if (documentTypeId) query.andWhere('type.id = :documentTypeId', { documentTypeId });
-    if (documentSubtypeId) query.andWhere('subtype.id = :documentSubtypeId', { documentSubtypeId });
+    if (typeId) query.andWhere('type.id = :typeId', { typeId });
+    if (subtypeId) query.andWhere('subtype.id = :subtypeId', { subtypeId });
     if (year) query.andWhere('document.year = :year', { year });
 
     const [documents, total] = await query
@@ -101,7 +101,7 @@ export class PublicDocumentsService {
   }
 
   private buildOrganizationalUnitTree(organizationalUnits: OrganizationalUnit[]): PortalOrganizationalUnit[] {
-    const map = new Map<string, PortalOrganizationalUnit>();
+    const map = new Map<number, PortalOrganizationalUnit>();
     const roots: PortalOrganizationalUnit[] = [];
 
     for (const organizationalUnit of organizationalUnits) {
@@ -130,9 +130,9 @@ export class PublicDocumentsService {
 
   private async resolveFilters(dto: SearchPublicDocumentsDto) {
     const filters: {
-      organizationalUnitId?: string;
-      documentTypeId?: number;
-      documentSubtypeId?: number;
+      organizationalUnitId?: number;
+      typeId?: number;
+      subtypeId?: number;
       year?: number;
     } = {};
 
@@ -147,30 +147,30 @@ export class PublicDocumentsService {
     }
 
     if (dto.type) {
-      const type = await this.documentTypeRepository.findOne({
+      const type = await this.typeRepository.findOne({
         where: { slug: dto.type, isActive: true },
         select: { id: true },
       });
       if (!type) return null;
-      filters.documentTypeId = type.id;
+      filters.typeId = type.id;
     }
 
     if (dto.subtype) {
-      const matchingSubtypes = await this.documentSubtypeRepository.find({
+      const matchingSubtypes = await this.subtypeRepository.find({
         where: {
           slug: dto.subtype,
           isActive: true,
-          documentType: {
+          type: {
             isActive: true,
-            ...(filters.documentTypeId && { id: filters.documentTypeId }),
+            ...(filters.typeId && { id: filters.typeId }),
           },
         },
-        relations: { documentType: true },
+        relations: { type: true },
         select: { id: true },
-        take: filters.documentTypeId ? 1 : 2,
+        take: filters.typeId ? 1 : 2,
       });
       if (matchingSubtypes.length !== 1) return null;
-      filters.documentSubtypeId = matchingSubtypes[0].id;
+      filters.subtypeId = matchingSubtypes[0].id;
     }
 
     if (dto.year) filters.year = dto.year;
@@ -186,7 +186,7 @@ export class PublicDocumentsService {
       .leftJoinAndSelect('document.subtype', 'subtype')
       .leftJoinAndSelect('document.organizationalUnit', 'organizational_unit')
       .where('document.status = :documentStatus', { documentStatus: DocumentStatus.ACTIVE })
-      .andWhere('(document.documentSubtypeId IS NULL OR subtype.isActive = true)');
+      .andWhere('(document.subtypeId IS NULL OR subtype.isActive = true)');
   }
 
   private mapToPublicDocuments(documents: DocumentRecord[]) {

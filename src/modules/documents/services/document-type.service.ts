@@ -21,15 +21,15 @@ type PostgresDriverError = {
 @Injectable()
 export class DocumentTypeService {
   constructor(
-    @InjectRepository(DocumentType) private readonly documentTypeRepository: Repository<DocumentType>,
+    @InjectRepository(DocumentType) private readonly typeRepository: Repository<DocumentType>,
     @InjectRepository(DocumentRecord) private readonly documentRepository: Repository<DocumentRecord>,
-    @InjectRepository(DocumentSubtype) private readonly documentSubtypeRepository: Repository<DocumentSubtype>,
+    @InjectRepository(DocumentSubtype) private readonly subtypeRepository: Repository<DocumentSubtype>,
   ) {}
 
   async findAll(params: PaginationParamsDto) {
     const { limit, offset, term } = params;
 
-    const [data, total] = await this.documentTypeRepository.findAndCount({
+    const [data, total] = await this.typeRepository.findAndCount({
       where: {
         ...(term && { name: ILike(`%${term}%`) }),
       },
@@ -46,11 +46,11 @@ export class DocumentTypeService {
   async create(dto: CreateDocumentTypeDto) {
     try {
       const { subtypes, ...props } = dto;
-      const model = this.documentTypeRepository.create({
+      const model = this.typeRepository.create({
         ...props,
-        subtypes: subtypes?.length ? subtypes.map((subtype) => this.documentSubtypeRepository.create(subtype)) : [],
+        subtypes: subtypes?.length ? subtypes.map((subtype) => this.subtypeRepository.create(subtype)) : [],
       });
-      return await this.documentTypeRepository.save(model);
+      return await this.typeRepository.save(model);
     } catch (error: unknown) {
       this.handleModifyException(error);
     }
@@ -58,7 +58,7 @@ export class DocumentTypeService {
 
   async update(id: number, dto: UpdateDocumentTypeDto) {
     try {
-      return await this.documentTypeRepository.manager.transaction(async (manager) => {
+      return await this.typeRepository.manager.transaction(async (manager) => {
         const typeRepository = manager.getRepository(DocumentType);
         const subtypeRepository = manager.getRepository(DocumentSubtype);
         const documentRepository = manager.getRepository(DocumentRecord);
@@ -67,7 +67,7 @@ export class DocumentTypeService {
 
         const type = await typeRepository.findOne({ where: { id }, relations: { subtypes: true } });
 
-        if (!type) throw new NotFoundException(`Document type ${id} not found.`);
+        if (!type) throw new NotFoundException('Document type not found.');
 
         const existingSubtypes = new Map(type.subtypes.map((subtype) => [subtype.id, subtype]));
 
@@ -78,14 +78,12 @@ export class DocumentTypeService {
         const conflictingSubtypeId = subtypeIdsToDelete.find((subtypeId) => subtypeIdsToUpdate.has(subtypeId));
 
         if (conflictingSubtypeId) {
-          throw new BadRequestException(
-            `Document subtype ${conflictingSubtypeId} cannot be updated and deleted at the same time.`,
-          );
+          throw new BadRequestException('A document subtype cannot be updated and deleted at the same time.');
         }
 
         for (const subtypeId of subtypeIdsToDelete) {
           if (!existingSubtypes.has(subtypeId)) {
-            throw new NotFoundException(`Document subtype ${subtypeId} not found.`);
+            throw new NotFoundException('Document subtype not found.');
           }
         }
 
@@ -99,7 +97,7 @@ export class DocumentTypeService {
           });
 
           if (hasAssignedDocuments) {
-            throw new ConflictException('Subtypes cannot be deleted because they are assigned to documents.');
+            throw new ConflictException('Document subtypes cannot be deleted because they have associated documents.');
           }
 
           await subtypeRepository.delete(subtypeIdsToDelete);
@@ -110,7 +108,7 @@ export class DocumentTypeService {
         for (const subtypeDto of subtypes) {
           if (subtypeDto.id) {
             const existingSubtype = existingSubtypes.get(subtypeDto.id);
-            if (!existingSubtype) throw new NotFoundException(`Document subtype ${subtypeDto.id} not found.`);
+            if (!existingSubtype) throw new NotFoundException('Document subtype not found.');
             Object.assign(existingSubtype, subtypeDto);
             continue;
           }
@@ -125,32 +123,34 @@ export class DocumentTypeService {
     }
   }
 
-  async remove(id: number) {
-    const documentTypeExists = await this.documentTypeRepository.exists({ where: { id } });
-    if (!documentTypeExists) {
-      throw new NotFoundException('El tipo de documento no existe.');
+  async remove(id: number): Promise<void> {
+    const typeExists = await this.typeRepository.exists({ where: { id } });
+
+    if (!typeExists) {
+      throw new NotFoundException('Document type not found.');
     }
 
-    const isAssignedToDocuments = await this.documentRepository.exists({ where: { documentTypeId: id } });
+    const isAssignedToDocuments = await this.documentRepository.exists({
+      where: { typeId: id },
+    });
+
     if (isAssignedToDocuments) {
-      throw new ConflictException('No se puede eliminar el tipo de documento porque está asignado a documentos.');
+      throw new ConflictException('This document type cannot be deleted because it has associated documents.');
     }
 
-    const hasSubtypes = await this.documentSubtypeRepository.exists({ where: { documentTypeId: id } });
+    const hasSubtypes = await this.subtypeRepository.exists({
+      where: { typeId: id },
+    });
+
     if (hasSubtypes) {
-      throw new ConflictException('No se puede eliminar el tipo de documento porque tiene subtipos asociados.');
+      throw new ConflictException('This document type cannot be deleted because it has associated subtypes.');
     }
 
-    await this.documentTypeRepository.delete({ id });
-
-    return {
-      ok: true,
-      message: 'Document type deleted',
-    };
+    await this.typeRepository.delete({ id });
   }
 
-  async getActiveDocumentTypesWithSubtypes() {
-    const types = await this.documentTypeRepository.find({
+  async getActiveTypesWithSubtypes() {
+    const types = await this.typeRepository.find({
       where: { isActive: true },
       relations: { subtypes: true },
     });

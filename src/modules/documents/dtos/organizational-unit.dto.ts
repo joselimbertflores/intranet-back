@@ -1,5 +1,6 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
-import { IsBoolean, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateOrganizationalUnitDto {
   @IsString()
@@ -7,8 +8,9 @@ export class CreateOrganizationalUnitDto {
   name: string;
 
   @IsOptional()
-  @IsUUID()
-  parentId?: string;
+  @IsInt()
+  @Type(() => Number)
+  parentId?: number;
 
   @IsOptional()
   @IsBoolean()

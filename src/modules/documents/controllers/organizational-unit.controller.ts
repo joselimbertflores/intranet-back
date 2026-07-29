@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus, ParseIntPipe } from '@nestjs/common';
 
 import { OrganizationalUnitService } from '../services/organizational-unit.service';
 import { CreateOrganizationalUnitDto, UpdateOrganizationalUnitDto } from '../dtos';
@@ -22,12 +22,13 @@ export class OrganizationalUnitController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrganizationalUnitDto: UpdateOrganizationalUnitDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateOrganizationalUnitDto: UpdateOrganizationalUnitDto) {
     return this.organizationalUnitService.update(id, updateOrganizationalUnitDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseIntPipe) id: number) {
     return this.organizationalUnitService.remove(id);
   }
 }

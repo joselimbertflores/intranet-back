@@ -15,8 +15,8 @@ import { generateSlug } from 'src/helpers';
 
 @Entity('organizational_units')
 export class OrganizationalUnit {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ length: 150 })
   name: string;
@@ -24,8 +24,8 @@ export class OrganizationalUnit {
   @Column({ length: 150 })
   slug: string;
 
-  @Column({ name: 'parent_id', type: 'uuid', nullable: true })
-  parentId: string | null;
+  @Column({ name: 'parent_id', type: 'int', nullable: true })
+  parentId: number | null;
 
   @ManyToOne(() => OrganizationalUnit, (organizationalUnit) => organizationalUnit.children, {
     nullable: true,

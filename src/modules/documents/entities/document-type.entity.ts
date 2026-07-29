@@ -26,7 +26,7 @@ export class DocumentType {
   @Column({ default: true })
   isActive: boolean;
 
-  @OneToMany(() => DocumentSubtype, (subtype) => subtype.documentType, { cascade: ['insert', 'update'] })
+  @OneToMany(() => DocumentSubtype, (subtype) => subtype.type, { cascade: ['insert', 'update'] })
   subtypes: DocumentSubtype[];
 
   @CreateDateColumn()

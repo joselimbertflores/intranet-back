@@ -13,7 +13,7 @@ import { DocumentType } from './document-type.entity';
 import { generateSlug } from 'src/helpers';
 
 @Entity('document_subtypes')
-@Unique('uq_document_subtypes_type_slug', ['documentType', 'slug'])
+@Unique('uq_document_subtypes_type_slug', ['type', 'slug'])
 export class DocumentSubtype {
   @PrimaryGeneratedColumn()
   id: number;
@@ -27,15 +27,15 @@ export class DocumentSubtype {
   @Column({ default: true })
   isActive: boolean;
 
-  @ManyToOne(() => DocumentType, (documentType) => documentType.subtypes, {
+  @ManyToOne(() => DocumentType, (type) => type.subtypes, {
     nullable: false,
     onDelete: 'RESTRICT',
   })
-  @JoinColumn({ name: 'document_type_id' })
-  documentType: DocumentType;
+  @JoinColumn({ name: 'type_id' })
+  type: DocumentType;
 
-  @Column({ name: 'document_type_id' })
-  documentTypeId: number;
+  @Column({ name: 'type_id' })
+  typeId: number;
 
   @CreateDateColumn()
   createdAt: Date;
