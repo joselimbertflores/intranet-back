@@ -84,6 +84,7 @@ export class OAuthGuard implements CanActivate {
     try {
       payload = await this.tokenVerifierService.verifyAccessToken(accessToken);
     } catch (error) {
+      console.log(error);
       if (error instanceof AccessTokenVerificationError) {
         return { user: null, failure: error };
       }

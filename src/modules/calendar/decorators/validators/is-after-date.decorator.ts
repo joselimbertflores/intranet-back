@@ -22,7 +22,7 @@ export function IsAfterDate(property: string, validationOptions?: ValidationOpti
         },
         defaultMessage(args: ValidationArguments) {
           const [relatedPropertyName] = args.constraints as string[];
-          return `${args.property} debe ser posterior a ${relatedPropertyName}`;
+          return `${args.property} must be after ${relatedPropertyName}`;
         },
       },
     });

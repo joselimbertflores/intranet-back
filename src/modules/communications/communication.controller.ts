@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 
 import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos';
 import { CommunicationsService } from './communications.service';
@@ -24,6 +24,12 @@ export class CommunicationController {
   @Patch('/:id')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateCommunicationDto) {
     return this.communicationsService.update(id, body);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.communicationsService.remove(id);
   }
 
   @Get('types')

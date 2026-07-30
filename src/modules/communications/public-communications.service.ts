@@ -27,7 +27,6 @@ export class PublicCommunicationsService {
   }
 
   async search({ limit, offset, term, typeId }: SearchPublicCommunicationsDto) {
-    console.log(typeId);
     const [communications, total] = await this.communicationsRepository.findAndCount({
       where: {
         ...(term && { reference: ILike(`%${term}%`) }),

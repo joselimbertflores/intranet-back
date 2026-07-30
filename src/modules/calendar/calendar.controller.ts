@@ -1,13 +1,25 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 
 import { CalendarService } from './calendar.service';
 import { CreateCalendarEventDto, UpdateCalendarEventDto } from './dtos';
 import { PaginationParamsDto } from '../../common/dtos';
-import { ProtectedResource } from '../auth/decorators';
+import { ProtectedResource, RequirePermissions } from '../auth/decorators';
 import { Resource } from '../users/entities';
 
 @ProtectedResource(Resource.CALENDAR)
-@Controller('calendar')
+@Controller(['calendar', 'calendar-events'])
 export class CalendarController {
   constructor(private readonly eventService: CalendarService) {}
 
@@ -34,5 +46,12 @@ export class CalendarController {
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.eventService.remove(id);
+  }
+
+  @Delete(':id/with-communication')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions({ resource: Resource.COMMUNICATIONS, actions: ['delete'] })
+  removeWithCommunication(@Param('id', ParseUUIDPipe) id: string) {
+    return this.eventService.removeWithCommunication(id);
   }
 }

@@ -15,6 +15,7 @@ Esta carpeta contiene documentación práctica del backend de la Intranet del Go
 - [Files](modules/files.md)
 - [Communications](modules/communications.md)
 - [Content y landing](modules/content.md)
+- [Calendar](modules/calendar.md)
 
 ## Criterios de mantenimiento
 

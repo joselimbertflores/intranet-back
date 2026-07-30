@@ -1,40 +1,26 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
-  ValidateNested,
-  IsString,
-  IsOptional,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
-  MaxLength,
-  IsDate,
   IsEnum,
   IsInt,
-  IsArray,
-  ValidateIf,
-  ArrayMinSize,
-  Min,
+  IsDate,
   IsISO8601,
+  IsOptional,
+  IsString,
   IsUUID,
+  MaxLength,
+  Min,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 import { IsAfterDate } from '../decorators';
+import { RecurrenceFrequency, WeekDay } from '../entities';
 
-export enum RecurrenceFrequency {
-  DAILY = 'DAILY',
-  WEEKLY = 'WEEKLY',
-  MONTHLY = 'MONTHLY',
-  YEARLY = 'YEARLY',
-}
-
-export enum WeekDay {
-  MO = 'MO',
-  TU = 'TU',
-  WE = 'WE',
-  TH = 'TH',
-  FR = 'FR',
-  SA = 'SA',
-  SU = 'SU',
-}
+export { RecurrenceFrequency, WeekDay };
 
 export class RecurrenceConfigDto {
   @IsEnum(RecurrenceFrequency)

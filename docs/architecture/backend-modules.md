@@ -8,7 +8,7 @@ El backend está organizado por módulos de NestJS. Los módulos de dominio son 
 - `communications`: comunicados institucionales asociados a un PDF.
 - `content`: bloques administrables del landing, como hero slides, accesos rápidos, banners y avisos.
 - `tutorial`: tutoriales y sus recursos.
-- `calendar`: eventos y recurrencia.
+- [`calendar`](../modules/calendar.md): eventos y recurrencia.
 - `directory`: información del directorio institucional.
 
 Cada módulo debe conservar sus reglas de negocio. Por ejemplo, `communications` decide cuándo un PDF queda asociado a un comunicado; `files` solo ejecuta el lifecycle técnico solicitado.

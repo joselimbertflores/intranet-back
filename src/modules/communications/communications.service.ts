@@ -1,21 +1,21 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, QueryFailedError, Repository } from 'typeorm';
 
-import { PaginationParamsDto } from '../../common/dtos';
-import { FileContext } from '../files/enums/file-context.enum';
-import { FilesService } from '../files/files.service';
 import { CreateCommunicationDto, UpdateCommunicationDto } from './dtos';
+import { FileContext } from '../files/enums/file-context.enum';
 import { Communication, CommunicationType } from './entities';
+import { PaginationParamsDto } from '../../common/dtos';
+import { FilesService } from '../files/files.service';
 
 @Injectable()
 export class CommunicationsService {
   constructor(
     @InjectRepository(Communication) private readonly communicationsRepository: Repository<Communication>,
     @InjectRepository(CommunicationType)
-    private readonly communicationTypesRepository: Repository<CommunicationType>,
-    private readonly filesService: FilesService,
-    private readonly dataSource: DataSource,
+    private communicationTypesRepository: Repository<CommunicationType>,
+    private filesService: FilesService,
+    private dataSource: DataSource,
   ) {}
 
   async findAll({ limit, offset, term }: PaginationParamsDto) {
@@ -89,6 +89,26 @@ export class CommunicationsService {
     } catch (error) {
       this.rethrowUniqueCodeViolation(error, normalizedCode ?? communication.code);
     }
+  }
+
+  async remove(id: string, manager?: EntityManager) {
+    const executeRemove = async (transactionManager: EntityManager) => {
+      const communication = await transactionManager.findOne(Communication, {
+        where: { id },
+        relations: { file: true },
+      });
+
+      if (!communication) throw new NotFoundException(`Communication ${id} not found`);
+
+      await this.filesService.markActiveFileAsOrphaned(
+        communication.file.id,
+        transactionManager,
+        FileContext.COMMUNICATIONS,
+      );
+      await transactionManager.remove(communication);
+    };
+
+    return manager ? executeRemove(manager) : this.dataSource.transaction(executeRemove);
   }
 
   async getTypes() {

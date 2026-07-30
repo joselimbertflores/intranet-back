@@ -166,7 +166,6 @@ export class DocumentsService {
       await this.filesService.markActiveFileAsOrphaned(document.file.id, manager);
       await manager.remove(document);
     });
-    return { message: 'Document deleted success' };
   }
 
   private async getActiveOrganizationalUnitOrFail(id: number) {

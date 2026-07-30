@@ -2,10 +2,10 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { IsNull, LessThan, Not, Repository } from 'typeorm';
-import { RRule } from 'rrule';
+import { Frequency, RRule, Weekday as RRuleWeekday } from 'rrule';
 
 import { PortalCalendarDto } from './types/interfaces/portal-calendar.interface';
-import { CalendarEvent } from './entities';
+import { CalendarEvent, RecurrenceConfig, RecurrenceFrequency, WeekDay } from './entities';
 
 const MAX_RANGE_IN_MS = 366 * 24 * 60 * 60 * 1000;
 
@@ -31,7 +31,7 @@ export class PublicCalendarService {
       .leftJoinAndSelect('event.communication', 'communication')
       .leftJoinAndSelect('communication.type', 'type')
       .where('event.isActive = true')
-      .andWhere('event.recurrenceRule IS NULL')
+      .andWhere('event.recurrenceConfig IS NULL')
       .andWhere('event.startDate < :end', { end })
       .andWhere('event.endDate > :start', { start })
       .getMany();
@@ -43,7 +43,7 @@ export class PublicCalendarService {
     const result = await this.eventsRepository.find({
       where: {
         isActive: true,
-        recurrenceRule: Not(IsNull()),
+        recurrenceConfig: Not(IsNull()),
         startDate: LessThan(end),
       },
       relations: {
@@ -56,16 +56,43 @@ export class PublicCalendarService {
   }
 
   private expandRecurringEvent(event: CalendarEvent, rangeStart: Date, rangeEnd: Date) {
-    if (!event.recurrenceRule) return [];
-    const rule = RRule.fromString(event.recurrenceRule);
+    if (!event.recurrenceConfig) return [];
+
     const durationMs = event.endDate.getTime() - event.startDate.getTime();
     const recurrenceSearchStart = new Date(rangeStart.getTime() - durationMs);
+    const rule = this.buildRRule(event.recurrenceConfig, event.startDate);
 
     return rule
       .between(recurrenceSearchStart, rangeEnd, true)
       .map((start) => ({ start, end: new Date(start.getTime() + durationMs) }))
       .filter(({ start, end }) => start < rangeEnd && end > rangeStart)
       .map(({ start, end }) => this.mapOccurrence(event, start, end));
+  }
+
+  private buildRRule(config: RecurrenceConfig, startDate: Date) {
+    const frequencies: Record<RecurrenceFrequency, Frequency> = {
+      [RecurrenceFrequency.DAILY]: RRule.DAILY,
+      [RecurrenceFrequency.WEEKLY]: RRule.WEEKLY,
+      [RecurrenceFrequency.MONTHLY]: RRule.MONTHLY,
+      [RecurrenceFrequency.YEARLY]: RRule.YEARLY,
+    };
+    const weekDays: Record<WeekDay, RRuleWeekday> = {
+      [WeekDay.MO]: RRule.MO,
+      [WeekDay.TU]: RRule.TU,
+      [WeekDay.WE]: RRule.WE,
+      [WeekDay.TH]: RRule.TH,
+      [WeekDay.FR]: RRule.FR,
+      [WeekDay.SA]: RRule.SA,
+      [WeekDay.SU]: RRule.SU,
+    };
+
+    return new RRule({
+      freq: frequencies[config.frequency],
+      interval: config.interval,
+      byweekday: config.byWeekDays?.map((day) => weekDays[day]),
+      until: config.until ? new Date(config.until) : undefined,
+      dtstart: startDate,
+    });
   }
 
   private validateRange(start: Date, end: Date) {
@@ -81,9 +108,8 @@ export class PublicCalendarService {
   }
 
   private mapOccurrence(event: CalendarEvent, start: Date, end?: Date): PortalCalendarDto {
-    const isRecurring = !!event.recurrenceRule;
+    const isRecurring = !!event.recurrenceConfig;
     return {
-      // Generar ids distintos para eventos recurrentes
       id: isRecurring ? `${event.id}_${start.toISOString()}` : event.id,
       title: event.title,
       description: event.description,
