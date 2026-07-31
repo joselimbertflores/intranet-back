@@ -1,16 +1,21 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, Min } from 'class-validator';
 
-export class DirectorySearchDto {
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
-  @IsString()
-  @MaxLength(120)
-  term?: string;
+import { PaginationParamsDto } from 'src/common/dtos';
 
+export class DirectorySearchDto extends PaginationParamsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   siteId?: number;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  isActive?: boolean;
 }

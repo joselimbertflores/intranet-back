@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 
@@ -13,12 +13,20 @@ export class DirectoryEntriesService {
     private readonly directorySitesService: DirectorySitesService,
   ) {}
 
-  findAll(query: DirectorySearchDto) {
+  async findAll({ limit = 10, offset = 0, ...query }: DirectorySearchDto) {
     const builder = this.entryRepository.createQueryBuilder('entry').leftJoinAndSelect('entry.site', 'site');
 
     this.applySearch(builder, query);
 
-    return builder.orderBy('entry.areaName', 'ASC').addOrderBy('entry.contactLabel', 'ASC').getMany();
+    const [entries, total] = await builder
+      .orderBy('entry.areaName', 'ASC')
+      .addOrderBy('entry.contactLabel', 'ASC')
+      .addOrderBy('entry.id', 'ASC')
+      .skip(offset)
+      .take(limit)
+      .getManyAndCount();
+
+    return { entries, total };
   }
 
   async findAreaNames(): Promise<string[]> {
@@ -44,6 +52,7 @@ export class DirectoryEntriesService {
       siteDetails: this.optionalText(dto.siteDetails),
     });
 
+    this.validateContactMethods(entry);
     return this.entryRepository.save(entry);
   }
 
@@ -55,16 +64,17 @@ export class DirectoryEntriesService {
     Object.assign(entry, values);
 
     if (dto.contactLabel !== undefined) entry.contactLabel = this.optionalText(dto.contactLabel);
-    if (dto.extensions !== undefined) entry.extensions = this.normalizeNumbers(dto.extensions);
-    if (dto.phones !== undefined) entry.phones = this.normalizeNumbers(dto.phones);
+    entry.extensions = this.normalizeNumbers(dto.extensions !== undefined ? dto.extensions : entry.extensions);
+    entry.phones = this.normalizeNumbers(dto.phones !== undefined ? dto.phones : entry.phones);
     if (dto.email !== undefined) entry.email = this.optionalText(dto.email);
     if (dto.siteDetails !== undefined) entry.siteDetails = this.optionalText(dto.siteDetails);
 
     if (siteId !== undefined) {
-      entry.site = await this.directorySitesService.resolve(siteId);
+      entry.site = await this.directorySitesService.resolve(siteId, siteId === entry.siteId);
       entry.siteId = entry.site?.id ?? null;
     }
 
+    this.validateContactMethods(entry);
     return this.entryRepository.save(entry);
   }
 
@@ -74,29 +84,41 @@ export class DirectoryEntriesService {
     return { deleted: true };
   }
 
-  private applySearch(builder: SelectQueryBuilder<DirectoryEntry>, { term, siteId }: DirectorySearchDto) {
-    if (siteId) builder.andWhere('entry.siteId = :siteId', { siteId });
-    if (!term) return;
+  private applySearch(
+    builder: SelectQueryBuilder<DirectoryEntry>,
+    { term, siteId, isActive }: Omit<DirectorySearchDto, 'limit' | 'offset'>,
+  ) {
+    if (siteId !== undefined) builder.andWhere('entry.siteId = :siteId', { siteId });
+    if (isActive !== undefined) builder.andWhere('entry.isActive = :isActive', { isActive });
+
+    const normalizedTerm = term?.trim();
+    if (!normalizedTerm) return;
 
     builder.andWhere(
       `(
-        LOWER(entry.areaName) LIKE LOWER(:term)
-        OR LOWER(COALESCE(entry.contactLabel, '')) LIKE LOWER(:term)
-        OR LOWER(COALESCE(entry.email, '')) LIKE LOWER(:term)
-        OR LOWER(COALESCE(entry.siteDetails, '')) LIKE LOWER(:term)
-        OR LOWER(COALESCE(site.name, '')) LIKE LOWER(:term)
-        OR LOWER(array_to_string(entry.extensions, ' ')) LIKE LOWER(:term)
-        OR LOWER(array_to_string(entry.phones, ' ')) LIKE LOWER(:term)
+        entry.areaName ILIKE :term
+        OR COALESCE(entry.contactLabel, '') ILIKE :term
+        OR COALESCE(entry.email, '') ILIKE :term
+        OR COALESCE(entry.siteDetails, '') ILIKE :term
+        OR COALESCE(site.name, '') ILIKE :term
+        OR array_to_string(entry.extensions, ' ') ILIKE :term
+        OR array_to_string(entry.phones, ' ') ILIKE :term
       )`,
-      { term: `%${term}%` },
+      { term: `%${normalizedTerm}%` },
     );
   }
 
-  private normalizeNumbers(values: string[]): string[] {
-    return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  private normalizeNumbers(values?: string[] | null): string[] {
+    return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
   }
 
   private optionalText(value?: string | null): string | null {
     return value?.trim() || null;
+  }
+
+  private validateContactMethods(entry: DirectoryEntry): void {
+    if (entry.extensions.length === 0 && entry.phones.length === 0 && !entry.email) {
+      throw new BadRequestException('A directory entry must have at least one contact method');
+    }
   }
 }

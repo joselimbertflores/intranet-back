@@ -19,23 +19,29 @@ export class PublicDirectoryService {
       .where('entry.isActive = true')
       .andWhere('(site.id IS NULL OR site.isActive = true)');
 
-    if (siteId) builder.andWhere('entry.siteId = :siteId', { siteId });
-    if (term) {
+    if (siteId !== undefined) builder.andWhere('entry.siteId = :siteId', { siteId });
+
+    const normalizedTerm = term?.trim();
+    if (normalizedTerm) {
       builder.andWhere(
         `(
-          LOWER(entry.areaName) LIKE LOWER(:term)
-          OR LOWER(COALESCE(entry.contactLabel, '')) LIKE LOWER(:term)
-          OR LOWER(COALESCE(entry.email, '')) LIKE LOWER(:term)
-          OR LOWER(COALESCE(entry.siteDetails, '')) LIKE LOWER(:term)
-          OR LOWER(COALESCE(site.name, '')) LIKE LOWER(:term)
-          OR LOWER(array_to_string(entry.extensions, ' ')) LIKE LOWER(:term)
-          OR LOWER(array_to_string(entry.phones, ' ')) LIKE LOWER(:term)
+          entry.areaName ILIKE :term
+          OR COALESCE(entry.contactLabel, '') ILIKE :term
+          OR COALESCE(entry.email, '') ILIKE :term
+          OR COALESCE(entry.siteDetails, '') ILIKE :term
+          OR COALESCE(site.name, '') ILIKE :term
+          OR array_to_string(entry.extensions, ' ') ILIKE :term
+          OR array_to_string(entry.phones, ' ') ILIKE :term
         )`,
-        { term: `%${term}%` },
+        { term: `%${normalizedTerm}%` },
       );
     }
 
-    return builder.orderBy('entry.areaName', 'ASC').addOrderBy('entry.contactLabel', 'ASC').getMany();
+    return builder
+      .orderBy('entry.areaName', 'ASC')
+      .addOrderBy('entry.contactLabel', 'ASC')
+      .addOrderBy('entry.id', 'ASC')
+      .getMany();
   }
 
   findSites() {

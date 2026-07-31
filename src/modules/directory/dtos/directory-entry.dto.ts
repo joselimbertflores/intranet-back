@@ -28,17 +28,19 @@ export class CreateDirectoryEntryDto {
   @MaxLength(160)
   contactLabel?: string | null;
 
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
   @IsString({ each: true })
   @MaxLength(30, { each: true })
-  extensions: string[];
+  extensions?: string[] | null;
 
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
   @IsString({ each: true })
   @MaxLength(40, { each: true })
-  phones: string[];
+  phones?: string[] | null;
 
   @IsOptional()
   @Transform(trim)

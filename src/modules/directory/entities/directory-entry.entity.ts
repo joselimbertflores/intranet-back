@@ -27,7 +27,7 @@ export class DirectoryEntry {
 
   @ManyToOne(() => DirectorySite, (site) => site.entries, {
     nullable: true,
-    onDelete: 'SET NULL',
+    onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'siteId' })
   site: DirectorySite | null;
