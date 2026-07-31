@@ -121,7 +121,7 @@ El bootstrap no crea roles autoasignables normales. Los roles con `isAutoAssigne
 
 ### Migraciones TypeORM
 
-El proyecto esta preparado para migraciones TypeORM. Ya existe una migracion incremental para `roles.isAutoAssigned`; la migracion inicial definitiva aun no se genero porque el esquema sigue en revision.
+El proyecto esta preparado para migraciones TypeORM, pero todavia no existe una migracion versionada para `roles.isAutoAssigned` ni una migracion inicial definitiva porque el esquema sigue en revision.
 
 - En desarrollo local puede usarse `DB_SYNCHRONIZE=true` para iterar rapidamente.
 - En staging y produccion usa siempre `DB_SYNCHRONIZE=false`.
@@ -140,7 +140,7 @@ npm run migration:revert
 
 `migration:generate` crea un archivo de migracion comparando entidades contra la base configurada. `migration:run` aplica migraciones pendientes. `migration:revert` revierte la ultima migracion aplicada.
 
-Mientras no exista una migracion de esquema versionada para retirar el campo historico de usuarios, aplica este SQL operativo en la base de Intranet si la columna existe. La columna `roles.isAutoAssigned` ya esta cubierta por migracion:
+Mientras no exista una migracion de esquema versionada para estos cambios, aplica este SQL operativo en la base de Intranet si corresponde:
 
 ```sql
 ALTER TABLE roles ADD COLUMN IF NOT EXISTS "isAutoAssigned" boolean NOT NULL DEFAULT false;

@@ -3,7 +3,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { PaginationParamsDto } from 'src/common/dtos';
 
-import { CreateRoleDto, UpdateRoleDto } from '../dtos';
+import { CreateRoleDto, RoleIdParamDto, UpdateRoleDto } from '../dtos';
 import { RolesService } from '../services';
 import { Resource } from '../entities';
 
@@ -23,7 +23,7 @@ export class RolesController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: UpdateRoleDto) {
+  update(@Param() { id }: RoleIdParamDto, @Body() body: UpdateRoleDto) {
     return this.roleService.update(id, body);
   }
 

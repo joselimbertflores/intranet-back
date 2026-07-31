@@ -8,12 +8,12 @@ import { DirectoryEntry, DirectorySite } from './entities';
 @Injectable()
 export class DirectorySitesService {
   constructor(
-    @InjectRepository(DirectorySite) private readonly siteRepository: Repository<DirectorySite>,
-    @InjectRepository(DirectoryEntry) private readonly entryRepository: Repository<DirectoryEntry>,
+    @InjectRepository(DirectorySite) private siteRepository: Repository<DirectorySite>,
+    @InjectRepository(DirectoryEntry) private entryRepository: Repository<DirectoryEntry>,
   ) {}
 
   findAll() {
-    return this.siteRepository.find({ order: { name: 'asc' } });
+    return this.siteRepository.find({ order: { id: 'DESC' } });
   }
 
   async create(dto: CreateDirectorySiteDto) {
@@ -37,14 +37,10 @@ export class DirectorySitesService {
     if (isInUse) {
       throw new ConflictException('The directory site cannot be deleted because it has associated entries');
     }
-
     await this.siteRepository.remove(site);
-    return { deleted: true };
   }
 
-  async resolve(siteId?: number | null, allowInactive = false): Promise<DirectorySite | null> {
-    if (siteId == null) return null;
-
+  async resolve(siteId: number, allowInactive = false) {
     const site = await this.siteRepository.findOneBy({ id: siteId });
     if (!site) throw new NotFoundException('Directory site not found');
     if (!site.isActive && !allowInactive) {

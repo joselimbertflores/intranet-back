@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 
-import { AccessTokenPayload, TokenRequestResponse } from '../interfaces';
+import { TokenRequestResponse } from '../interfaces';
 import { TokenVerifierService } from './token-verifier.service';
 import { IdentityUserProvisioningService } from '../../users/services';
 import { EnvironmentVariables } from 'src/config';
@@ -22,7 +22,10 @@ export class OAuthService {
   async completeAuthorizationCodeFlow(code: string, codeVerifier: string): Promise<TokenRequestResponse> {
     const tokens = await this.identityService.exchangeCodeForTokens(code, codeVerifier);
     const decodedAccessToken = await this.tokenVerifierService.verifyAccessToken(tokens.accessToken);
-    await this.syncLocalUserFromIdentity(decodedAccessToken);
+    await this.identityUserProvisioningService.syncUserFromIdentity({
+      externalKey: decodedAccessToken.externalKey,
+      fullName: decodedAccessToken.name,
+    });
 
     return tokens;
   }
@@ -56,9 +59,5 @@ export class OAuthService {
 
   private generateState(): string {
     return randomBytes(32).toString('base64url');
-  }
-
-  private async syncLocalUserFromIdentity(decodedAccessToken: AccessTokenPayload) {
-    await this.identityUserProvisioningService.syncUserFromIdentity(decodedAccessToken);
   }
 }

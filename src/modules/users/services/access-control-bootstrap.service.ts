@@ -3,11 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
 
 import { Permission, Role, User } from '../entities';
-import { PERMISSIONS_SEED } from '../constants';
+import { ADMIN_ROLE_NAME, PERMISSIONS_SEED } from '../constants';
 import type { InitialAdminBootstrapResult } from '../types/access-control-bootstrap.types';
 import { IdentityUserProvisioningService } from './identity-user-provisioning.service';
-
-const ADMIN_ROLE_NAME = 'ADMIN';
 
 type PermissionDefinition = Pick<Permission, 'resource' | 'action'>;
 
@@ -37,7 +35,7 @@ export class AccessControlBootstrapService {
     const permissions = await permissionRepository.find();
 
     if (permissions.length === 0) {
-      throw new Error('No hay permisos base sembrados. Ejecuta ensurePermissions() antes de asegurar el rol ADMIN.');
+      throw new Error('No base permissions were found. Run ensurePermissions() before ensuring the ADMIN role.');
     }
 
     const existingRole = await roleRepository.findOne({
@@ -82,7 +80,7 @@ export class AccessControlBootstrapService {
       const existingUser = await this.findLocalUserByExternalKey(externalKey, manager);
 
       if (existingUser) {
-        throw new Error('El usuario local indicado ya existe y no es ADMIN. No fue promovido.');
+        throw new Error('The specified local user already exists and is not an ADMIN. The user was not promoted.');
       }
 
       return { status: 'needs-admin' as const };
@@ -95,7 +93,7 @@ export class AccessControlBootstrapService {
     const identityUser = await this.identityUserProvisioningService.findIdentityCandidateByExternalKey(externalKey);
 
     if (identityUser.externalKey !== externalKey) {
-      throw new Error('El servicio de usuarios devolvio un identificador externo diferente al solicitado.');
+      throw new Error('Identity Hub returned an external key different from the one requested.');
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -106,7 +104,7 @@ export class AccessControlBootstrapService {
       const existingUser = await this.findLocalUserByExternalKey(externalKey, manager);
 
       if (existingUser) {
-        throw new Error('El usuario local indicado ya existe y no es ADMIN. No fue promovido.');
+        throw new Error('The specified local user already exists and is not an ADMIN. The user was not promoted.');
       }
 
       const adminRole = await this.ensureAdminRole(manager);
@@ -123,7 +121,7 @@ export class AccessControlBootstrapService {
         };
       } catch (error) {
         if (this.isUniqueViolation(error)) {
-          throw new Error('El usuario ya existe en este cliente.', { cause: error });
+          throw new Error('The Identity Hub user is already registered in this client.', { cause: error });
         }
         throw error;
       }

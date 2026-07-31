@@ -1,28 +1,33 @@
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
-import type { AccessTokenPayload } from 'src/modules/auth/interfaces';
-
-import { ImportUserFromIdentityDto } from '../dtos';
+import { ImportUserFromIdentityDto, UserResponseDto } from '../dtos';
 import { Role, User } from '../entities';
 import { IdentityHubUsersClientService } from './identity-hub-users-client.service';
+import { RolesService } from './roles.service';
+
+interface IdentityUserProjection {
+  externalKey: string;
+  fullName: string;
+}
 
 @Injectable()
 export class IdentityUserProvisioningService {
   private readonly logger = new Logger(IdentityUserProvisioningService.name);
 
   constructor(
-    @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
-    @InjectRepository(User) private readonly userRepository: Repository<User>,
-    private readonly identityHubUsersClient: IdentityHubUsersClientService,
+    @InjectRepository(Role) private roleRepository: Repository<Role>,
+    @InjectRepository(User) private userRepository: Repository<User>,
+    private identityHubUsersClient: IdentityHubUsersClientService,
+    private rolesService: RolesService,
   ) {}
 
-  async importFromIdentity(dto: ImportUserFromIdentityDto) {
+  async importFromIdentity(dto: ImportUserFromIdentityDto): Promise<UserResponseDto> {
     await this.ensureExternalKeyIsAvailable(dto.externalKey);
 
     const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(dto.externalKey);
-    const roles = dto.roleIds ? await this.resolveRoles(dto.roleIds) : [];
+    const roles = await this.rolesService.resolveRolesByIds(dto.roleIds ?? []);
     const user = this.userRepository.create({
       externalKey: identityUser.externalKey,
       fullName: identityUser.fullName,
@@ -30,25 +35,24 @@ export class IdentityUserProvisioningService {
     });
 
     try {
-      return await this.userRepository.save(user);
+      return new UserResponseDto(await this.userRepository.save(user));
     } catch (error) {
-      if (this.isUniqueViolation(error)) {
-        throw new ConflictException('El usuario ya existe en este cliente.');
+      if (this.isExternalKeyUniqueViolation(error)) {
+        throw new ConflictException(`Identity Hub user with external key ${dto.externalKey} is already registered`);
       }
       throw error;
     }
   }
 
-  async syncUserFromIdentity(payload: AccessTokenPayload) {
-    const externalKey = payload.externalKey;
-    let user = await this.findByExternalKey(externalKey);
+  async syncUserFromIdentity(identityUser: IdentityUserProjection) {
+    const { externalKey, fullName } = identityUser;
+    const user = await this.findByExternalKey(externalKey);
 
     if (!user) {
-      return this.createShadowUser(payload);
+      return this.createShadowUser(identityUser);
     }
 
-    const fullName = payload.name;
-    if (fullName && user.fullName !== fullName) {
+    if (user.fullName !== fullName) {
       await this.userRepository.update({ id: user.id }, { fullName });
       user.fullName = fullName;
     }
@@ -64,8 +68,8 @@ export class IdentityUserProvisioningService {
     return this.identityHubUsersClient.findAssignableUserByExternalKey(externalKey);
   }
 
-  private async createShadowUser(payload: AccessTokenPayload) {
-    const externalKey = payload.externalKey;
+  private async createShadowUser(identityUser: IdentityUserProjection) {
+    const { externalKey, fullName } = identityUser;
     const autoAssignedRoles = await this.roleRepository.find({ where: { isAutoAssigned: true } });
 
     if (autoAssignedRoles.length === 0) {
@@ -73,7 +77,7 @@ export class IdentityUserProvisioningService {
     }
 
     const user = this.userRepository.create({
-      fullName: payload.name,
+      fullName,
       externalKey,
       roles: autoAssignedRoles,
     });
@@ -81,8 +85,9 @@ export class IdentityUserProvisioningService {
     try {
       return await this.userRepository.save(user);
     } catch (error) {
-      if (!this.isUniqueViolation(error)) throw error;
+      if (!this.isExternalKeyUniqueViolation(error)) throw error;
 
+      // * Another concurrent SSO callback may have created the shadow user.
       const existingUser = await this.findByExternalKey(externalKey);
       if (existingUser) return existingUser;
 
@@ -97,29 +102,22 @@ export class IdentityUserProvisioningService {
     });
   }
 
-  private async resolveRoles(roleIds: string[]) {
-    const roles = await this.roleRepository.findBy({ id: In(roleIds) });
-
-    if (roles.length !== roleIds.length) {
-      const invalid = roleIds.filter((id) => !roles.some((role) => role.id === id));
-      throw new BadRequestException(`Invalid roles: ${invalid.join(', ')}`);
-    }
-
-    return roles;
-  }
-
   private async ensureExternalKeyIsAvailable(externalKey: string) {
     const existingUser = await this.userRepository.findOne({ where: { externalKey } });
 
     if (existingUser) {
-      throw new ConflictException('El usuario ya existe en este cliente.');
+      throw new ConflictException(`Identity Hub user with external key ${externalKey} is already registered`);
     }
   }
 
-  private isUniqueViolation(error: unknown): boolean {
+  private isExternalKeyUniqueViolation(error: unknown): boolean {
     if (!(error instanceof QueryFailedError)) return false;
 
-    const driverError = error.driverError as { code?: string };
-    return driverError.code === '23505';
+    const driverError = error.driverError as {
+      code?: string;
+      constraint?: string;
+    };
+
+    return driverError.code === '23505' && driverError.constraint === 'uq_users_external_key';
   }
 }

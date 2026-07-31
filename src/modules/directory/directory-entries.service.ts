@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 
 import { CreateDirectoryEntryDto, DirectorySearchDto, UpdateDirectoryEntryDto } from './dtos';
 import { DirectoryEntry } from './entities';
@@ -9,22 +9,33 @@ import { DirectorySitesService } from './directory-sites.service';
 @Injectable()
 export class DirectoryEntriesService {
   constructor(
-    @InjectRepository(DirectoryEntry) private readonly entryRepository: Repository<DirectoryEntry>,
-    private readonly directorySitesService: DirectorySitesService,
+    @InjectRepository(DirectoryEntry) private entryRepository: Repository<DirectoryEntry>,
+    private directorySitesService: DirectorySitesService,
   ) {}
 
-  async findAll({ limit = 10, offset = 0, ...query }: DirectorySearchDto) {
+  async findAll({ limit, offset, ...query }: DirectorySearchDto) {
     const builder = this.entryRepository.createQueryBuilder('entry').leftJoinAndSelect('entry.site', 'site');
 
-    this.applySearch(builder, query);
+    if (query.siteId !== undefined) builder.andWhere('entry.siteId = :siteId', { siteId: query.siteId });
+    if (query.isActive !== undefined) builder.andWhere('entry.isActive = :isActive', { isActive: query.isActive });
 
-    const [entries, total] = await builder
-      .orderBy('entry.areaName', 'ASC')
-      .addOrderBy('entry.contactLabel', 'ASC')
-      .addOrderBy('entry.id', 'ASC')
-      .skip(offset)
-      .take(limit)
-      .getManyAndCount();
+    const normalizedTerm = query.term?.trim();
+    if (normalizedTerm) {
+      builder.andWhere(
+        `(
+            entry.areaName ILIKE :term
+            OR COALESCE(entry.contactLabel, '') ILIKE :term
+            OR COALESCE(entry.email, '') ILIKE :term
+            OR COALESCE(entry.siteDetails, '') ILIKE :term
+            OR COALESCE(site.name, '') ILIKE :term
+            OR array_to_string(entry.extensions, ' ') ILIKE :term
+            OR array_to_string(entry.phones, ' ') ILIKE :term
+          )`,
+        { term: `%${normalizedTerm}%` },
+      );
+    }
+
+    const [entries, total] = await builder.addOrderBy('entry.id', 'DESC').skip(offset).take(limit).getManyAndCount();
 
     return { entries, total };
   }
@@ -40,16 +51,10 @@ export class DirectoryEntriesService {
   }
 
   async create(dto: CreateDirectoryEntryDto) {
-    const site = await this.directorySitesService.resolve(dto.siteId);
+    const site = dto.siteId ? await this.directorySitesService.resolve(dto.siteId) : null;
     const entry = this.entryRepository.create({
       ...dto,
-      contactLabel: this.optionalText(dto.contactLabel),
-      extensions: this.normalizeNumbers(dto.extensions),
-      phones: this.normalizeNumbers(dto.phones),
-      email: this.optionalText(dto.email),
       site,
-      siteId: site?.id ?? null,
-      siteDetails: this.optionalText(dto.siteDetails),
     });
 
     this.validateContactMethods(entry);
@@ -63,15 +68,8 @@ export class DirectoryEntriesService {
     const { siteId, ...values } = dto;
     Object.assign(entry, values);
 
-    if (dto.contactLabel !== undefined) entry.contactLabel = this.optionalText(dto.contactLabel);
-    entry.extensions = this.normalizeNumbers(dto.extensions !== undefined ? dto.extensions : entry.extensions);
-    entry.phones = this.normalizeNumbers(dto.phones !== undefined ? dto.phones : entry.phones);
-    if (dto.email !== undefined) entry.email = this.optionalText(dto.email);
-    if (dto.siteDetails !== undefined) entry.siteDetails = this.optionalText(dto.siteDetails);
-
-    if (siteId !== undefined) {
+    if (siteId) {
       entry.site = await this.directorySitesService.resolve(siteId, siteId === entry.siteId);
-      entry.siteId = entry.site?.id ?? null;
     }
 
     this.validateContactMethods(entry);
@@ -82,38 +80,6 @@ export class DirectoryEntriesService {
     const result = await this.entryRepository.delete(id);
     if (!result.affected) throw new NotFoundException('Directory entry not found');
     return { deleted: true };
-  }
-
-  private applySearch(
-    builder: SelectQueryBuilder<DirectoryEntry>,
-    { term, siteId, isActive }: Omit<DirectorySearchDto, 'limit' | 'offset'>,
-  ) {
-    if (siteId !== undefined) builder.andWhere('entry.siteId = :siteId', { siteId });
-    if (isActive !== undefined) builder.andWhere('entry.isActive = :isActive', { isActive });
-
-    const normalizedTerm = term?.trim();
-    if (!normalizedTerm) return;
-
-    builder.andWhere(
-      `(
-        entry.areaName ILIKE :term
-        OR COALESCE(entry.contactLabel, '') ILIKE :term
-        OR COALESCE(entry.email, '') ILIKE :term
-        OR COALESCE(entry.siteDetails, '') ILIKE :term
-        OR COALESCE(site.name, '') ILIKE :term
-        OR array_to_string(entry.extensions, ' ') ILIKE :term
-        OR array_to_string(entry.phones, ' ') ILIKE :term
-      )`,
-      { term: `%${normalizedTerm}%` },
-    );
-  }
-
-  private normalizeNumbers(values?: string[] | null): string[] {
-    return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
-  }
-
-  private optionalText(value?: string | null): string | null {
-    return value?.trim() || null;
   }
 
   private validateContactMethods(entry: DirectoryEntry): void {

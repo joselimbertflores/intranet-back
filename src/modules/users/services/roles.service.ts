@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, In, Repository } from 'typeorm';
+import { ILike, In, QueryFailedError, Repository } from 'typeorm';
 
 import { PaginationParamsDto } from 'src/common/dtos';
-import { CreateRoleDto, UpdateRoleDto } from '../dtos';
+import { CreateRoleDto, RoleOptionResponseDto, RoleResponseDto, RolesPageResponseDto, UpdateRoleDto } from '../dtos';
 import { Permission, Role } from '../entities';
+import { ADMIN_ROLE_NAME } from '../constants';
 
 @Injectable()
 export class RolesService {
@@ -13,8 +14,8 @@ export class RolesService {
     @InjectRepository(Role) private roleRepository: Repository<Role>,
   ) {}
 
-  async findAll(paginatioDto: PaginationParamsDto) {
-    const { limit, offset, term } = paginatioDto;
+  async findAll(paginationDto: PaginationParamsDto): Promise<RolesPageResponseDto> {
+    const { limit, offset, term } = paginationDto;
     const [roles, total] = await this.roleRepository.findAndCount({
       relations: { permissions: true },
       skip: offset,
@@ -28,28 +29,29 @@ export class RolesService {
         createdAt: 'DESC',
       },
     });
-    return { roles, total };
+    return { roles: roles.map((role) => new RoleResponseDto(role)), total };
   }
 
-  async create(roleDto: CreateRoleDto) {
+  async create(roleDto: CreateRoleDto): Promise<RoleResponseDto> {
     const { permissionIds, ...toCreateProps } = roleDto;
-
-    const permissions = await this.permissionRepository.find({ where: { id: In(permissionIds) } });
-
-    if (permissions.length !== permissionIds.length) {
-      const invalid = permissionIds.filter((id) => !permissions.some((perm) => perm.id === id));
-      throw new BadRequestException(`Invalid permission: ${invalid.join(', ')}`);
-    }
+    await this.ensureRoleNameIsAvailable(roleDto.name);
+    this.assertRoleNameIsNotReserved(roleDto.name);
+    const permissions = await this.resolvePermissionsByIds(permissionIds);
 
     const role = this.roleRepository.create({
       ...toCreateProps,
       permissions,
     });
 
-    return await this.roleRepository.save(role);
+    try {
+      return new RoleResponseDto(await this.roleRepository.save(role));
+    } catch (error) {
+      this.throwRoleNameConflictIfNeeded(error, roleDto.name);
+      throw error;
+    }
   }
 
-  async update(id: string, roleDto: UpdateRoleDto) {
+  async update(id: string, roleDto: UpdateRoleDto): Promise<RoleResponseDto> {
     const { permissionIds, ...roleProps } = roleDto;
     const role = await this.roleRepository.findOne({
       where: { id },
@@ -57,11 +59,25 @@ export class RolesService {
     });
     if (!role) throw new NotFoundException(`Role with id ${id} not found`);
 
-    if (permissionIds !== undefined) {
-      const newPermissions = await this.permissionRepository.findBy({ id: In(permissionIds) });
-      role.permissions = newPermissions;
+    this.assertReservedRoleUpdateIsAllowed(role, roleDto);
+
+    if (roleDto.name !== undefined && roleDto.name !== role.name) {
+      await this.ensureRoleNameIsAvailable(roleDto.name, role.id);
+      this.assertRoleNameIsNotReserved(roleDto.name);
     }
-    return await this.roleRepository.save({ ...role, ...roleProps });
+
+    if (permissionIds !== undefined) {
+      role.permissions = await this.resolvePermissionsByIds(permissionIds);
+    }
+
+    Object.assign(role, roleProps);
+
+    try {
+      return new RoleResponseDto(await this.roleRepository.save(role));
+    } catch (error) {
+      this.throwRoleNameConflictIfNeeded(error, role.name);
+      throw error;
+    }
   }
 
   async getGroupedPermissions() {
@@ -87,7 +103,84 @@ export class RolesService {
     return Object.entries(grouped).map(([resource, permissions]) => ({ resource, permissions }));
   }
 
-  async getRolesToUser() {
-    return this.roleRepository.find({ select: { name: true, id: true, description: true, isAutoAssigned: true } });
+  async findRoleOptions(): Promise<RoleOptionResponseDto[]> {
+    const roles = await this.roleRepository.find({
+      select: { name: true, id: true, description: true, isAutoAssigned: true },
+      order: { name: 'ASC' },
+    });
+
+    return roles.map(({ id, name, description, isAutoAssigned }) => ({
+      id,
+      name,
+      description,
+      isAutoAssigned,
+    }));
+  }
+
+  async resolveRolesByIds(roleIds: string[]): Promise<Role[]> {
+    if (roleIds.length === 0) return [];
+
+    const roles = await this.roleRepository.findBy({ id: In(roleIds) });
+    const rolesById = new Map(roles.map((role) => [role.id, role]));
+    const missingRoleIds = roleIds.filter((id) => !rolesById.has(id));
+
+    if (missingRoleIds.length > 0) {
+      throw new NotFoundException(`Roles not found: ${missingRoleIds.join(', ')}`);
+    }
+
+    return roleIds.map((id) => rolesById.get(id)!);
+  }
+
+  private async resolvePermissionsByIds(permissionIds: number[]): Promise<Permission[]> {
+    const permissions = await this.permissionRepository.findBy({ id: In(permissionIds) });
+    const permissionsById = new Map(permissions.map((permission) => [permission.id, permission]));
+    const missingPermissionIds = permissionIds.filter((id) => !permissionsById.has(id));
+
+    if (missingPermissionIds.length > 0) {
+      throw new NotFoundException(`Permissions not found: ${missingPermissionIds.join(', ')}`);
+    }
+
+    return permissionIds.map((id) => permissionsById.get(id)!);
+  }
+
+  private assertReservedRoleUpdateIsAllowed(role: Role, roleDto: UpdateRoleDto): void {
+    if (role.name !== ADMIN_ROLE_NAME) return;
+
+    if (roleDto.name !== undefined && roleDto.name !== ADMIN_ROLE_NAME) {
+      throw new BadRequestException(`Role ${ADMIN_ROLE_NAME} cannot be renamed`);
+    }
+
+    if (roleDto.isAutoAssigned === true) {
+      throw new BadRequestException(`Role ${ADMIN_ROLE_NAME} cannot be auto-assigned`);
+    }
+
+    if (roleDto.permissionIds !== undefined) {
+      throw new BadRequestException(
+        `Permissions for role ${ADMIN_ROLE_NAME} are managed by the access-control bootstrap`,
+      );
+    }
+  }
+
+  private assertRoleNameIsNotReserved(name: string): void {
+    if (name.toUpperCase() === ADMIN_ROLE_NAME) {
+      throw new BadRequestException(`Role name ${ADMIN_ROLE_NAME} is reserved for the access-control bootstrap`);
+    }
+  }
+
+  private async ensureRoleNameIsAvailable(name: string, currentRoleId?: string): Promise<void> {
+    const existingRole = await this.roleRepository.findOne({ where: { name } });
+
+    if (existingRole && existingRole.id !== currentRoleId) {
+      throw new ConflictException(`Role name "${name}" already exists`);
+    }
+  }
+
+  private throwRoleNameConflictIfNeeded(error: unknown, name: string): void {
+    if (!(error instanceof QueryFailedError)) return;
+
+    const driverError = error.driverError as { code?: string };
+    if (driverError.code === '23505') {
+      throw new ConflictException(`Role name "${name}" already exists`);
+    }
   }
 }

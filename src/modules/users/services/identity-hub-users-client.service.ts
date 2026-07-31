@@ -6,6 +6,7 @@ import { isAxiosError } from 'axios';
 import { lastValueFrom } from 'rxjs';
 
 import { EnvironmentVariables } from 'src/config';
+import { IdentityCandidateResponseDto } from '../dtos';
 
 export interface IdentityHubAssignableUser {
   externalKey: string;
@@ -21,7 +22,7 @@ export class IdentityHubUsersClientService {
     private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
-  async searchAssignableUsers(term: string): Promise<IdentityHubAssignableUser[]> {
+  async searchAssignableUsers(term: string): Promise<IdentityCandidateResponseDto[]> {
     const url = this.buildUrl('/internal/users/assignable');
     url.searchParams.set('term', term);
 
@@ -29,13 +30,13 @@ export class IdentityHubUsersClientService {
       const response = await lastValueFrom(
         this.http.get<IdentityHubAssignableUser[]>(url.toString(), { auth: this.getBasicAuth() }),
       );
-      return response.data;
+      return response.data.map((user) => this.toCandidateResponse(user));
     } catch {
       throw new BadGatewayException('Unable to search assignable users in Identity Hub');
     }
   }
 
-  async findAssignableUserByExternalKey(externalKey: string): Promise<IdentityHubAssignableUser> {
+  async findAssignableUserByExternalKey(externalKey: string): Promise<IdentityCandidateResponseDto> {
     const url = this.buildUrl(`/internal/users/assignable/${encodeURIComponent(externalKey)}`);
 
     try {
@@ -44,7 +45,7 @@ export class IdentityHubUsersClientService {
           auth: this.getBasicAuth(),
         }),
       );
-      return response.data;
+      return this.toCandidateResponse(response.data);
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 404) {
         throw new NotFoundException(`Assignable Identity Hub user with external key ${externalKey} not found`);
@@ -70,5 +71,14 @@ export class IdentityHubUsersClientService {
 
   private ensureTrailingSlash(value: string): string {
     return value.endsWith('/') ? value : `${value}/`;
+  }
+
+  private toCandidateResponse(user: IdentityHubAssignableUser): IdentityCandidateResponseDto {
+    return {
+      externalKey: user.externalKey,
+      fullName: user.fullName,
+      email: user.email ?? null,
+      login: user.login ?? null,
+    };
   }
 }

@@ -1,19 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, In, Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 
 import type { PaginationParamsDto } from 'src/common/dtos';
-import { UpdateUserDto } from '../dtos';
-import { Role, User } from '../entities';
+import { UpdateUserDto, UserResponseDto, UsersPageResponseDto } from '../dtos';
+import { User } from '../entities';
+import { RolesService } from './roles.service';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    private readonly rolesService: RolesService,
   ) {}
 
-  async findAll({ limit, offset, term }: PaginationParamsDto) {
+  async findAll({ limit, offset, term }: PaginationParamsDto): Promise<UsersPageResponseDto> {
     const [users, total] = await this.userRepository.findAndCount({
       take: limit,
       skip: offset,
@@ -25,25 +26,15 @@ export class UsersService {
         createdAt: 'DESC',
       },
     });
-    return { users, total };
+    return { users: users.map((user) => new UserResponseDto(user)), total };
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    const { roleIds } = dto;
-    const userDB = await this.userRepository.findOneBy({ id });
+  async update(id: string, dto: UpdateUserDto): Promise<UserResponseDto> {
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) throw new NotFoundException(`User with id ${id} not found`);
 
-    if (!userDB) throw new NotFoundException(`El usuario editado no existe`);
-
-    let newRoles: Role[] | undefined;
-
-    if (roleIds) {
-      newRoles = await this.resolveRoles(roleIds);
-    }
-
-    return await this.userRepository.save({
-      ...userDB,
-      ...(newRoles && { roles: newRoles }),
-    });
+    user.roles = await this.rolesService.resolveRolesByIds(dto.roleIds);
+    return new UserResponseDto(await this.userRepository.save(user));
   }
 
   async findByExternalKey(externalKey: string) {
@@ -51,16 +42,5 @@ export class UsersService {
       where: { externalKey },
       relations: { roles: { permissions: true } },
     });
-  }
-
-  private async resolveRoles(roleIds: string[]) {
-    const roles = await this.roleRepository.findBy({ id: In(roleIds) });
-
-    if (roles.length !== roleIds.length) {
-      const invalid = roleIds.filter((id) => !roles.some((role) => role.id === id));
-      throw new BadRequestException(`Invalid roles: ${invalid.join(', ')}`);
-    }
-
-    return roles;
   }
 }

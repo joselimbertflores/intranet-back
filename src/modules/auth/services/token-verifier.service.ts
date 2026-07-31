@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import jwt from 'jsonwebtoken';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
 
 import { JwksService } from './jwks.service';
 import { AccessTokenPayload } from '../interfaces';
@@ -45,11 +45,13 @@ export class TokenVerifierService {
 
       const publicKey = await this.jwksService.getPublicKey(decoded.header.kid);
 
-      return jwt.verify(token, publicKey, {
+      const verifiedPayload = jwt.verify(token, publicKey, {
         algorithms: ['RS256'],
         issuer: this.configService.getOrThrow<string>('OAUTH_ISSUER'),
         audience: this.configService.getOrThrow<string>('OAUTH_CLIENT_ID'),
-      }) as AccessTokenPayload;
+      });
+
+      return this.validateIdentityClaims(verifiedPayload);
     } catch (error) {
       if (error instanceof AccessTokenVerificationError) {
         throw error;
@@ -77,5 +79,27 @@ export class TokenVerifierService {
         'Access token verification failed',
       );
     }
+  }
+
+  private validateIdentityClaims(payload: string | JwtPayload): AccessTokenPayload {
+    if (
+      typeof payload === 'string' ||
+      typeof payload.externalKey !== 'string' ||
+      payload.externalKey.trim().length === 0 ||
+      typeof payload.name !== 'string' ||
+      payload.name.trim().length === 0
+    ) {
+      throw new AccessTokenVerificationError(
+        AccessTokenFailureReason.INVALID_TOKEN,
+        false,
+        'Access token is missing required identity claims',
+      );
+    }
+
+    return {
+      ...payload,
+      externalKey: payload.externalKey.trim(),
+      name: payload.name.trim(),
+    } as AccessTokenPayload;
   }
 }

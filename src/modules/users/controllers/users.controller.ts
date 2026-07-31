@@ -3,7 +3,13 @@ import { PaginationParamsDto } from 'src/common/dtos';
 
 import { ProtectedResource } from 'src/modules/auth/decorators';
 import { IdentityUserProvisioningService, RolesService, UsersService } from '../services';
-import { ImportUserFromIdentityDto, SearchIdentityCandidatesDto, UpdateUserDto } from '../dtos';
+import {
+  IdentityExternalKeyParamDto,
+  ImportUserFromIdentityDto,
+  SearchIdentityCandidatesDto,
+  UpdateUserDto,
+  UserIdParamDto,
+} from '../dtos';
 import { Resource } from '../entities';
 @ProtectedResource(Resource.USERS)
 @Controller('users')
@@ -16,7 +22,7 @@ export class UsersController {
 
   @Get('roles')
   getRoles() {
-    return this.roleService.getRolesToUser();
+    return this.roleService.findRoleOptions();
   }
 
   @Get()
@@ -30,7 +36,7 @@ export class UsersController {
   }
 
   @Get('identity-candidates/:externalKey')
-  findIdentityCandidateByExternalKey(@Param('externalKey') externalKey: string) {
+  findIdentityCandidateByExternalKey(@Param() { externalKey }: IdentityExternalKeyParamDto) {
     return this.identityUserProvisioningService.findIdentityCandidateByExternalKey(externalKey);
   }
 
@@ -40,7 +46,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() userDto: UpdateUserDto) {
+  update(@Param() { id }: UserIdParamDto, @Body() userDto: UpdateUserDto) {
     return this.userService.update(id, userDto);
   }
 }

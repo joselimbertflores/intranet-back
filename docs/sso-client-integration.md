@@ -99,6 +99,8 @@ Los refresh tokens son rotativos. Cuando el access token expira, el guard usa la
 
 `TokenVerifierService` valida access tokens con RS256 y JWKS. La URL JWKS se toma de `IDENTITY_HUB_JWKS_URL` o de `IDENTITY_HUB_URL/.well-known/jwks.json`. El `issuer` esperado viene de `OAUTH_ISSUER`; el `audience` esperado es `OAUTH_CLIENT_ID`, alineado con Gaceta.
 
+Despues de la verificacion criptografica, Intranet exige que los claims `externalKey` y `name` sean strings no vacios. Para sincronizar el shadow user, `auth` entrega a `users` solamente `externalKey` y `fullName`.
+
 El guard diferencia access token expirado de token invalido. Solo intenta refresh cuando el access token expiro.
 
 ## Shadow user local
@@ -121,7 +123,17 @@ La UI administrativa llama al backend de Intranet. El navegador no llama directa
 
 `IDENTITY_HUB_URL` es la URL publica/navegable del Hub y se usa para construir la redireccion del navegador a `/oauth/authorize`; tambien es la base para JWKS cuando `IDENTITY_HUB_JWKS_URL` no esta definida. `IDENTITY_HUB_INTERNAL_URL` es la URL server-to-server para endpoints `/internal/*`. En local pueden ser iguales, pero en Docker, produccion o una red privada pueden apuntar a hosts distintos.
 
-La importacion evita duplicados por `externalKey`. Si el usuario ya existe, devuelve conflicto. Los roles locales se asignan solo si el endpoint recibe `roleIds`; Identity Hub no decide roles locales. `importFromIdentity` usa exclusivamente la seleccion manual enviada por el administrador y no aplica automaticamente roles con `isAutoAssigned = true`. La importacion crea el shadow user con `externalKey` y `fullName`, sin guardar email/login si el diseno actual del cliente no los persiste y sin `isActive` local.
+La importacion evita duplicados por `externalKey`. Si el usuario ya existe, devuelve `409 Conflict`. La busqueda puede incluir usuarios que ya tengan shadow user; la comprobacion autoritativa ocurre durante la importacion mediante la consulta exacta a Identity Hub, la comprobacion local y la restriccion unica de `users.externalKey`.
+
+Los roles locales se asignan solo si el endpoint recibe `roleIds`; Identity Hub no decide roles locales. `roleIds` puede omitirse o ser `[]` para crear el usuario sin roles. `importFromIdentity` usa exclusivamente la seleccion manual enviada por el administrador y no aplica automaticamente roles con `isAutoAssigned = true`. La importacion crea el shadow user con `externalKey` y `fullName`, sin guardar email/login si el diseno actual del cliente no los persiste y sin `isActive` local.
+
+Las respuestas administrativas usan contratos reducidos:
+
+- los candidatos contienen `externalKey`, `fullName`, `email` y `login`; los dos ultimos usan `null` cuando Identity Hub no los entrega;
+- listar usuarios devuelve `{ users, total }`, mientras importar y actualizar devuelven un usuario; en ambos casos cada usuario contiene solo `id`, `fullName` y roles resumidos con `id`, `name` y `description`;
+- `PATCH /api/users/:id` exige `roleIds`, acepta `[]` y reemplaza la asignacion completa;
+- listar roles devuelve `{ roles, total }`; crear y actualizar devuelven un rol con `id`, `name`, `description`, `isAutoAssigned` y permisos reducidos a `id`, `resource` y `action`;
+- IDs duplicados o con tipo/formato invalido producen `400 Bad Request`; usuarios, roles o permisos inexistentes producen `404 Not Found`; nombres de rol duplicados producen `409 Conflict`.
 
 ## Bootstrap del primer admin
 
@@ -146,7 +158,9 @@ El comando:
 - no depende de endpoints HTTP publicos;
 - no se mezcla con el login normal.
 
-Si despues de sembrar permisos no existe ningun permiso, el bootstrap falla con error claro y no crea un rol `ADMIN` vacio. Cuando el rol `ADMIN` existe, el bootstrap agrega permisos faltantes sin eliminar permisos ya asignados y fuerza `isAutoAssigned = false` para evitar asignarlo por JIT. El bootstrap no crea roles autoasignables normales; los roles con `isAutoAssigned = true` se configuran desde el CRUD de roles. Si no hay roles autoasignables, los usuarios nuevos por SSO/JIT se crean sin roles y se registra un warning.
+Si despues de sembrar permisos no existe ningun permiso, el bootstrap falla con error claro y no crea un rol `ADMIN` vacio. Cuando el rol `ADMIN` existe, el bootstrap agrega permisos faltantes sin eliminar permisos ya asignados y fuerza `isAutoAssigned = false` para evitar asignarlo por JIT. El CRUD normal no puede crear o renombrar otro rol como `ADMIN`, renombrar el rol reservado, marcarlo como autoasignable ni reemplazar manualmente sus permisos. El bootstrap sigue siendo el unico responsable de sincronizar esos permisos.
+
+El bootstrap no crea roles autoasignables normales; los roles con `isAutoAssigned = true` se configuran desde el CRUD de roles. Si no hay roles autoasignables, los usuarios nuevos por SSO/JIT se crean sin roles y se registra un warning.
 
 Los admins posteriores se gestionan desde la UI administrativa mediante roles locales.
 

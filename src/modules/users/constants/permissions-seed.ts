@@ -1,5 +1,7 @@
 import { Resource } from '../entities';
 
+export const ADMIN_ROLE_NAME = 'ADMIN';
+
 export const PERMISSIONS_SEED = [
   {
     resource: Resource.USERS,
