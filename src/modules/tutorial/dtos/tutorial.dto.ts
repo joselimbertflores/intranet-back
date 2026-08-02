@@ -1,7 +1,7 @@
-import { OmitType, PartialType } from '@nestjs/mapped-types';
-import { Type } from 'class-transformer';
+import { PartialType } from '@nestjs/mapped-types';
+import { Transform } from 'class-transformer';
 import {
-  ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -10,47 +10,59 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  Min,
+  MaxLength,
   ValidateIf,
-  ValidateNested,
 } from 'class-validator';
+
 import { TutorialBlockType } from '../entities';
+
+const trimString = ({ value }: { value: unknown }): unknown => (typeof value === 'string' ? value.trim() : value);
+
+const trimOrNull = ({ value }: { value: unknown }): unknown => {
+  if (typeof value !== 'string') return value;
+  return value.trim() || null;
+};
 
 export class CreateTutorialBlockDto {
   @IsEnum(TutorialBlockType)
   type: TutorialBlockType;
 
-  @ValidateIf(
-    (o: CreateTutorialBlockDto) => o.type === TutorialBlockType.TEXT || o.type === TutorialBlockType.VIDEO_URL,
-  )
-  @IsNotEmpty({ message: 'El contenido es requerido para textos o URLs de video' })
+  @ValidateIf((_object, value) => value !== undefined)
   @IsString()
+  @Transform(trimString)
   content?: string;
 
-  @ValidateIf(
-    (o: CreateTutorialBlockDto) =>
-      o.type === TutorialBlockType.IMAGE ||
-      o.type === TutorialBlockType.VIDEO_FILE ||
-      o.type === TutorialBlockType.FILE,
-  )
-  @IsNotEmpty({ message: 'El archivo es requerido para este tipo de bloque' })
+  @ValidateIf((_object, value) => value !== undefined)
   @IsUUID()
   fileId?: string;
 }
 
-export class UpdateTutorialBlockDto extends PartialType(OmitType(CreateTutorialBlockDto, ['type'] as const)) {}
+export class UpdateTutorialBlockDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @Transform(trimString)
+  content?: string;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  fileId?: string;
+}
 
 export class CreateTutorialDto {
+  @Transform(trimString)
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
   title: string;
 
+  @Transform(trimOrNull)
   @IsOptional()
   @IsString()
-  summary?: string;
+  summary?: string | null;
 
   @IsOptional()
   @IsInt()
-  categoryId?: number;
+  categoryId?: number | null;
 
   @IsOptional()
   @IsBoolean()
@@ -59,19 +71,9 @@ export class CreateTutorialDto {
 
 export class UpdateTutorialDto extends PartialType(CreateTutorialDto) {}
 
-export class TutorialBlockOrderDto {
-  @IsUUID()
-  id: string;
-
-  @IsInt()
-  @Min(1)
-  order: number;
-}
-
 export class ReorderTutorialBlocksDto {
   @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TutorialBlockOrderDto)
-  @ArrayMinSize(1)
-  items: TutorialBlockOrderDto[];
+  @IsUUID(undefined, { each: true })
+  @ArrayUnique({ message: 'Duplicate block IDs are not allowed' })
+  blockIds: string[];
 }

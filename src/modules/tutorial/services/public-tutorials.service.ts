@@ -3,39 +3,41 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 
 import { FilesService } from 'src/modules/files/files.service';
-import { Tutorial, TutorialBlockType, TutorialCategory } from '../entities';
+
 import { SearchPublicTutorialsDto } from '../dtos';
+import { Tutorial, TutorialBlockType, TutorialCategory } from '../entities';
 import { TutorialVideoHelper } from '../helpers';
 
 @Injectable()
 export class PublicTutorialsService {
   constructor(
-    @InjectRepository(Tutorial) private tutorialRepository: Repository<Tutorial>,
-    @InjectRepository(TutorialCategory) private tutorialCategoryRepository: Repository<TutorialCategory>,
+    @InjectRepository(Tutorial) private readonly tutorialRepository: Repository<Tutorial>,
+    @InjectRepository(TutorialCategory)
+    private readonly tutorialCategoryRepository: Repository<TutorialCategory>,
     private readonly filesService: FilesService,
   ) {}
 
-  async findAll({ limit, offset, term, categoryId }: SearchPublicTutorialsDto) {
+  async findAll({ limit, offset, term, category }: SearchPublicTutorialsDto) {
     const [tutorials, total] = await this.tutorialRepository.findAndCount({
       where: {
         isPublished: true,
-        ...(categoryId && { category: { id: categoryId } }),
+        ...(category && { category: { slug: category } }),
         ...(term && { title: ILike(`%${term}%`) }),
       },
       relations: { category: true },
       take: limit,
       skip: offset,
-      order: { createdAt: 'desc' },
+      order: { createdAt: 'DESC' },
     });
 
     return {
-      tutorials: tutorials.map((item) => ({
-        id: item.id,
-        slug: item.slug,
-        title: item.title,
-        summary: item.summary,
-        category: item.category?.name,
-        createdAt: item.createdAt,
+      tutorials: tutorials.map((tutorial) => ({
+        id: tutorial.id,
+        slug: tutorial.slug,
+        title: tutorial.title,
+        summary: tutorial.summary ?? null,
+        category: this.mapCategory(tutorial.category),
+        createdAt: tutorial.createdAt,
       })),
       total,
     };
@@ -46,24 +48,24 @@ export class PublicTutorialsService {
       where: { slug, isPublished: true },
       relations: {
         category: true,
-        blocks: {
-          file: true,
-        },
+        blocks: { file: true },
       },
-      order: {
-        blocks: {
-          order: 'ASC',
-        },
-      },
+      order: { blocks: { order: 'ASC' } },
     });
 
-    if (!tutorial) throw new NotFoundException();
+    if (!tutorial) throw new NotFoundException('Tutorial not found');
     return this.toPublicDetail(tutorial);
   }
 
   async getCategories() {
-    const result = await this.tutorialCategoryRepository.find({});
-    return result.map(({ id, name }) => ({ id, name }));
+    const categories = await this.tutorialCategoryRepository
+      .createQueryBuilder('category')
+      .innerJoin('category.tutorials', 'tutorial', 'tutorial.isPublished = :isPublished', { isPublished: true })
+      .distinct(true)
+      .orderBy('category.name', 'ASC')
+      .getMany();
+
+    return categories.map(({ id, name, slug }) => ({ id, name, slug }));
   }
 
   private toPublicDetail(tutorial: Tutorial) {
@@ -71,32 +73,43 @@ export class PublicTutorialsService {
       id: tutorial.id,
       slug: tutorial.slug,
       title: tutorial.title,
-      summary: tutorial.summary,
+      summary: tutorial.summary ?? null,
       createdAt: tutorial.createdAt,
-      category: tutorial.category?.name ?? null,
+      category: this.mapCategory(tutorial.category),
       blocks: [...tutorial.blocks]
-        .sort((a, b) => a.order - b.order)
-        .map((block) => ({
-          id: block.id,
-          type: block.type,
-          order: block.order,
-          content: this.handleContent(block.type, block.content ?? null),
-          file: block.file
-            ? {
-                id: block.file.id,
-                url: this.filesService.buildPublicFileUrl(block.file.id),
-                name: block.file.originalName,
-                mimeType: block.file.mimeType,
-                size: block.file.sizeBytes,
-              }
-            : null,
-        })),
+        .sort((left, right) => left.order - right.order)
+        .map((block) => {
+          const isFileBlock = this.isFileBlock(block.type);
+          return {
+            id: block.id,
+            type: block.type,
+            order: block.order,
+            content: isFileBlock ? null : this.mapContent(block.type, block.content),
+            file:
+              isFileBlock && block.file
+                ? {
+                    id: block.file.id,
+                    url: this.filesService.buildPublicFileUrl(block.file.id),
+                    name: block.file.originalName,
+                    mimeType: block.file.mimeType,
+                    size: Number(block.file.sizeBytes),
+                  }
+                : null,
+          };
+        }),
     };
   }
 
-  private handleContent(type: TutorialBlockType, content: string | null) {
+  private mapCategory(category?: TutorialCategory | null) {
+    return category ? { id: category.id, name: category.name, slug: category.slug } : null;
+  }
+
+  private mapContent(type: TutorialBlockType, content: string | null): string | null {
     if (!content) return null;
-    if (type !== TutorialBlockType.VIDEO_URL) return content;
-    return TutorialVideoHelper.toEmbedUrl(content);
+    return type === TutorialBlockType.YOUTUBE ? TutorialVideoHelper.toEmbedUrl(content) : content;
+  }
+
+  private isFileBlock(type: TutorialBlockType): boolean {
+    return type === TutorialBlockType.IMAGE || type === TutorialBlockType.VIDEO_FILE || type === TutorialBlockType.FILE;
   }
 }

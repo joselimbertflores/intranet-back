@@ -24,13 +24,11 @@ export class CustomFileTypeValidator extends FileValidator {
     const detected = await fileTypeFromBuffer(file.buffer.subarray(0, 4100));
 
     if (detected) {
-      if (this.allowedMimes.includes(detected.mime)) return true;
-
-      if (!this.requireDetectedType && AMBIGUOUS_CONTAINER_MIMES.has(detected.mime)) {
+      if (AMBIGUOUS_CONTAINER_MIMES.has(detected.mime)) {
         return this.allowedMimes.includes(file.mimetype);
       }
 
-      return false;
+      return this.allowedMimes.includes(detected.mime) && detected.mime === file.mimetype;
     }
 
     if (this.requireDetectedType) return false;

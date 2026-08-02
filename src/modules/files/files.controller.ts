@@ -24,6 +24,7 @@ import { ProtectedResource, Public } from '../auth/decorators';
 import { Resource } from '../users/entities';
 
 const documentUploadConfig = FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS];
+const tutorialUploadConfig = FILE_UPLOAD_CONFIG[FileContext.TUTORIALS];
 
 @Controller('files')
 export class FilesController {
@@ -103,17 +104,19 @@ export class FilesController {
   }
 
   @Post('tutorials')
-  @UseInterceptors(FileInterceptor('file'))
-  uploadTutorialVideo(
+  @ProtectedResource(Resource.TUTORIALS)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: tutorialUploadConfig.maxSizeBytes } }))
+  uploadTutorialFile(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addValidator(
           new CustomFileTypeValidator({
-            validTypes: FILE_UPLOAD_CONFIG[FileContext.TUTORIALS].validTypes,
+            validTypes: tutorialUploadConfig.validTypes,
+            requireDetectedType: true,
           }),
         )
         .addMaxSizeValidator({
-          maxSize: FILE_UPLOAD_CONFIG[FileContext.TUTORIALS].maxSizeBytes,
+          maxSize: tutorialUploadConfig.maxSizeBytes,
         })
         .build(),
     )

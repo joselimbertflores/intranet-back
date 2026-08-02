@@ -1,80 +1,96 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 
-import { CreateTutorialCategoryDto, UpdateTutorialCategoryDto } from '../dtos/tutorial-category.dto';
-import { Tutorial, TutorialCategory } from '../entities';
 import { generateSlug } from 'src/helpers';
-import { ok } from 'assert';
+
+import { CreateTutorialCategoryDto, UpdateTutorialCategoryDto } from '../dtos';
+import { Tutorial, TutorialCategory } from '../entities';
 
 @Injectable()
 export class TutorialCategoryService {
   constructor(
-    @InjectRepository(TutorialCategory) private tutorialCategoryRepository: Repository<TutorialCategory>,
-    @InjectRepository(Tutorial) private tutorialReposutory: Repository<Tutorial>,
+    @InjectRepository(TutorialCategory)
+    private readonly tutorialCategoryRepository: Repository<TutorialCategory>,
+    @InjectRepository(Tutorial) private readonly tutorialRepository: Repository<Tutorial>,
   ) {}
 
   async findAll() {
-    return await this.tutorialCategoryRepository.find({
-      order: {
-        createdAt: 'desc',
-      },
-    });
+    const categories = await this.tutorialCategoryRepository.find({ order: { createdAt: 'DESC' } });
+    return categories.map((category) => this.mapToAdminResponse(category));
   }
 
   async create(dto: CreateTutorialCategoryDto) {
+    const slug = generateSlug(dto.name);
+    if (!slug) throw new BadRequestException('Tutorial category name must produce a valid slug');
+    await this.ensureSlugIsAvailable(slug);
+    const category = this.tutorialCategoryRepository.create({ name: dto.name, slug });
+
     try {
-      const category = this.tutorialCategoryRepository.create({ ...dto, slug: generateSlug(dto.name) });
-      return await this.tutorialCategoryRepository.save(category);
+      return this.mapToAdminResponse(await this.tutorialCategoryRepository.save(category));
     } catch (error) {
-      this.handleDatabaseError(error);
+      this.throwSlugConflictIfNeeded(error, slug);
+      throw error;
     }
   }
 
   async update(id: number, dto: UpdateTutorialCategoryDto) {
-    const category = await this.findOne(id);
-    Object.assign(category, dto);
+    const category = await this.findEntityOrFail(id);
+
+    if (dto.name !== undefined && dto.name !== category.name) {
+      const slug = generateSlug(dto.name);
+      if (!slug) throw new BadRequestException('Tutorial category name must produce a valid slug');
+      await this.ensureSlugIsAvailable(slug, id);
+      category.name = dto.name;
+      category.slug = slug;
+    }
+
     try {
-      if (dto.name && dto.name.trim() !== category.name.trim()) {
-        category.slug = generateSlug(dto.name);
-      }
-      return await this.tutorialCategoryRepository.save(category);
+      return this.mapToAdminResponse(await this.tutorialCategoryRepository.save(category));
     } catch (error) {
-      this.handleDatabaseError(error);
+      this.throwSlugConflictIfNeeded(error, category.slug);
+      throw error;
     }
-  }
-
-  async findOne(id: number) {
-    const category = await this.tutorialCategoryRepository.findOne({
-      where: { id },
-    });
-
-    if (!category) {
-      throw new NotFoundException(`Tutorial category with id ${id} not found`);
-    }
-
-    return category;
   }
 
   async remove(id: number) {
-    const count = await this.tutorialReposutory.count({ where: { category: { id } } });
+    const category = await this.findEntityOrFail(id);
+    const inUse = await this.tutorialRepository.exists({ where: { category: { id } } });
 
-    if (count > 0) {
-      throw new BadRequestException('Category is in use by one or more tutorials');
+    if (inUse) {
+      throw new ConflictException('Tutorial category is in use');
     }
-    const result = await this.tutorialCategoryRepository.delete({ id });
-    return (result.affected ?? 0 > 0)
-      ? { ok: true, message: 'Category deleted successfully' }
-      : { ok: false, message: 'Category not found' };
+
+    await this.tutorialCategoryRepository.remove(category);
+    return { ok: true, message: 'Category deleted successfully' };
   }
 
-  private handleDatabaseError(error: unknown): never {
-    if (error instanceof QueryFailedError) {
-      const dbCode = (error as QueryFailedError & { driverError?: { code?: string } }).driverError?.code;
-      if (dbCode === '23505') {
-        throw new BadRequestException('Category slug already exists');
-      }
+  private async findEntityOrFail(id: number): Promise<TutorialCategory> {
+    const category = await this.tutorialCategoryRepository.findOneBy({ id });
+    if (!category) throw new NotFoundException('Tutorial category not found');
+    return category;
+  }
+
+  private async ensureSlugIsAvailable(slug: string, currentCategoryId?: number): Promise<void> {
+    const duplicate = await this.tutorialCategoryRepository.findOneBy({ slug });
+    if (duplicate && duplicate.id !== currentCategoryId) {
+      throw new ConflictException('Tutorial category slug already exists');
     }
-    throw new BadRequestException('Could not process tutorial category request');
+  }
+
+  private throwSlugConflictIfNeeded(error: unknown, slug: string): void {
+    if (!(error instanceof QueryFailedError)) return;
+    if ((error.driverError as { code?: string }).code === '23505') {
+      throw new ConflictException(`Tutorial category slug "${slug}" already exists`);
+    }
+  }
+
+  private mapToAdminResponse(category: TutorialCategory) {
+    return {
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      createdAt: category.createdAt,
+    };
   }
 }

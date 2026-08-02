@@ -1,16 +1,21 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
+
+import { Tutorial } from './tutorial.entity';
 
 @Entity('tutorial_categories')
 export class TutorialCategory {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ length: 120 })
   name: string;
 
-  @Column({ unique: true })
+  @Column({ length: 120, unique: true })
   slug: string;
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @OneToMany(() => Tutorial, (tutorial) => tutorial.category)
+  tutorials: Tutorial[];
 }

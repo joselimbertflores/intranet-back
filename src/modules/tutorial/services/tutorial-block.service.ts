@@ -1,45 +1,64 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DataSource, EntityManager, In } from 'typeorm';
+import { DataSource } from 'typeorm';
 
-import { CreateTutorialBlockDto, UpdateTutorialBlockDto, ReorderTutorialBlocksDto } from '../dtos';
-import { FileStatus, StoredFile } from 'src/modules/files/entities/stored-file.entity';
-import { Tutorial, TutorialBlock, TutorialBlockType } from '../entities';
-import { FilesService } from 'src/modules/files/files.service';
 import { sanitizeHtml } from 'src/helpers';
+import { FileContext } from 'src/modules/files/enums/file-context.enum';
+import { FilesService } from 'src/modules/files/files.service';
+
+import { CreateTutorialBlockDto, ReorderTutorialBlocksDto, UpdateTutorialBlockDto } from '../dtos';
+import { Tutorial, TutorialBlock, TutorialBlockType } from '../entities';
 import { TutorialVideoHelper } from '../helpers';
+
+const ALLOWED_MIME_TYPES: Partial<Record<TutorialBlockType, readonly string[]>> = {
+  [TutorialBlockType.IMAGE]: ['image/jpeg', 'image/png', 'image/webp'],
+  [TutorialBlockType.VIDEO_FILE]: ['video/mp4'],
+  [TutorialBlockType.FILE]: [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ],
+};
 
 @Injectable()
 export class TutorialBlockService {
   constructor(
-    private dataSource: DataSource,
-    private fileService: FilesService,
+    private readonly dataSource: DataSource,
+    private readonly filesService: FilesService,
   ) {}
 
   async create(tutorialId: string, dto: CreateTutorialBlockDto) {
-    const { fileId, content, type } = dto;
     const createdBlock = await this.dataSource.transaction(async (manager) => {
-      const tutorial = await manager.findOneByOrFail(Tutorial, { id: tutorialId });
+      const tutorial = await manager.findOneBy(Tutorial, { id: tutorialId });
+      if (!tutorial) throw new NotFoundException('Tutorial not found');
 
       const { max } = (await manager
         .getRepository(TutorialBlock)
-        .createQueryBuilder('b')
-        .select('COALESCE(MAX(b.order), 0)', 'max')
-        .where('b.tutorialId = :id', { id: tutorialId })
+        .createQueryBuilder('block')
+        .select('COALESCE(MAX(block.order), 0)', 'max')
+        .where('block.tutorialId = :tutorialId', { tutorialId })
         .getRawOne<{ max: number }>()) ?? { max: 0 };
 
-      this.validateBlock(type, content, fileId);
+      let content: string | null = null;
+      let file: TutorialBlock['file'] = null;
 
-      let file: StoredFile | null = null;
-      if (dto.fileId) {
-        file = await this.activateFile(manager, dto.fileId);
+      if (this.isFileBlock(dto.type)) {
+        this.assertFileBlockPayload(dto.type, dto.content, dto.fileId);
+        try {
+          file = await this.filesService.claimPendingFile(dto.fileId!, FileContext.TUTORIALS, manager);
+        } catch (error) {
+          if (error instanceof NotFoundException) throw new BadRequestException('File not found');
+          throw error;
+        }
+        this.assertCompatibleMimeType(dto.type, file.mimeType);
+      } else {
+        content = this.normalizeContentBlock(dto.type, dto.content, dto.fileId);
       }
 
       const block = manager.create(TutorialBlock, {
-        type,
+        type: dto.type,
         tutorial,
-        content: this.normalizeContent(type, content),
+        content,
+        file,
         order: Number(max) + 1,
-        ...(file && { file }),
       });
 
       return manager.save(block);
@@ -49,72 +68,100 @@ export class TutorialBlockService {
   }
 
   async update(id: string, dto: UpdateTutorialBlockDto) {
-    const { content, ...toUpdate } = dto;
-    const result = await this.dataSource.transaction(async (manager) => {
+    const updatedBlock = await this.dataSource.transaction(async (manager) => {
       const block = await manager.findOne(TutorialBlock, {
         where: { id },
         relations: { file: true },
       });
-      if (!block) throw new NotFoundException(`Block with id ${id} not found`);
 
-      const nextContent = dto.content ?? block.content;
-      const nextFileId = dto.fileId ?? block.file?.id;
+      if (!block) throw new NotFoundException('Tutorial block not found');
 
-      this.validateBlock(block.type, nextContent, nextFileId);
-
-      if (dto.fileId && dto.fileId !== block.file?.id) {
-        if (block.file) {
-          await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.ORPHANED });
+      if (this.isFileBlock(block.type)) {
+        if (dto.content !== undefined) {
+          throw new BadRequestException(`${block.type} blocks do not accept content`);
         }
-        block.file = await this.activateFile(manager, dto.fileId);
-      }
 
-      if (dto.content !== undefined) {
-        block.content = this.normalizeContent(block.type, dto.content);
-      }
+        if (dto.fileId !== undefined) {
+          if (!block.file) throw new BadRequestException(`${block.type} block has no active file to replace`);
 
-      Object.assign(block, toUpdate);
+          try {
+            block.file = await this.filesService.replaceActiveFileWithPendingFile(
+              block.file.id,
+              dto.fileId,
+              FileContext.TUTORIALS,
+              manager,
+            );
+          } catch (error) {
+            if (error instanceof NotFoundException) throw new BadRequestException('File not found');
+            throw error;
+          }
+        }
+
+        if (!block.file) throw new BadRequestException(`${block.type} block requires a file`);
+        this.assertCompatibleMimeType(block.type, block.file.mimeType);
+        block.content = null;
+      } else {
+        if (dto.fileId !== undefined) {
+          throw new BadRequestException(`${block.type} blocks do not accept files`);
+        }
+        if (block.file) {
+          throw new BadRequestException(`${block.type} block has an unexpected file association`);
+        }
+
+        block.content = this.normalizeContentBlock(block.type, dto.content ?? block.content ?? undefined, undefined);
+      }
 
       return manager.save(block);
     });
 
-    return this.mapToAdminBlock(result);
+    return this.mapToAdminBlock(updatedBlock);
   }
 
-  async remove(blockId: string) {
-    return this.dataSource.transaction(async (manager) => {
+  async remove(blockId: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
       const block = await manager.findOne(TutorialBlock, {
         where: { id: blockId },
-        relations: { file: true },
+        relations: { file: true, tutorial: true },
       });
 
-      if (!block) throw new NotFoundException();
+      if (!block) throw new NotFoundException('Tutorial block not found');
 
-      if (block.file) {
-        await manager.update(StoredFile, { id: block.file.id }, { status: FileStatus.ORPHANED });
+      if (block.tutorial.isPublished) {
+        const blockCount = await manager.count(TutorialBlock, { where: { tutorial: { id: block.tutorial.id } } });
+        if (blockCount <= 1) {
+          throw new BadRequestException('A published tutorial must have at least one block');
+        }
       }
 
-      await manager.delete(TutorialBlock, { id: blockId });
-      return { ok: true };
+      if (block.file) {
+        await this.filesService.markActiveFileAsOrphaned(block.file.id, manager, FileContext.TUTORIALS);
+      }
+
+      await manager.remove(block);
     });
   }
 
-  async updateBlocksOrder(tutorialId: string, { items }: ReorderTutorialBlocksDto) {
+  async updateBlocksOrder(tutorialId: string, { blockIds }: ReorderTutorialBlocksDto) {
     await this.dataSource.transaction(async (manager) => {
-      const ids = items.map((i) => i.id);
-      const count = await manager.count(TutorialBlock, {
-        where: {
-          id: In(ids),
-          tutorial: { id: tutorialId },
-        },
-      });
+      const tutorialExists = await manager.exists(Tutorial, { where: { id: tutorialId } });
+      if (!tutorialExists) throw new NotFoundException('Tutorial not found');
 
-      if (count !== items.length) {
-        throw new BadRequestException('One or more blocks do not belong to this tutorial');
+      if (new Set(blockIds).size !== blockIds.length) {
+        throw new BadRequestException('Duplicate block IDs are not allowed');
       }
 
-      for (const item of items) {
-        await manager.update(TutorialBlock, { id: item.id }, { order: item.order });
+      const blocks = await manager.find(TutorialBlock, {
+        where: { tutorial: { id: tutorialId } },
+        select: { id: true },
+      });
+      const currentIds = new Set(blocks.map((block) => block.id));
+
+      if (blockIds.length !== blocks.length || blockIds.some((id) => !currentIds.has(id))) {
+        throw new BadRequestException('blockIds must contain every block in this tutorial exactly once');
+      }
+
+      for (const [index, id] of blockIds.entries()) {
+        await manager.update(TutorialBlock, { id }, { order: index + 1 });
       }
     });
 
@@ -122,81 +169,71 @@ export class TutorialBlockService {
   }
 
   mapToAdminBlock(block: TutorialBlock) {
-    if (block.type === TutorialBlockType.VIDEO_URL && block.content) {
-      return {
-        id: block.id,
-        type: block.type,
-        order: block.order,
-        content: TutorialVideoHelper.toEmbedUrl(block.content),
-      };
-    }
+    const isFileBlock = this.isFileBlock(block.type);
     return {
       id: block.id,
       type: block.type,
-      content: block.content,
       order: block.order,
-      ...(block.file && {
-        file: {
-          id: block.file.id,
-          url: this.fileService.buildPublicFileUrl(block.file.id),
-          originalName: block.file.originalName,
-          mimeType: block.file.mimeType,
-          size: Number(block.file.sizeBytes),
-        },
-      }),
+      content:
+        !isFileBlock && block.type === TutorialBlockType.YOUTUBE
+          ? TutorialVideoHelper.toEmbedUrl(block.content)
+          : !isFileBlock
+            ? (block.content ?? null)
+            : null,
+      file:
+        isFileBlock && block.file
+          ? {
+              id: block.file.id,
+              url: this.filesService.buildPublicFileUrl(block.file.id),
+              originalName: block.file.originalName,
+              mimeType: block.file.mimeType,
+              size: Number(block.file.sizeBytes),
+            }
+          : null,
     };
   }
 
-  private async activateFile(manager: EntityManager, fileId: string): Promise<StoredFile> {
-    const file = await manager.findOne(StoredFile, {
-      where: { id: fileId },
-    });
+  private normalizeContentBlock(type: TutorialBlockType, content?: string, fileId?: string): string {
+    if (fileId !== undefined) throw new BadRequestException(`${type} blocks do not accept files`);
+    if (!content?.trim()) throw new BadRequestException(`${type} block requires content`);
 
-    if (!file) throw new BadRequestException('File not found');
-    if (file.status === FileStatus.PENDING) {
-      await manager.update(StoredFile, { id: file.id }, { status: FileStatus.ACTIVE });
+    if (type === TutorialBlockType.TEXT) {
+      const sanitized = sanitizeHtml(content).trim();
+      if (!this.hasVisibleText(sanitized)) {
+        throw new BadRequestException('TEXT block content is empty after sanitization');
+      }
+      return sanitized;
     }
-    return file;
+
+    if (type === TutorialBlockType.YOUTUBE) {
+      return TutorialVideoHelper.normalizeContent(content);
+    }
+
+    throw new BadRequestException('Invalid content-based tutorial block type');
   }
 
-  private validateBlock(type: TutorialBlockType, content?: string | null, fileId?: string | null) {
-    switch (type) {
-      case TutorialBlockType.TEXT:
-        if (!content?.trim()) {
-          throw new BadRequestException('TEXT block requires content');
-        }
-        break;
+  private assertFileBlockPayload(type: TutorialBlockType, content?: string, fileId?: string): void {
+    if (content !== undefined) throw new BadRequestException(`${type} blocks do not accept content`);
+    if (!fileId) throw new BadRequestException(`${type} block requires a file`);
+  }
 
-      case TutorialBlockType.VIDEO_URL:
-        if (!content?.trim()) {
-          throw new BadRequestException('VIDEO_URL block requires content');
-        }
-        break;
-
-      case TutorialBlockType.IMAGE:
-      case TutorialBlockType.VIDEO_FILE:
-      case TutorialBlockType.FILE:
-        if (!fileId) {
-          throw new BadRequestException(`${type} block requires file`);
-        }
-        break;
-      default:
-        break;
+  private assertCompatibleMimeType(type: TutorialBlockType, mimeType: string): void {
+    const allowedMimeTypes = ALLOWED_MIME_TYPES[type];
+    if (!allowedMimeTypes?.includes(mimeType)) {
+      throw new BadRequestException(`${mimeType} is not allowed for ${type} blocks`);
     }
   }
 
-  private normalizeContent(type: TutorialBlockType, content?: string): string | undefined {
-    if (!content) return undefined;
-    switch (type) {
-      case TutorialBlockType.TEXT:
-        return sanitizeHtml(content);
+  private isFileBlock(type: TutorialBlockType): boolean {
+    return type === TutorialBlockType.IMAGE || type === TutorialBlockType.VIDEO_FILE || type === TutorialBlockType.FILE;
+  }
 
-      case TutorialBlockType.VIDEO_URL:
-        if (content.startsWith('youtube:')) return content;
-        return TutorialVideoHelper.normalizeContent(content);
-
-      default:
-        return content;
-    }
+  private hasVisibleText(html: string): boolean {
+    return (
+      html
+        .replace(/<[^>]*>/g, '')
+        .replace(/&(?:nbsp|#160|#xA0);/gi, ' ')
+        .trim().length > 0
+    );
   }
 }

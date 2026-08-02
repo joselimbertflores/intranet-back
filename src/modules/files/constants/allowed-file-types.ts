@@ -44,6 +44,6 @@ export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
   },
   [FileContext.TUTORIALS]: {
     validTypes: ['mp4', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'pptx'],
-    maxSizeBytes: 300 * 1024 * 1024,
+    maxSizeBytes: 50 * 1024 * 1024,
   },
 };

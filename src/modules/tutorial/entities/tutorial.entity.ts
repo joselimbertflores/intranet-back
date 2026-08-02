@@ -16,19 +16,16 @@ export class Tutorial {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ length: 200 })
   title: string;
 
-  @Column({ unique: true })
+  @Column({ length: 200, unique: true })
   slug: string;
 
   @Column({ type: 'text', nullable: true })
-  summary?: string;
+  summary: string | null;
 
-  @ManyToOne(() => TutorialCategory, {
-    nullable: true,
-    onDelete: 'SET NULL',
-  })
+  @ManyToOne(() => TutorialCategory, (category) => category.tutorials, { nullable: true, onDelete: 'SET NULL' })
   category?: TutorialCategory | null;
 
   @OneToMany(() => TutorialBlock, (block) => block.tutorial, {
@@ -36,7 +33,7 @@ export class Tutorial {
   })
   blocks: TutorialBlock[];
 
-  @Column({ default: true })
+  @Column({ default: false })
   isPublished: boolean;
 
   @CreateDateColumn()

@@ -6,7 +6,7 @@ import { Tutorial } from './tutorial.entity';
 export enum TutorialBlockType {
   TEXT = 'TEXT',
   IMAGE = 'IMAGE',
-  VIDEO_URL = 'VIDEO_URL',
+  YOUTUBE = 'YOUTUBE',
   VIDEO_FILE = 'VIDEO_FILE',
   FILE = 'FILE',
 }
@@ -17,11 +17,11 @@ export class TutorialBlock {
   id: string;
 
   @Column({ type: 'text', nullable: true })
-  content?: string;
+  content: string | null;
 
   @OneToOne(() => StoredFile, { nullable: true })
   @JoinColumn()
-  file?: StoredFile;
+  file: StoredFile | null;
 
   @ManyToOne(() => Tutorial, (tutorial) => tutorial.blocks, {
     onDelete: 'CASCADE',
