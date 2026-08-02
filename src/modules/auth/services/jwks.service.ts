@@ -21,6 +21,7 @@ export class JwksService {
       cacheMaxAge: 10 * 60 * 1000,
       rateLimit: true,
       jwksRequestsPerMinute: 5,
+      timeout: 10_000,
     });
   }
 

@@ -24,6 +24,7 @@ import { AuthModule } from './modules/auth/auth.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService<EnvironmentVariables>) => {
+        console.log(configService.get<string>('DB_SYNCHRONIZE'))
         return {
           type: 'postgres',
           host: configService.get('DATABASE_HOST'),

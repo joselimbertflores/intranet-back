@@ -1,52 +1,35 @@
 # Integracion SSO de Intranet con Identity Hub
 
-## Alcance
+## Alcance y responsabilidades
 
-La Intranet actua como cliente OAuth de Identity Hub. Identity Hub autentica la identidad global y es la unica fuente de verdad del acceso global a la aplicacion mediante `user.isActive` central, `application.isActive` y la relacion `user_applications`. Intranet conserva usuarios shadow locales, `externalKey`, `fullName`, roles/permisos locales y referencias internas de auditoria. El frontend Angular no intercambia tokens directamente y no llama a Identity Hub para importar usuarios.
+Identity Hub administra identidad, credenciales, estado global y asignacion de usuarios a la aplicacion. Intranet es un cliente OAuth confidencial y administra su propia sesion, usuarios shadow, roles y permisos locales.
 
-## Responsabilidades del backend
+La clave estable de integracion es `externalKey`. El claim `sub` es un UUID interno de Identity Hub y no se usa para enlazar usuarios locales. Los roles y permisos siempre provienen de las tablas locales de Intranet; no se leen ni se reemplazan desde claims del access token.
 
-- `OAuthController`: expone las rutas de navegador `/auth/login` y `/auth/callback`, valida la correlacion del callback y setea/limpia cookies.
-- `OAuthService`: orquesta el Authorization Code Flow: crea la solicitud de autorizacion, canjea el code, valida el access token y sincroniza el usuario local.
-- `PkceService`: genera `code_verifier` y calcula `code_challenge` S256.
-- `AuthCookieService`: administra cookies HTTP-only locales, tanto las temporales OAuth como las de sesion de Intranet.
-- `IdentityService`: llama al token endpoint de Identity Hub para canje de code y refresh rotation.
-- `TokenVerifierService` y `JwksService`: validan JWT RS256 con JWKS, issuer y audience.
-- `OAuthGuard`: protege APIs, carga el usuario shadow local por `externalKey`, refresca tokens cuando el access token expira y deja la autorizacion fina a roles/permisos locales.
+El frontend solo navega por redirects y usa la sesion local de Intranet. Nunca recibe el `client_secret`, el authorization code canjeado, el `code_verifier`, access tokens ni refresh tokens. El cambio obligatorio, la recuperacion y el cambio normal de password se completan enteramente en la UI de Identity Hub.
 
-No hay canje de authorization code en el frontend. No se usan roles de Identity Hub para autorizar en Intranet, y no se registran roles internos de Intranet en Identity Hub.
+## Componentes del backend
 
-## Flujo OAuth
+- `OAuthController` expone `GET /auth/login` y `GET /auth/callback`.
+- `OAuthService` construye la autorizacion, canjea el code, verifica el JWT, sincroniza el usuario shadow y crea la sesion local.
+- `OAuthTransactionService` guarda server-side la correlacion temporal del login, el hash de `state` y el `code_verifier`.
+- `IdentityService` consume `/oauth/token` mediante formulario y HTTP Basic.
+- `TokenVerifierService` y `JwksService` validan access tokens RS256 con JWKS.
+- `AuthSessionService` guarda tokens server-side y serializa la rotacion por sesion.
+- `AuthCookieService` solo administra identificadores opacos; no escribe tokens ni PKCE en cookies.
+- `OAuthGuard` resuelve la sesion local, valida el access token, rota tokens cuando corresponde y carga roles/permisos locales.
 
-1. El navegador llama `GET /auth/login`.
-2. Intranet genera `state` y `code_verifier`, calcula `code_challenge` S256, los guarda temporalmente y redirige a Identity Hub.
-3. Identity Hub autentica al usuario y redirige a `GET /auth/callback`.
-4. Intranet valida `state`, recupera `code_verifier`, intercambia el `authorization code` por tokens y verifica el access token.
-5. Intranet sincroniza o crea el shadow user local por `externalKey`; esta sincronizacion proyecta identidad local y asigna roles iniciales locales solo si el usuario shadow es nuevo, no autoriza acceso global.
-6. Intranet setea cookies locales y redirige a `/admin` o a `{INTRANET_UI_BASE_URL}/admin`.
-
-Si el callback falla, Intranet limpia `intranet_oauth_state` y redirige a `/auth/error?error=...` o a `{INTRANET_UI_BASE_URL}/auth/error?error=...`.
-
-La URL de autorizacion enviada a Identity Hub contiene:
-
-- `client_id`
-- `redirect_uri`
-- `response_type=code`
-- `state`
-- `code_challenge`
-- `code_challenge_method=S256`
-
-Intranet no envia `scope` mientras Identity Hub no tenga soporte real de scopes.
+`OAuthTransaction` y `AuthSession` son entidades TypeORM persistidas en PostgreSQL. Esta es una decision de implementacion de Intranet para cumplir el almacenamiento server-side; el contrato de Identity Hub exige el comportamiento, no estas entidades ni PostgreSQL para todos sus clientes.
 
 ## Rutas principales
 
 - `GET /auth/login`: inicia el flujo OAuth.
 - `GET /auth/callback`: recibe el callback de Identity Hub.
 - `GET /api/auth/me`: devuelve el usuario autenticado y permisos efectivos.
-- `POST /api/auth/logout`: limpia cookies locales.
+- `POST /api/auth/logout`: elimina la sesion local.
 - `GET /api/users/identity-candidates?term=...`: busca usuarios asignables en Identity Hub.
 - `GET /api/users/identity-candidates/:externalKey`: obtiene un candidato exacto.
-- `POST /api/users/import-from-identity`: crea un usuario local importado y opcionalmente asigna `roleIds`.
+- `POST /api/users/import-from-identity`: crea un usuario shadow con roles locales seleccionados.
 
 Intranet define `app.setGlobalPrefix('api')` en `main.ts`. Solo `GET /auth/login` y `GET /auth/callback` quedan fuera de `/api` porque son rutas OAuth de navegador.
 
@@ -62,78 +45,175 @@ El servidor estatico excluye:
 
 Por eso las APIs REST se resuelven en Nest bajo `/api`, las rutas OAuth de navegador siguen en `/auth/*`, y las rutas SPA como `/admin`, `/auth/error` o `/documents` hacen fallback a `index.html`.
 
-En desarrollo, Angular puede correr separado. En ese caso `CORS_ORIGIN` permite un unico origen del dev server y `INTRANET_UI_BASE_URL` puede apuntar a ese origen, por ejemplo `http://localhost:4200`. En produccion, copia el build Angular a `public/browser`; `INTRANET_UI_BASE_URL` puede omitirse para redirigir a rutas relativas servidas por NestJS.
+En desarrollo, Angular puede correr separado. En ese caso `CORS_ORIGIN` permite un unico origen del dev server y `INTRANET_UI_BASE_URL` puede apuntar a ese origen, por ejemplo `http://localhost:4200`. En produccion, el build Angular se copia a `public/browser`; `INTRANET_UI_BASE_URL` puede omitirse para usar rutas relativas servidas por NestJS.
 
-## Cookies locales
+## Authorization Code con PKCE S256
 
-Temporales OAuth:
+1. El navegador solicita `GET /auth/login`.
+2. Intranet genera un `state` aleatorio y un `code_verifier` PKCE de 43 a 128 caracteres permitidos.
+3. Calcula `code_challenge = base64url(sha256(code_verifier))` sin padding.
+4. Guarda server-side una transaccion con TTL de cinco minutos. La cookie HTTP-only `intranet_oauth_transaction` contiene solo su identificador opaco.
+5. Redirige al navegador a `/oauth/authorize` con estos parametros exactos:
+   - `response_type=code`
+   - `client_id`
+   - `redirect_uri`
+   - `state`
+   - `code_challenge`
+   - `code_challenge_method=S256`
+6. Identity Hub devuelve `code` y `state` a `GET /auth/callback` o devuelve `error=access_denied` y `state`.
+7. El callback busca la transaccion mediante la cookie opaca, compara el hash de `state` y elimina la transaccion dentro de una operacion bloqueada. El `state` queda consumido antes de cualquier canje del code.
+8. Un `state` ausente, desconocido, vencido, diferente o reutilizado descarta la transaccion y redirige a `/auth/error?error=invalid_state`. La vista local permite iniciar un login nuevo; el callback no crea un bucle automatico de autorizacion.
+9. `access_denied` se muestra como falta de acceso y no se reintenta silenciosamente.
 
-- `intranet_oauth_state`: correlaciona login/callback.
-- `intranet_pkce_verifier`: guarda el `code_verifier`.
+La URI de callback enviada en authorize y en el token request debe coincidir exactamente con `OAUTH_REDIRECT_URI` y con el registro de Identity Hub.
 
-Sesion local de Intranet:
+## Canje y rotacion de tokens
 
-- `intranet_access`: access token emitido para Intranet.
-- `intranet_refresh`: refresh token rotativo.
+`POST /oauth/token` se ejecuta exclusivamente desde el backend con:
 
-Las cookies de sesion local usan `path: '/'`. Las cookies temporales OAuth usan `path: '/auth'` y TTL corto de 5 minutos. Todas usan `httpOnly`, `secure` por `AUTH_COOKIE_SECURE` y `sameSite` por `AUTH_COOKIE_SAME_SITE` con valor por defecto `lax`. `clearCookie` usa las mismas opciones base que `setCookie`.
-
-## PKCE S256
-
-`GET /auth/login` genera un `code_verifier` criptograficamente seguro y calcula:
-
-```text
-code_challenge = base64url(sha256(code_verifier))
-code_challenge_method = S256
+```http
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic base64(formEncode(client_id) + ":" + formEncode(client_secret))
 ```
 
-El `code_verifier` no se envia al navegador como dato legible ni se envia a `/oauth/authorize`; queda en cookie temporal HTTP-only y se usa solo en `/oauth/token`. Intranet no soporta `plain`.
+Canje del code:
 
-## Tokens de Identity Hub
+```text
+grant_type=authorization_code
+code=<authorization-code>
+redirect_uri=<callback-exacto>
+code_verifier=<verifier-original>
+```
 
-Intranet recibe `accessToken`, `refreshToken`, `accessTokenExpiresIn`, `refreshTokenExpiresIn` y `tokenType` desde `/oauth/token`. En el canje de authorization code envia `grant_type`, `client_id`, `client_secret`, `redirect_uri`, `code` y `code_verifier`. El backend guarda los tokens solo en cookies HTTP-only para el navegador.
+Rotacion:
 
-Los refresh tokens son rotativos. Cuando el access token expira, el guard usa la cookie `intranet_refresh`, llama a `/oauth/token` con `grant_type=refresh_token` y reemplaza inmediatamente las cookies locales con los tokens nuevos. Si el refresh falla, limpia la sesion local.
+```text
+grant_type=refresh_token
+refresh_token=<refresh-token-actual>
+```
 
-## Verificacion JWT
+El secreto no se envia en el body. El cliente confidencial tampoco repite `client_id` en el formulario. Todos los nombres externos son `snake_case`.
 
-`TokenVerifierService` valida access tokens con RS256 y JWKS. La URL JWKS se toma de `IDENTITY_HUB_JWKS_URL` o de `IDENTITY_HUB_URL/.well-known/jwks.json`. El `issuer` esperado viene de `OAUTH_ISSUER`; el `audience` esperado es `OAUTH_CLIENT_ID`, alineado con Gaceta.
+La respuesta esperada es:
 
-Despues de la verificacion criptografica, Intranet exige que los claims `externalKey` y `name` sean strings no vacios. Para sincronizar el shadow user, `auth` entrega a `users` solamente `externalKey` y `fullName`.
+```json
+{
+  "access_token": "<jwt>",
+  "refresh_token": "<refresh-nuevo>",
+  "token_type": "Bearer",
+  "expires_in": 600,
+  "refresh_token_expires_in": 36000
+}
+```
 
-El guard diferencia access token expirado de token invalido. Solo intenta refresh cuando el access token expiro.
+Intranet guarda ambos tokens en `auth_sessions`. La cookie HTTP-only `intranet_session` contiene solamente un identificador local aleatorio y expira junto con el refresh token almacenado. No se persiste una expiracion separada del access token: su `exp` firmado determina cuando debe rotarse.
 
-## Shadow user local
+Cuando vence el access token, `AuthSessionService` bloquea la fila de la sesion con `pessimistic_write` antes de llamar a Identity Hub. La respuesta exitosa reemplaza access token, refresh token y expiracion del refresh en la misma transaccion. Si otro request esperaba el bloqueo, observa el access token nuevo y no vuelve a presentar el refresh token consumido.
 
-La clave de integracion es `externalKey`. Durante un login/callback SSO exitoso, Intranet usa el access token ya verificado para crear el usuario local si no existe y actualizar solo `fullName` cuando cambio. `syncUserFromIdentity` no consulta usuarios asignables en Identity Hub, no se ejecuta en cada request, no autoriza acceso global, no sobrescribe roles locales, no toca permisos locales y no asigna `ADMIN` durante login.
+## Errores y recuperacion
 
-Cuando `syncUserFromIdentity` crea un usuario shadow nuevo, busca todos los roles locales con `isAutoAssigned = true` y los asigna como roles iniciales. Puede haber cero, uno o varios roles autoasignables. Si no existe ningun rol con `isAutoAssigned = true`, el usuario se crea sin roles y se registra un warning; el login no falla por falta de roles locales iniciales. Los logins posteriores reutilizan el shadow user existente, conservan sus roles y solo actualizan `fullName` si cambio.
+- `invalid_grant` durante el callback descarta el grant e inicia una autorizacion nueva.
+- `invalid_grant` durante refresh elimina la sesion server-side y limpia la cookie local. La API responde el `401 Unauthorized` que ya maneja el frontend.
+- Un fallo 500/503, de red o de verificacion JWKS transitoria conserva la sesion y sus credenciales. La API responde `503`; no se informa que la sesion expiro.
+- Otros rechazos o respuestas invalidas del token endpoint no se convierten en expiracion local; se exponen como error de dependencia y se conserva la sesion salvo que exista una inconsistencia de identidad comprobada.
+- Un access token local con firma, header o claims invalidos elimina la sesion porque ya no es una credencial confiable.
+- `access_denied` redirige a la ruta de error de Intranet con `error=access_denied`; no crea sesion local ni inicia un bucle de autorizacion.
 
-El sistema cliente no tiene `isActive` local en usuarios shadow. El shadow user no representa acceso vigente; representa identidad proyectada, roles/permisos locales e historial interno. Si un usuario no debe acceder a Intranet, se revoca la aplicacion desde Identity Hub eliminando la relacion usuario-aplicacion. Si se quiere cambiar lo que el usuario puede hacer dentro de Intranet, se modifican roles/permisos locales.
+## Validacion JWT y JWKS
 
-Los usuarios shadow no se borran cuando Identity Hub desactiva un usuario o le quita acceso a la aplicacion, porque pueden tener historial local, auditoria interna y relaciones existentes. Si luego Identity Hub vuelve a dar acceso a la aplicacion, `syncUserFromIdentity` reutiliza el shadow user existente y conserva sus roles locales.
+El JWKS se obtiene desde `IDENTITY_HUB_JWKS_URL` o, si no esta configurado, desde `IDENTITY_HUB_URL/.well-known/jwks.json`. Para cada access token Intranet exige:
 
-El guard de Intranet valida cookies/tokens, carga el shadow user local existente por `externalKey` y aplica roles/permisos locales cuando corresponda. No valida `isActive` local. Si el usuario central, la aplicacion o la relacion `user_applications` no permiten acceso, el bloqueo debe ocurrir en Identity Hub durante authorize/token/refresh.
+- header `alg=RS256`;
+- `kid` no vacio y seleccion de la llave JWKS correspondiente;
+- firma RS256 valida;
+- `iss` exactamente igual a `OAUTH_ISSUER`;
+- `aud` exactamente igual a `OAUTH_CLIENT_ID`;
+- `exp` numerico, presente y no vencido;
+- `sub`, `externalKey`, `name` e `iat` con el tipo esperado.
 
-En el futuro, la auditoria de asignaciones y revocaciones de aplicaciones debe vivir en una tabla separada de eventos/auditoria en Identity Hub, no en los usuarios shadow del cliente.
+La audiencia se valida exclusivamente con `aud`. El campo redundante `clientId` que pueda existir en el payload no participa en la validacion ni en la autorizacion.
+
+## Sesion y logout locales
+
+Rutas:
+
+- `GET /api/auth/me`: devuelve el usuario shadow autenticado y sus permisos efectivos locales.
+- `POST /api/auth/logout`: elimina la fila de `auth_sessions`, limpia `intranet_session` y descarta cualquier cookie de transaccion OAuth.
+
+El logout local no depende de Identity Hub y siempre elimina la sesion de Intranet. No se llama a introspeccion ni se asume cierre federado. La sesion central de Identity Hub es independiente.
+
+Cookies locales:
+
+- `intranet_oauth_transaction`: identificador opaco temporal, HTTP-only, `path=/auth` y TTL de cinco minutos.
+- `intranet_session`: identificador opaco de la sesion persistida, HTTP-only, `path=/` y vencimiento alineado con el refresh token.
+
+Ambas usan `secure` segun `AUTH_COOKIE_SECURE` y `sameSite` segun `AUTH_COOKIE_SAME_SITE`, con valor por defecto `lax`. Nunca contienen tokens, `state` ni `code_verifier`.
+
+## Usuario shadow durante login
+
+Despues de verificar el access token, Intranet sincroniza por `externalKey` usando solo `externalKey` y `name`:
+
+- si no existe el shadow user, lo crea y le asigna todos los roles locales configurados con `isAutoAssigned=true`;
+- si ya existe, actualiza unicamente `fullName` cuando cambia;
+- nunca reemplaza, elimina ni agrega roles o permisos del usuario existente;
+- nunca usa `sub` como clave local;
+- nunca copia roles, password, email, `mustChangePassword` ni datos de recuperacion desde el token.
+
+Los roles autoasignables solo se consultan al crear un shadow mediante JIT. No se aplican a usuarios existentes, importados previamente ni durante inicios de sesion posteriores. Puede no existir ningun rol autoasignable; en ese caso el shadow se crea sin roles.
+
+Intranet no mantiene un estado activo/inactivo adicional para el shadow user. Identity Hub revalida el estado del usuario, de la aplicacion y de su asignacion durante authorize, canje y refresh. La autorizacion funcional dentro de Intranet sigue dependiendo de roles y permisos locales.
 
 ## Importacion administrativa
 
-La UI administrativa llama al backend de Intranet. El navegador no llama directamente a Identity Hub. Intranet usa el cliente interno service-to-service contra `/internal/users/assignable` con Basic Auth usando `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`.
+La importacion permite asignar roles locales antes del primer login. Solo el backend de Intranet llama a Identity Hub mediante HTTP Basic con `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`.
 
-`IDENTITY_HUB_URL` es la URL publica/navegable del Hub y se usa para construir la redireccion del navegador a `/oauth/authorize`; tambien es la base para JWKS cuando `IDENTITY_HUB_JWKS_URL` no esta definida. `IDENTITY_HUB_INTERNAL_URL` es la URL server-to-server para endpoints `/internal/*`. En local pueden ser iguales, pero en Docker, produccion o una red privada pueden apuntar a hosts distintos.
+Busqueda:
 
-La importacion evita duplicados por `externalKey`. Si el usuario ya existe, devuelve `409 Conflict`. La busqueda puede incluir usuarios que ya tengan shadow user; la comprobacion autoritativa ocurre durante la importacion mediante la consulta exacta a Identity Hub, la comprobacion local y la restriccion unica de `users.externalKey`.
+```http
+GET /internal/users/assignable?term=<termino>
+```
 
-Los roles locales se asignan solo si el endpoint recibe `roleIds`; Identity Hub no decide roles locales. `roleIds` puede omitirse o ser `[]` para crear el usuario sin roles. `importFromIdentity` usa exclusivamente la seleccion manual enviada por el administrador y no aplica automaticamente roles con `isAutoAssigned = true`. La importacion crea el shadow user con `externalKey` y `fullName`, sin guardar email/login si el diseno actual del cliente no los persiste y sin `isActive` local.
+`GET /api/users/identity-candidates` devuelve los candidatos en el mismo orden y cantidad recibidos. No consulta usuarios locales para filtrarlos, aunque un candidato ya tenga shadow user. Identity Hub limita la respuesta a 20 resultados.
 
-Las respuestas administrativas usan contratos reducidos:
+Confirmacion:
 
-- los candidatos contienen `externalKey`, `fullName`, `email` y `login`; los dos ultimos usan `null` cuando Identity Hub no los entrega;
-- listar usuarios devuelve `{ users, total }`, mientras importar y actualizar devuelven un usuario; en ambos casos cada usuario contiene solo `id`, `fullName` y roles resumidos con `id`, `name` y `description`;
-- `PATCH /api/users/:id` exige `roleIds`, acepta `[]` y reemplaza la asignacion completa;
-- listar roles devuelve `{ roles, total }`; crear y actualizar devuelven un rol con `id`, `name`, `description`, `isAutoAssigned` y permisos reducidos a `id`, `resource` y `action`;
-- IDs duplicados o con tipo/formato invalido producen `400 Bad Request`; usuarios, roles o permisos inexistentes producen `404 Not Found`; nombres de rol duplicados producen `409 Conflict`.
+1. El frontend envia unicamente `externalKey` y los `roleIds` locales seleccionados a `POST /api/users/import-from-identity`; `roleIds` puede omitirse o ser `[]` para importar sin roles.
+2. Intranet no acepta `fullName`, `email`, `login`, roles de Identity Hub ni otros datos de identidad enviados por el navegador.
+3. El backend comprueba primero si `externalKey` ya existe localmente y, si existe, devuelve `409 Conflict` sin consultar Identity Hub.
+4. Si no existe, vuelve a consultar `GET /internal/users/assignable/:externalKey` con Basic.
+5. Valida en runtime `externalKey`, `fullName`, `email` y `login`, y verifica que el `externalKey` devuelto sea exactamente el solicitado.
+6. Resuelve `roleIds` solo contra los roles locales de Intranet.
+7. Crea el shadow user con `externalKey`, `fullName` y los roles seleccionados.
+8. La restriccion unica de `users.externalKey` protege las carreras con otro import o con la creacion JIT. Una importacion que pierde la carrera devuelve `409 Conflict`.
+
+La respuesta segura de candidatos conserva el contrato de Identity Hub:
+
+```json
+{
+  "externalKey": "IDH-U-...",
+  "fullName": "Nombre visible",
+  "email": null,
+  "login": "usuario"
+}
+```
+
+Intranet obtiene email y login exclusivamente de la respuesta verificada de Identity Hub, pero no los persiste en el modelo actual. Tampoco copia credenciales, roles internos de Identity Hub, `mustChangePassword` o datos sensibles.
+
+## Persistencia server-side en PostgreSQL
+
+- `oauth_transactions` guarda el identificador opaco, el hash de `state`, `code_verifier`, expiracion y fecha de creacion. La fila se busca y consume por `id`; `stateHash` no necesita unicidad. `expiresAt` conserva un indice para la limpieza oportunista de registros vencidos.
+- `auth_sessions` guarda el identificador opaco, referencia al shadow user, access token, refresh token, expiracion del refresh y timestamps. El logout elimina la fila y limpia la cookie.
+- La creacion de una transaccion OAuth y de una sesion elimina oportunistamente registros vencidos. No se agrega un cron job.
+
+PostgreSQL, TypeORM y estas dos entidades son la arquitectura adoptada por Intranet. Otros clientes de Identity Hub pueden cumplir el mismo contrato con otra sesion server-side o almacenamiento equivalente.
+
+## Contratos administrativos locales
+
+- Los candidatos contienen `externalKey`, `fullName`, `email` y `login`.
+- Listar usuarios devuelve `{ users, total }`; importar y actualizar devuelven un usuario. Cada usuario contiene `id`, `externalKey`, `fullName` y roles resumidos con `id`, `name` y `description`.
+- `PATCH /api/users/:id` exige `roleIds`, acepta `[]` y reemplaza la asignacion completa. Un body vacio es invalido.
+- Listar roles devuelve `{ roles, total }`; crear y actualizar devuelven un rol con `id`, `name`, `description`, `isAutoAssigned` y permisos reducidos a `id`, `resource` y `action`.
+- IDs duplicados o con tipo/formato invalido producen `400 Bad Request`; usuarios, roles o permisos inexistentes producen `404 Not Found`; duplicados identificados correctamente producen `409 Conflict`.
 
 ## Bootstrap del primer admin
 
@@ -143,67 +223,58 @@ El primer admin local se crea con un comando local:
 BOOTSTRAP_ADMIN_EXTERNAL_KEY=IDH-U-... npm run bootstrap:admin
 ```
 
-Este comando es bootstrap de datos locales, no una migracion. Las migraciones o `synchronize` definen estructura; el bootstrap sincroniza datos base de seguridad de Intranet. No crea usuarios globales en Identity Hub, no registra clientes OAuth y no asigna roles del Hub.
+Este comando es bootstrap de datos locales. No crea usuarios globales en Identity Hub, no registra clientes OAuth y no asigna roles del Hub.
 
 El comando:
 
 - lee `BOOTSTRAP_ADMIN_EXTERNAL_KEY`;
 - ejecuta `ensurePermissions()` para sembrar permisos base desde `PERMISSIONS_SEED`;
-- ejecuta `ensureAdminRole()` para asegurar que el rol local `ADMIN` exista con todos los permisos locales y `isAutoAssigned = false`;
+- asegura el rol local reservado `ADMIN` con todos los permisos e `isAutoAssigned=false`;
 - consulta Identity Hub por el usuario asignable;
-- crea el shadow user local con rol `ADMIN` solo si no existe ningun admin local;
+- crea el shadow user con rol `ADMIN` solo si no existe ningun admin local;
 - no hace nada si ya existe al menos un `ADMIN` local;
 - falla si el `externalKey` ya existe localmente sin rol `ADMIN`;
 - no promueve usuarios existentes no-admin;
 - no depende de endpoints HTTP publicos;
 - no se mezcla con el login normal.
 
-Si despues de sembrar permisos no existe ningun permiso, el bootstrap falla con error claro y no crea un rol `ADMIN` vacio. Cuando el rol `ADMIN` existe, el bootstrap agrega permisos faltantes sin eliminar permisos ya asignados y fuerza `isAutoAssigned = false` para evitar asignarlo por JIT. El CRUD normal no puede crear o renombrar otro rol como `ADMIN`, renombrar el rol reservado, marcarlo como autoasignable ni reemplazar manualmente sus permisos. El bootstrap sigue siendo el unico responsable de sincronizar esos permisos.
+Si despues de sembrar permisos no existe ninguno, el bootstrap falla con error claro y no crea un rol `ADMIN` vacio. Cuando `ADMIN` ya existe, agrega permisos faltantes sin eliminar permisos asignados y fuerza `isAutoAssigned=false`. El CRUD normal no puede crear o renombrar otro rol como `ADMIN`, renombrar el rol reservado, marcarlo como autoasignable ni reemplazar manualmente sus permisos. El bootstrap sigue siendo el unico responsable de sincronizarlos.
 
-El bootstrap no crea roles autoasignables normales; los roles con `isAutoAssigned = true` se configuran desde el CRUD de roles. Si no hay roles autoasignables, los usuarios nuevos por SSO/JIT se crean sin roles y se registra un warning.
-
-Los admins posteriores se gestionan desde la UI administrativa mediante roles locales.
-
-## Esquema de base de datos
-
-El código actual espera `roles.isAutoAssigned` y no define `users.isActive`. En este estado del repositorio no hay una migración versionada que aplique ambos cambios. Antes de desplegar en un ambiente con un esquema anterior se debe crear y revisar la migración TypeORM correspondiente; no se debe depender de `synchronize` fuera de desarrollo.
-
-La migración no debe borrar registros de usuarios locales ni modificar tablas de Identity Hub desde este cliente.
-
-## Logout local vs global
-
-`POST /api/auth/logout` limpia cookies locales de Intranet. No revoca la sesion global de Identity Hub. Si se agrega logout centralizado en Identity Hub, debe integrarse sin cambiar la separacion de responsabilidades.
+El bootstrap no crea roles autoasignables normales. Estos se configuran desde el CRUD de roles; si no existen, los usuarios nuevos por SSO/JIT se crean sin roles y se registra un warning. Los admins posteriores se gestionan desde la UI administrativa mediante roles locales.
 
 ## Seguridad operativa
 
-- `state` es obligatorio y se valida antes de procesar callbacks exitosos o con error.
-- `code_verifier` se guarda temporalmente en cookie HTTP-only y se limpia al terminar el callback.
-- `code_challenge_method` es siempre `S256`; `plain` no se soporta.
-- El backend no debe loguear `client_secret`, authorization codes, `code_verifier`, access tokens, refresh tokens ni passwords.
+- Las llamadas al token endpoint, a los endpoints internos de usuarios y al JWKS tienen un timeout explicito de 10 segundos.
+- Nunca se registran access tokens, refresh tokens, authorization codes, `state` ni `code_verifier`.
 - Los roles y permisos usados por guards de Intranet son locales.
-- La revocacion de acceso global a Intranet se gestiona en Identity Hub, no con campos locales del shadow user.
+- La revocacion del acceso global a la aplicacion se gestiona en Identity Hub.
 
 ## Variables de entorno
 
-- `INTRANET_UI_BASE_URL` opcional
-- `DB_SYNCHRONIZE`, `true` solo para desarrollo local y `false` para staging/produccion
-- `OAUTH_CLIENT_ID`
-- `OAUTH_CLIENT_SECRET`
-- `OAUTH_REDIRECT_URI`
-- `OAUTH_ISSUER`
-- `IDENTITY_HUB_URL`
-- `IDENTITY_HUB_INTERNAL_URL`
-- `IDENTITY_HUB_JWKS_URL` opcional
-- `CORS_ORIGIN` opcional, un unico origen permitido cuando el frontend corre separado
-- `AUTH_COOKIE_SECURE`
-- `AUTH_COOKIE_SAME_SITE` opcional
-- `BOOTSTRAP_ADMIN_EXTERNAL_KEY` solo para `npm run bootstrap:admin`
+- `IDENTITY_HUB_URL`: base publica usada para authorize, token y JWKS por defecto.
+- `IDENTITY_HUB_INTERNAL_URL`: base server-to-server para `/internal/users/assignable`.
+- `IDENTITY_HUB_JWKS_URL`: override opcional del JWKS.
+- `OAUTH_CLIENT_ID`: identificador y audiencia esperada.
+- `OAUTH_CLIENT_SECRET`: secreto disponible solo para el backend.
+- `OAUTH_REDIRECT_URI`: callback exacto registrado.
+- `OAUTH_ISSUER`: issuer JWT esperado.
+- `INTRANET_UI_BASE_URL`: base opcional para redirects finales.
+- `AUTH_COOKIE_SECURE` y `AUTH_COOKIE_SAME_SITE`: atributos de cookies opacas.
+- `CORS_ORIGIN`: origen opcional del frontend cuando corre separado.
+- `DB_SYNCHRONIZE`: solo `true` en desarrollo local.
+- `BOOTSTRAP_ADMIN_EXTERNAL_KEY`: usado solo por `npm run bootstrap:admin`.
 
-## Checklist manual breve
+## Checklist manual
 
-- `GET /auth/login` redirige a Identity Hub con `state`, `code_challenge` y `code_challenge_method=S256`, sin `scope`.
-- Un callback valido crea `intranet_access` e `intranet_refresh`, y limpia `intranet_oauth_state` e `intranet_pkce_verifier`.
-- Callback con `state` invalido o sin `code_verifier` redirige a error y limpia cookies temporales.
-- `GET /api/auth/me` devuelve el usuario local y permisos efectivos usando cookies HTTP-only.
-- Access token expirado rota tokens con `intranet_refresh`; refresh invalido limpia sesion local.
-- `POST /api/auth/logout` limpia cookies locales sin asumir logout global del Hub.
+- `/auth/login` envia PKCE S256 y no agrega parametros fuera del contrato.
+- La cookie de transaccion no contiene `state` ni `code_verifier`.
+- El callback consume `state` antes del token request.
+- Un callback con `state` ausente, invalido o vencido redirige a la vista local de error.
+- `/oauth/token` recibe formulario `snake_case`, Basic y ningun secreto en el body.
+- El navegador solo recibe `intranet_session`, nunca tokens.
+- Un refresh concurrente por sesion produce una sola llamada efectiva a Identity Hub.
+- `invalid_grant` elimina la sesion; un 500/503 la conserva.
+- `aud` se valida contra `OAUTH_CLIENT_ID`.
+- El login solo actualiza `fullName` de shadows existentes.
+- Los roles `isAutoAssigned=true` se aplican una sola vez al crear un shadow por JIT.
+- La busqueda de candidatos no se filtra localmente y la importacion reconsulta el candidato exacto.

@@ -17,7 +17,6 @@ export enum AccessTokenFailureReason {
 export class AccessTokenVerificationError extends UnauthorizedException {
   constructor(
     public readonly reason: AccessTokenFailureReason,
-    public readonly canAttemptRefresh: boolean,
     message: string,
   ) {
     super(message);
@@ -35,12 +34,12 @@ export class TokenVerifierService {
     try {
       const decoded = jwt.decode(token, { complete: true });
 
-      if (!decoded?.header?.kid) {
-        throw new AccessTokenVerificationError(
-          AccessTokenFailureReason.INVALID_HEADER,
-          false,
-          'Invalid access token header',
-        );
+      if (
+        decoded?.header?.alg !== 'RS256' ||
+        typeof decoded.header.kid !== 'string' ||
+        decoded.header.kid.length === 0
+      ) {
+        throw new AccessTokenVerificationError(AccessTokenFailureReason.INVALID_HEADER, 'Invalid access token header');
       }
 
       const publicKey = await this.jwksService.getPublicKey(decoded.header.kid);
@@ -58,46 +57,51 @@ export class TokenVerifierService {
       }
 
       if (error instanceof jwt.TokenExpiredError) {
-        throw new AccessTokenVerificationError(AccessTokenFailureReason.EXPIRED, true, 'Access token expired');
+        throw new AccessTokenVerificationError(AccessTokenFailureReason.EXPIRED, 'Access token expired');
       }
 
       if (error instanceof jwt.NotBeforeError) {
-        throw new AccessTokenVerificationError(
-          AccessTokenFailureReason.NOT_ACTIVE,
-          false,
-          'Access token is not active',
-        );
+        throw new AccessTokenVerificationError(AccessTokenFailureReason.NOT_ACTIVE, 'Access token is not active');
       }
 
       if (error instanceof jwt.JsonWebTokenError) {
-        throw new AccessTokenVerificationError(AccessTokenFailureReason.INVALID_TOKEN, false, 'Invalid access token');
+        throw new AccessTokenVerificationError(AccessTokenFailureReason.INVALID_TOKEN, 'Invalid access token');
       }
 
       throw new AccessTokenVerificationError(
         AccessTokenFailureReason.VERIFICATION_FAILED,
-        false,
         'Access token verification failed',
       );
     }
   }
 
   private validateIdentityClaims(payload: string | JwtPayload): AccessTokenPayload {
+    const expectedIssuer = this.configService.getOrThrow<string>('OAUTH_ISSUER');
+    const expectedAudience = this.configService.getOrThrow<string>('OAUTH_CLIENT_ID');
+
     if (
       typeof payload === 'string' ||
+      typeof payload.sub !== 'string' ||
+      payload.sub.trim().length === 0 ||
       typeof payload.externalKey !== 'string' ||
       payload.externalKey.trim().length === 0 ||
       typeof payload.name !== 'string' ||
-      payload.name.trim().length === 0
+      payload.name.trim().length === 0 ||
+      payload.iss !== expectedIssuer ||
+      payload.aud !== expectedAudience ||
+      typeof payload.iat !== 'number' ||
+      typeof payload.exp !== 'number' ||
+      !Number.isFinite(payload.exp)
     ) {
       throw new AccessTokenVerificationError(
         AccessTokenFailureReason.INVALID_TOKEN,
-        false,
         'Access token is missing required identity claims',
       );
     }
 
     return {
       ...payload,
+      sub: payload.sub.trim(),
       externalKey: payload.externalKey.trim(),
       name: payload.name.trim(),
     } as AccessTokenPayload;

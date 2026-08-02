@@ -1,2 +1,2 @@
-export * from './responses/token-request-response.interface';
+export * from './identity-hub-token.interface';
 export * from './permissions-metadata.interface';

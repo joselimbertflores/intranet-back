@@ -108,7 +108,8 @@ export class AccessControlBootstrapService {
       }
 
       const adminRole = await this.ensureAdminRole(manager);
-      const user = manager.getRepository(User).create({
+      const userRepository = manager.getRepository(User);
+      const user = userRepository.create({
         externalKey: identityUser.externalKey,
         fullName: identityUser.fullName,
         roles: [adminRole],
@@ -117,10 +118,10 @@ export class AccessControlBootstrapService {
       try {
         return {
           status: 'created' as const,
-          user: await manager.getRepository(User).save(user),
+          user: await userRepository.save(user),
         };
       } catch (error) {
-        if (this.isUniqueViolation(error)) {
+        if (this.isExternalKeyUniqueViolation(error, userRepository)) {
           throw new Error('The Identity Hub user is already registered in this client.', { cause: error });
         }
         throw error;
@@ -171,10 +172,14 @@ export class AccessControlBootstrapService {
     return manager?.getRepository(User) ?? this.userRepository;
   }
 
-  private isUniqueViolation(error: unknown): boolean {
+  private isExternalKeyUniqueViolation(error: unknown, userRepository: Repository<User>): boolean {
     if (!(error instanceof QueryFailedError)) return false;
 
-    const driverError = error.driverError as { code?: string };
-    return driverError.code === '23505';
+    const driverError = error.driverError as { code?: string; constraint?: string };
+    const externalKeyConstraint = userRepository.metadata.uniques.find(
+      (unique) => unique.columns.length === 1 && unique.columns[0].propertyName === 'externalKey',
+    );
+
+    return driverError.code === '23505' && driverError.constraint === externalKeyConstraint?.name;
   }
 }

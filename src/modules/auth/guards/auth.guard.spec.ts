@@ -2,34 +2,29 @@ jest.mock('../services', () => {
   const { UnauthorizedException } = jest.requireActual('@nestjs/common');
 
   return {
-    AccessTokenVerificationError: class AccessTokenVerificationError extends UnauthorizedException {
-      canAttemptRefresh = false;
-      reason = 'invalid';
+    AccessTokenFailureReason: {
+      EXPIRED: 'expired',
+      VERIFICATION_FAILED: 'verification_failed',
     },
+    AccessTokenVerificationError: class AccessTokenVerificationError extends UnauthorizedException {},
     AuthCookieService: class AuthCookieService {},
-    IdentityService: class IdentityService {},
+    AuthSessionService: class AuthSessionService {},
+    IdentityHubTokenProtocolError: class IdentityHubTokenProtocolError extends Error {},
+    IdentityHubTokenRequestError: class IdentityHubTokenRequestError extends Error {},
+    IdentityHubUnavailableError: class IdentityHubUnavailableError extends Error {},
+    SessionReauthorizationRequiredError: class SessionReauthorizationRequiredError extends Error {},
     TokenVerifierService: class TokenVerifierService {},
   };
 });
 
-jest.mock(
-  'src/modules/users/services',
-  () => ({
-    UsersService: class UsersService {},
-  }),
-  { virtual: true },
-);
-
-import { ExecutionContext } from '@nestjs/common';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 
 import { OAuthGuard } from './auth.guard';
 import type { User } from 'src/modules/users/entities';
 
 describe('OAuthGuard', () => {
-  it('accepts authenticated requests when the local shadow user exists without checking local isActive', async () => {
-    const request: Record<string, unknown> = {};
-    const response = {};
-    const context = {
+  function createContext(request: Record<string, unknown>, response: Record<string, unknown>): ExecutionContext {
+    return {
       getHandler: jest.fn(),
       getClass: jest.fn(),
       switchToHttp: jest.fn(() => ({
@@ -37,41 +32,68 @@ describe('OAuthGuard', () => {
         getResponse: () => response,
       })),
     } as unknown as ExecutionContext;
-    const reflector = {
-      getAllAndOverride: jest.fn(() => false),
-    };
-    const authCookieService = {
-      getAccessToken: jest.fn(() => 'access-token'),
-      getRefreshToken: jest.fn(() => undefined),
-      clearAuthCookies: jest.fn(),
-    };
-    const tokenVerifierService = {
-      verifyAccessToken: jest.fn(() =>
+  }
+
+  it('accepts a local shadow user through the opaque local session', async () => {
+    const request: Record<string, unknown> = {};
+    const response = {};
+    const user = {
+      externalKey: 'IDH-U-1',
+      roles: [],
+    } as User;
+    const reflector = { getAllAndOverride: jest.fn(() => false) };
+    const authSessionService = {
+      findActiveSession: jest.fn(() =>
         Promise.resolve({
-          externalKey: 'IDH-U-1',
+          id: 'session-id',
+          accessToken: 'server-side-access-token',
+          refreshTokenExpiresAt: new Date(Date.now() + 60_000),
+          user,
         }),
       ),
     };
-    const usersService = {
-      findByExternalKey: jest.fn(() =>
-        Promise.resolve({
-          externalKey: 'IDH-U-1',
-          roles: [],
-        } as User),
-      ),
+    const authCookieService = {
+      getSessionId: jest.fn(() => 'session-id'),
+      clearSessionCookie: jest.fn(),
+    };
+    const tokenVerifierService = {
+      verifyAccessToken: jest.fn(() => Promise.resolve({ externalKey: 'IDH-U-1' })),
     };
     const guard = new OAuthGuard(
       reflector as any,
-      usersService as any,
-      {} as any,
+      authSessionService as any,
       authCookieService as any,
       tokenVerifierService as any,
     );
 
-    await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(request['user']).toEqual({
-      externalKey: 'IDH-U-1',
-      roles: [],
-    });
+    await expect(guard.canActivate(createContext(request, response))).resolves.toBe(true);
+    expect(request['user']).toBe(user);
+  });
+
+  it('returns the standard unauthorized response when the local session is missing', async () => {
+    const response = {};
+    const authCookieService = {
+      getSessionId: jest.fn(() => 'missing-session'),
+      clearSessionCookie: jest.fn(),
+    };
+    const guard = new OAuthGuard(
+      { getAllAndOverride: jest.fn(() => false) } as any,
+      { findActiveSession: jest.fn(() => Promise.resolve(null)) } as any,
+      authCookieService as any,
+      {} as any,
+    );
+
+    try {
+      await guard.canActivate(createContext({}, response));
+      fail('Expected OAuthGuard to reject the missing session');
+    } catch (error) {
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect((error as UnauthorizedException).getResponse()).toEqual({
+        error: 'Unauthorized',
+        message: 'Session expired. Please login again.',
+        statusCode: 401,
+      });
+      expect(authCookieService.clearSessionCookie).toHaveBeenCalledWith(response);
+    }
   });
 });

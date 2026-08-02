@@ -9,15 +9,18 @@ export class UserRoleResponseDto {
 
 export class UserResponseDto {
   id: string;
+  externalKey: string;
   fullName: string;
   roles: UserRoleResponseDto[];
 
   constructor(user: {
     id: string;
+    externalKey: string;
     fullName: string;
     roles?: Array<{ id: string; name: string; description: string | null }>;
   }) {
     this.id = user.id;
+    this.externalKey = user.externalKey;
     this.fullName = user.fullName;
     this.roles = (user.roles ?? []).map(({ id, name, description }) => ({ id, name, description }));
   }
@@ -32,7 +35,7 @@ export class IdentityCandidateResponseDto {
   externalKey: string;
   fullName: string;
   email: string | null;
-  login: string | null;
+  login: string;
 }
 
 export class UpdateUserDto {

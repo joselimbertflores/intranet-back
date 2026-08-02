@@ -11,12 +11,14 @@ import { IdentityCandidateResponseDto } from '../dtos';
 export interface IdentityHubAssignableUser {
   externalKey: string;
   fullName: string;
-  email?: string | null;
-  login?: string;
+  email: string | null;
+  login: string;
 }
 
 @Injectable()
 export class IdentityHubUsersClientService {
+  private readonly requestTimeoutMs = 10_000;
+
   constructor(
     private readonly http: HttpService,
     private readonly configService: ConfigService<EnvironmentVariables>,
@@ -28,7 +30,10 @@ export class IdentityHubUsersClientService {
 
     try {
       const response = await lastValueFrom(
-        this.http.get<IdentityHubAssignableUser[]>(url.toString(), { auth: this.getBasicAuth() }),
+        this.http.get<IdentityHubAssignableUser[]>(url.toString(), {
+          auth: this.getBasicAuth(),
+          timeout: this.requestTimeoutMs,
+        }),
       );
       return response.data.map((user) => this.toCandidateResponse(user));
     } catch {
@@ -43,6 +48,7 @@ export class IdentityHubUsersClientService {
       const response = await lastValueFrom(
         this.http.get<IdentityHubAssignableUser>(url.toString(), {
           auth: this.getBasicAuth(),
+          timeout: this.requestTimeoutMs,
         }),
       );
       return this.toCandidateResponse(response.data);
@@ -74,11 +80,23 @@ export class IdentityHubUsersClientService {
   }
 
   private toCandidateResponse(user: IdentityHubAssignableUser): IdentityCandidateResponseDto {
+    if (
+      typeof user?.externalKey !== 'string' ||
+      user.externalKey.length === 0 ||
+      typeof user.fullName !== 'string' ||
+      user.fullName.length === 0 ||
+      (user.email !== null && typeof user.email !== 'string') ||
+      typeof user.login !== 'string' ||
+      user.login.length === 0
+    ) {
+      throw new BadGatewayException('Identity Hub returned an invalid assignable user');
+    }
+
     return {
       externalKey: user.externalKey,
       fullName: user.fullName,
-      email: user.email ?? null,
-      login: user.login ?? null,
+      email: user.email,
+      login: user.login,
     };
   }
 }

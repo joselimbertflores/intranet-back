@@ -5,3 +5,5 @@ export * from './auth-cookie.service';
 export * from './auth-redirect.service';
 export * from './oauth.service';
 export * from './pkce.service';
+export * from './oauth-transaction.service';
+export * from './auth-session.service';

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 
@@ -27,6 +27,11 @@ export class IdentityUserProvisioningService {
     await this.ensureExternalKeyIsAvailable(dto.externalKey);
 
     const identityUser = await this.identityHubUsersClient.findAssignableUserByExternalKey(dto.externalKey);
+
+    if (identityUser.externalKey !== dto.externalKey) {
+      throw new BadGatewayException('Identity Hub returned a different external key for the requested user');
+    }
+
     const roles = await this.rolesService.resolveRolesByIds(dto.roleIds ?? []);
     const user = this.userRepository.create({
       externalKey: identityUser.externalKey,
@@ -52,12 +57,7 @@ export class IdentityUserProvisioningService {
       return this.createShadowUser(identityUser);
     }
 
-    if (user.fullName !== fullName) {
-      await this.userRepository.update({ id: user.id }, { fullName });
-      user.fullName = fullName;
-    }
-
-    return user;
+    return this.syncExistingUserFullName(user, fullName);
   }
 
   searchIdentityCandidates(term: string) {
@@ -87,12 +87,21 @@ export class IdentityUserProvisioningService {
     } catch (error) {
       if (!this.isExternalKeyUniqueViolation(error)) throw error;
 
-      // * Another concurrent SSO callback may have created the shadow user.
+      // Another SSO callback or an administrative import may have created the shadow user.
       const existingUser = await this.findByExternalKey(externalKey);
-      if (existingUser) return existingUser;
+      if (existingUser) return this.syncExistingUserFullName(existingUser, fullName);
 
       throw error;
     }
+  }
+
+  private async syncExistingUserFullName(user: User, fullName: string): Promise<User> {
+    if (user.fullName !== fullName) {
+      await this.userRepository.update({ id: user.id }, { fullName });
+      user.fullName = fullName;
+    }
+
+    return user;
   }
 
   private findByExternalKey(externalKey: string) {
@@ -113,11 +122,11 @@ export class IdentityUserProvisioningService {
   private isExternalKeyUniqueViolation(error: unknown): boolean {
     if (!(error instanceof QueryFailedError)) return false;
 
-    const driverError = error.driverError as {
-      code?: string;
-      constraint?: string;
-    };
+    const driverError = error.driverError as { code?: string; constraint?: string };
+    const externalKeyConstraint = this.userRepository.metadata.uniques.find(
+      (unique) => unique.columns.length === 1 && unique.columns[0].propertyName === 'externalKey',
+    );
 
-    return driverError.code === '23505' && driverError.constraint === 'uq_users_external_key';
+    return driverError.code === '23505' && driverError.constraint === externalKeyConstraint?.name;
   }
 }
