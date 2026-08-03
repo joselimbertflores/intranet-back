@@ -11,7 +11,7 @@ import {
   PortalCalendarController,
   PortalLandingController,
 } from './controllers';
-import { PortalService } from './services';
+import { PortalLandingService } from './services';
 import { TutorialModule } from '../tutorial/tutorial.module';
 import { DirectoryModule } from '../directory/directory.module';
 import { CalendarModule } from '../calendar/calendar.module';
@@ -25,7 +25,7 @@ import { CalendarModule } from '../calendar/calendar.module';
     PortalDocumentsController,
     PortalDirectoryController,
   ],
-  providers: [PortalService],
+  providers: [PortalLandingService],
   imports: [
     DocumentsModule,
     PortalContentModule,

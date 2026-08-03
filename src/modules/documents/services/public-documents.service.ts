@@ -89,12 +89,13 @@ export class PublicDocumentsService {
     return { documents: this.mapToPublicDocuments(documents), total };
   }
 
-  async findMostDownloaded() {
+  async findMostDownloaded(limit: number = 8) {
     const documents = await this.createVisibleDocumentsQuery()
-      .andWhere('document.downloadCount >= :minimumDownloadCount', { minimumDownloadCount: 1 })
       .orderBy('document.downloadCount', 'DESC')
+      .addOrderBy('document.validityStatus', 'ASC')
       .addOrderBy('document.createdAt', 'DESC')
-      .take(8)
+      .addOrderBy('document.id', 'ASC')
+      .take(limit)
       .getMany();
 
     return this.mapToPublicDocuments(documents);

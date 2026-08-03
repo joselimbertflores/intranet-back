@@ -41,13 +41,6 @@ export interface PublicLandingNoticeResponse {
   updatedAt: Date;
 }
 
-export interface PublicLandingContentResponse {
-  heroSlides: PublicHeroSlideResponse[];
-  quickAccesses: PublicQuickAccessResponse[];
-  featuredBanners: PublicFeaturedBannerResponse[];
-  landingNotices: PublicLandingNoticeResponse[];
-}
-
 @Injectable()
 export class PublicLandingContentService {
   constructor(
@@ -58,18 +51,7 @@ export class PublicLandingContentService {
     private readonly filesService: FilesService,
   ) {}
 
-  async getLandingContent(): Promise<PublicLandingContentResponse> {
-    const [heroSlides, quickAccesses, featuredBanners, landingNotices] = await Promise.all([
-      this.findHeroSlides(),
-      this.findQuickAccesses(),
-      this.findFeaturedBanners(),
-      this.findLandingNotices(),
-    ]);
-
-    return { heroSlides, quickAccesses, featuredBanners, landingNotices };
-  }
-
-  private async findHeroSlides(): Promise<PublicHeroSlideResponse[]> {
+  async findHeroSlides(): Promise<PublicHeroSlideResponse[]> {
     const slides = await this.heroSlidesRepository.find({
       where: { isActive: true },
       order: { sortOrder: 'ASC', id: 'ASC' },
@@ -88,7 +70,7 @@ export class PublicLandingContentService {
     });
   }
 
-  private async findQuickAccesses(): Promise<PublicQuickAccessResponse[]> {
+  async findQuickAccesses(): Promise<PublicQuickAccessResponse[]> {
     const quickAccesses = await this.quickAccessesRepository.find({
       where: { isActive: true },
       order: { sortOrder: 'ASC', id: 'ASC' },
@@ -103,7 +85,7 @@ export class PublicLandingContentService {
     }));
   }
 
-  private async findFeaturedBanners(): Promise<PublicFeaturedBannerResponse[]> {
+  async findFeaturedBanners(): Promise<PublicFeaturedBannerResponse[]> {
     const banners = await this.featuredBannersRepository.find({
       where: { isActive: true },
       order: { sortOrder: 'ASC', id: 'ASC' },
@@ -122,7 +104,7 @@ export class PublicLandingContentService {
     });
   }
 
-  private async findLandingNotices(): Promise<PublicLandingNoticeResponse[]> {
+  async findLandingNotices(): Promise<PublicLandingNoticeResponse[]> {
     const notices = await this.landingNoticesRepository
       .createQueryBuilder('notice')
       .where('notice.isActive = :isActive', { isActive: true })

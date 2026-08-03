@@ -1,15 +1,15 @@
 import { Controller, Get } from '@nestjs/common';
 
 import { Public } from '../../auth/decorators';
-import { PortalService } from '../services';
+import { PortalLandingService } from '../services';
 
 @Public()
 @Controller('portal')
 export class PortalLandingController {
-  constructor(private readonly portalService: PortalService) {}
+  constructor(private readonly portalLandingService: PortalLandingService) {}
 
   @Get('landing')
   getLanding() {
-    return this.portalService.getLanding();
+    return this.portalLandingService.getLanding();
   }
 }
