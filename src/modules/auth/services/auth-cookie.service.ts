@@ -43,7 +43,6 @@ export class AuthCookieService {
   }
 
   private getBaseCookieOptions(): CookieOptions {
-    console.log({ sameSite: this.getSameSite(), secure: this.getSecure() });
     return {
       httpOnly: true,
       sameSite: this.getSameSite(),
