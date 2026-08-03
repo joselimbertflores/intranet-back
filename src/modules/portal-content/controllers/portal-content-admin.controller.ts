@@ -1,11 +1,25 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 
 import { GetAuthUser, ProtectedResource } from 'src/modules/auth/decorators';
 import { Resource, User } from 'src/modules/users/entities';
 
 import {
   SaveFeaturedBannersBatchDto,
-  SaveQuickAccessesBatchDto,
+  CreateQuickAccessDto,
+  ReorderQuickAccessesDto,
+  UpdateQuickAccessDto,
   SaveHeroSlidesBatchDto,
   CreateLandingNoticeDto,
   UpdateLandingNoticeDto,
@@ -38,9 +52,24 @@ export class PortalContentAdminController {
     return this.quickAccessesService.findAll();
   }
 
-  @Put('quick-accesses/batch')
-  saveQuickAccessesBatch(@Body() dto: SaveQuickAccessesBatchDto) {
-    return this.quickAccessesService.saveBatch(dto);
+  @Post('quick-accesses')
+  createQuickAccess(@Body() dto: CreateQuickAccessDto) {
+    return this.quickAccessesService.create(dto);
+  }
+
+  @Put('quick-accesses/reorder')
+  reorderQuickAccesses(@Body() dto: ReorderQuickAccessesDto) {
+    return this.quickAccessesService.reorder(dto);
+  }
+
+  @Patch('quick-accesses/:id')
+  updateQuickAccess(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateQuickAccessDto) {
+    return this.quickAccessesService.update(id, dto);
+  }
+
+  @Delete('quick-accesses/:id')
+  removeQuickAccess(@Param('id', ParseIntPipe) id: number) {
+    return this.quickAccessesService.remove(id);
   }
 
   @Get('featured-banners')

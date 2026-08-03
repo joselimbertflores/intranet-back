@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, MoreThan, Repository } from 'typeorm';
 
-import { SaveQuickAccessesBatchDto } from '../dtos';
+import { CreateQuickAccessDto, ReorderQuickAccessesDto, UpdateQuickAccessDto } from '../dtos';
 import { QuickAccess } from '../entities';
 
 @Injectable()
@@ -17,57 +17,80 @@ export class QuickAccessesService {
     return quickAccesses.map((quickAccess) => this.mapQuickAccess(quickAccess));
   }
 
-  async saveBatch({ items, deletedIds = [] }: SaveQuickAccessesBatchDto) {
-    const ids = items.flatMap((item) => (item.id ? [item.id] : []));
+  async create(dto: CreateQuickAccessDto) {
+    return this.dataSource.transaction(async (manager) => {
+      const repository = manager.getRepository(QuickAccess);
+      const lastQuickAccess = await repository.findOne({where: {}, order: { sortOrder: 'DESC', id: 'DESC' } });
+      const quickAccess = repository.create({
+        ...dto,
+        description: dto.description ?? null,
+        isActive: dto.isActive ?? true,
+        sortOrder: (lastQuickAccess?.sortOrder ?? -1) + 1,
+      });
 
-    const deletedIdSet = new Set(deletedIds);
-    const conflictingIds = ids.filter((id) => deletedIdSet.has(id));
+      return this.mapQuickAccess(await repository.save(quickAccess));
+    });
+  }
 
-    if (conflictingIds.length) {
+  async update(id: number, dto: UpdateQuickAccessDto) {
+    const quickAccess = await this.quickAccessRepository.findOne({ where: { id } });
+    if (!quickAccess) throw new NotFoundException(`Quick access with id=${id} not found`);
+
+    Object.assign(quickAccess, dto);
+    const updatedQuickAccess = await this.quickAccessRepository.save(quickAccess);
+    return this.mapQuickAccess(updatedQuickAccess);
+  }
+
+  async remove(id: number) {
+    return this.dataSource.transaction(async (manager) => {
+      const repository = manager.getRepository(QuickAccess);
+      const quickAccess = await repository.findOne({ where: { id } });
+      if (!quickAccess) throw new NotFoundException(`Quick access with id=${id} not found`);
+
+      await repository.delete(id);
+      await repository.decrement({ sortOrder: MoreThan(quickAccess.sortOrder) }, 'sortOrder', 1);
+
+      return { ok: true, message: 'Quick access removed successfully' };
+    });
+  }
+
+  async reorder({ ids }: ReorderQuickAccessesDto) {
+    const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
+    if (duplicateIds.length) {
       throw new BadRequestException(
-        `Quick access items cannot be updated and deleted simultaneously: ${conflictingIds.join(', ')}`,
+        `Duplicate quick access IDs are not allowed: ${[...new Set(duplicateIds)].join(', ')}`,
       );
     }
 
-    const affectedIds = [...ids, ...deletedIds];
-
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(QuickAccess);
-
-      const existingQuickAccesses = await repository.find({ where: { id: In(affectedIds) } });
-      const quickAccessesMap = new Map(existingQuickAccesses.map((item) => [item.id, item]));
-      const missingIds = ids.filter((id) => !quickAccessesMap.has(id));
+      const quickAccesses = await repository
+        .createQueryBuilder('quickAccess')
+        .orderBy('quickAccess.sortOrder', 'ASC')
+        .addOrderBy('quickAccess.id', 'ASC')
+        .setLock('pessimistic_write')
+        .getMany();
+      const quickAccessesById = new Map(quickAccesses.map((quickAccess) => [quickAccess.id, quickAccess]));
+      const missingIds = ids.filter((id) => !quickAccessesById.has(id));
 
       if (missingIds.length) {
         throw new NotFoundException(`Quick accesses not found: ${missingIds.join(', ')}`);
       }
 
-      const slidesToDelete = deletedIds.map((id) => quickAccessesMap.get(id)).filter((item) => item !== undefined);
-
-      if (slidesToDelete.length) {
-        await repository.remove(slidesToDelete);
+      const receivedIds = new Set(ids);
+      const omittedIds = quickAccesses.filter(({ id }) => !receivedIds.has(id)).map(({ id }) => id);
+      if (omittedIds.length) {
+        throw new BadRequestException(`All quick access IDs are required. Omitted IDs: ${omittedIds.join(', ')}`);
       }
 
-      const quickAccesses = items.map((item, index) => {
-        const patch = {
-          title: item.title,
-          description: item.description ?? null,
-          iconKey: item.iconKey,
-          url: item.url,
-          sortOrder: index,
-          backgroundColor: item.backgroundColor,
-        };
-
-        if (!item.id) return repository.create({ ...patch, isActive: item.isActive ?? true });
-
-        const current = quickAccessesMap.get(item.id);
-        if (!current) throw new NotFoundException(`Quick access with id=${item.id} not found`);
-        return Object.assign(current, patch, { isActive: item.isActive ?? current.isActive });
+      const reordered = ids.map((id, sortOrder) => {
+        const quickAccess = quickAccessesById.get(id);
+        if (!quickAccess) throw new NotFoundException(`Quick access with id=${id} not found`);
+        quickAccess.sortOrder = sortOrder;
+        return quickAccess;
       });
 
-      if (quickAccesses.length) await repository.save(quickAccesses);
-
-      const saved = await repository.find({ order: { sortOrder: 'ASC' } });
+      const saved = reordered.length ? await repository.save(reordered) : [];
       return saved.map((quickAccess) => this.mapQuickAccess(quickAccess));
     });
   }

@@ -71,10 +71,11 @@ export class PublicLandingContentService {
     });
   }
 
-  async findQuickAccesses(): Promise<PublicQuickAccessResponse[]> {
+  async findQuickAccesses(limit?: number): Promise<PublicQuickAccessResponse[]> {
     const quickAccesses = await this.quickAccessesRepository.find({
       where: { isActive: true },
       order: { sortOrder: 'ASC', id: 'ASC' },
+      ...(limit !== undefined && { take: limit }),
     });
 
     return quickAccesses.map(({ id, title, description, iconKey, backgroundColor, url }) => ({

@@ -60,7 +60,19 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   OAUTH_ISSUER: string;
 
-  @Transform(({ value }) => value === true || value === 'true')
+  @Transform(({ obj, key }) => {
+    const rawValue = obj[key];
+
+    if (rawValue === true || rawValue === 'true') {
+      return true;
+    }
+
+    if (rawValue === false || rawValue === 'false') {
+      return false;
+    }
+
+    return rawValue;
+  })
   @IsBoolean()
   AUTH_COOKIE_SECURE: boolean;
 
