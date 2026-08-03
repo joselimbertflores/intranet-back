@@ -20,6 +20,7 @@ export interface PublicQuickAccessResponse {
   title: string;
   description: string | null;
   iconKey: QuickAccessIconKey;
+  backgroundColor: string;
   url: string;
 }
 
@@ -76,11 +77,12 @@ export class PublicLandingContentService {
       order: { sortOrder: 'ASC', id: 'ASC' },
     });
 
-    return quickAccesses.map(({ id, title, description, iconKey, url }) => ({
+    return quickAccesses.map(({ id, title, description, iconKey, backgroundColor, url }) => ({
       id,
       title,
       description: description?.trim() || null,
       iconKey,
+      backgroundColor,
       url: url.trim(),
     }));
   }
