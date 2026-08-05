@@ -8,7 +8,7 @@ export class AuthRedirectService {
   private readonly successPath = 'admin';
   private readonly errorPath = 'auth/error';
 
-  constructor(private readonly configService: ConfigService<EnvironmentVariables>) {}
+  constructor(private readonly configService: ConfigService<EnvironmentVariables, true>) {}
 
   buildSuccessRedirectUrl(): string {
     return this.buildFrontendUrl(this.successPath);
@@ -19,7 +19,7 @@ export class AuthRedirectService {
   }
 
   private buildFrontendUrl(path: string, params?: Record<string, string | undefined>): string {
-    const uiBaseUrl = this.configService.get<string>('INTRANET_UI_BASE_URL');
+    const uiBaseUrl = this.configService.get('INTRANET_UI_URL', { infer: true });
 
     if (!uiBaseUrl) {
       const searchParams = new URLSearchParams();

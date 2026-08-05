@@ -27,7 +27,7 @@ export class PublicDocumentsService {
     @InjectRepository(OrganizationalUnit)
     private readonly organizationalUnitRepository: Repository<OrganizationalUnit>,
     private readonly organizationalUnitService: OrganizationalUnitService,
-    private readonly configService: ConfigService<EnvironmentVariables>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
   async getActiveOrganizationalUnitTree() {
@@ -209,7 +209,7 @@ export class PublicDocumentsService {
   }
 
   private buildDocumentDownloadUrl(documentId: string) {
-    const baseUrl = this.configService.getOrThrow<string>('APP_PUBLIC_URL');
+    const baseUrl = this.configService.getOrThrow('INTRANET_PUBLIC_URL', { infer: true });
     const url = new URL(`/api/portal-documents/${documentId}/file`, baseUrl);
     return `${url.toString()}?download=true`;
   }

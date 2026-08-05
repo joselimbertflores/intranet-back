@@ -1,103 +1,54 @@
-import { plainToInstance, Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
+import Joi from 'joi';
 
-export class EnvironmentVariables {
-  @IsNumber()
+export type NodeEnvironment = 'development' | 'test' | 'production';
+export type AuthCookieSameSite = 'lax' | 'strict' | 'none';
+
+export interface EnvironmentVariables {
+  NODE_ENV: NodeEnvironment;
   PORT: number;
-
-  @IsString()
-  APP_PUBLIC_URL: string;
-
-  @IsOptional()
-  @IsString()
-  CORS_ORIGIN?: string;
-
-  @IsString()
+  INTRANET_PUBLIC_URL: string;
+  INTRANET_UI_URL?: string;
   DATABASE_HOST: string;
-
-  @IsNumber()
   DATABASE_PORT: number;
-
-  @IsString()
   DATABASE_NAME: string;
-
-  @IsString()
   DATABASE_USER: string;
-
-  @IsString()
   DATABASE_PASSWORD: string;
-
-  @IsIn(['true', 'false'])
-  DB_SYNCHRONIZE: 'true' | 'false';
-
-  @IsString()
-  IDENTITY_HUB_URL: string;
-
-  @IsString()
-  IDENTITY_HUB_INTERNAL_URL: string;
-
-  @IsOptional()
-  @IsString()
-  IDENTITY_HUB_JWKS_URL?: string;
-
-  @IsString()
-  @IsNotEmpty()
+  DATABASE_SYNCHRONIZE: boolean;
+  IDENTITY_HUB_PUBLIC_URL: string;
+  IDENTITY_HUB_INTERNAL_URL?: string;
   OAUTH_CLIENT_ID: string;
-
-  @IsString()
-  @IsNotEmpty()
   OAUTH_CLIENT_SECRET: string;
-
-  @IsString()
-  OAUTH_REDIRECT_URI: string;
-
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  INTRANET_UI_BASE_URL?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  OAUTH_ISSUER: string;
-
-  @Transform(({ obj, key }) => {
-    const rawValue = obj[key];
-
-    if (rawValue === true || rawValue === 'true') {
-      return true;
-    }
-
-    if (rawValue === false || rawValue === 'false') {
-      return false;
-    }
-
-    return rawValue;
-  })
-  @IsBoolean()
   AUTH_COOKIE_SECURE: boolean;
-
-  @IsOptional()
-  @IsIn(['lax', 'strict', 'none'])
-  AUTH_COOKIE_SAME_SITE?: 'lax' | 'strict' | 'none';
-
-  @IsOptional()
-  @IsString()
+  AUTH_COOKIE_SAME_SITE: AuthCookieSameSite;
   BOOTSTRAP_ADMIN_EXTERNAL_KEY?: string;
-
-  @IsString()
   UPLOAD_PATH: string;
 }
 
-export function validate(config: Record<string, unknown>) {
-  const validatedConfig = plainToInstance(EnvironmentVariables, config, {
-    enableImplicitConversion: true,
-  });
-  const errors = validateSync(validatedConfig, {
-    skipMissingProperties: false,
-  });
+const portSchema = Joi.number().integer().min(1).max(65535);
+const httpUrlSchema = Joi.string().uri({ scheme: ['http', 'https'], allowRelative: false });
 
-  if (errors.length > 0) {
-    throw new Error(errors.toString());
-  }
-  return validatedConfig;
-}
+export const environmentValidationSchema: Joi.ObjectSchema<EnvironmentVariables> = Joi.object<EnvironmentVariables>({
+  NODE_ENV: Joi.string().valid('development', 'test', 'production').required(),
+  PORT: portSchema.required(),
+  INTRANET_PUBLIC_URL: httpUrlSchema.required(),
+  INTRANET_UI_URL: httpUrlSchema.optional(),
+  DATABASE_HOST: Joi.string().trim().min(1).required(),
+  DATABASE_PORT: portSchema.required(),
+  DATABASE_NAME: Joi.string().trim().min(1).required(),
+  DATABASE_USER: Joi.string().trim().min(1).required(),
+  DATABASE_PASSWORD: Joi.string().min(1).required(),
+  DATABASE_SYNCHRONIZE: Joi.boolean()
+    .when('NODE_ENV', { is: 'production', then: Joi.valid(false) })
+    .required(),
+  IDENTITY_HUB_PUBLIC_URL: httpUrlSchema.required(),
+  IDENTITY_HUB_INTERNAL_URL: httpUrlSchema.optional(),
+  OAUTH_CLIENT_ID: Joi.string().trim().min(1).required(),
+  OAUTH_CLIENT_SECRET: Joi.string().min(1).required(),
+  AUTH_COOKIE_SECURE: Joi.boolean().required(),
+  AUTH_COOKIE_SAME_SITE: Joi.string()
+    .valid('lax', 'strict', 'none')
+    .when('AUTH_COOKIE_SECURE', { is: false, then: Joi.invalid('none') })
+    .required(),
+  BOOTSTRAP_ADMIN_EXTERNAL_KEY: Joi.string().trim().min(1).optional(),
+  UPLOAD_PATH: Joi.string().trim().min(1).required(),
+});

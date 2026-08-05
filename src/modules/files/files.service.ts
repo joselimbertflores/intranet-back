@@ -32,10 +32,10 @@ export class FilesService {
   private readonly PUBLIC_FILE_BASE_PATH = '/api/files';
 
   constructor(
-    private readonly configService: ConfigService<EnvironmentVariables>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
     @InjectRepository(StoredFile) private readonly fileRepository: Repository<StoredFile>,
   ) {
-    const uploadPath = this.configService.getOrThrow<string>('UPLOAD_PATH');
+    const uploadPath = this.configService.getOrThrow('UPLOAD_PATH', { infer: true });
     this.BASE_UPLOAD_PATH = resolve(process.cwd(), uploadPath);
   }
 
@@ -126,7 +126,7 @@ export class FilesService {
   }
 
   buildPublicFileUrl(fileId: string): string {
-    const appPublicUrl = this.configService.getOrThrow<string>('APP_PUBLIC_URL');
+    const appPublicUrl = this.configService.getOrThrow('INTRANET_PUBLIC_URL', { infer: true });
     return new URL(`${this.PUBLIC_FILE_BASE_PATH}/${fileId}`, appPublicUrl).toString();
   }
 

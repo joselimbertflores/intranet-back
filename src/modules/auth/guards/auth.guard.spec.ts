@@ -1,5 +1,5 @@
 jest.mock('../services', () => {
-  const { UnauthorizedException } = jest.requireActual('@nestjs/common');
+  const { UnauthorizedException } = jest.requireActual<typeof import('@nestjs/common')>('@nestjs/common');
 
   return {
     AccessTokenFailureReason: {
@@ -18,9 +18,11 @@ jest.mock('../services', () => {
 });
 
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 
 import { OAuthGuard } from './auth.guard';
 import type { User } from 'src/modules/users/entities';
+import type { AuthCookieService, AuthSessionService, TokenVerifierService } from '../services';
 
 describe('OAuthGuard', () => {
   function createContext(request: Record<string, unknown>, response: Record<string, unknown>): ExecutionContext {
@@ -60,10 +62,10 @@ describe('OAuthGuard', () => {
       verifyAccessToken: jest.fn(() => Promise.resolve({ externalKey: 'IDH-U-1' })),
     };
     const guard = new OAuthGuard(
-      reflector as any,
-      authSessionService as any,
-      authCookieService as any,
-      tokenVerifierService as any,
+      reflector as unknown as Reflector,
+      authSessionService as unknown as AuthSessionService,
+      authCookieService as unknown as AuthCookieService,
+      tokenVerifierService as unknown as TokenVerifierService,
     );
 
     await expect(guard.canActivate(createContext(request, response))).resolves.toBe(true);
@@ -77,10 +79,10 @@ describe('OAuthGuard', () => {
       clearSessionCookie: jest.fn(),
     };
     const guard = new OAuthGuard(
-      { getAllAndOverride: jest.fn(() => false) } as any,
-      { findActiveSession: jest.fn(() => Promise.resolve(null)) } as any,
-      authCookieService as any,
-      {} as any,
+      { getAllAndOverride: jest.fn(() => false) } as unknown as Reflector,
+      { findActiveSession: jest.fn(() => Promise.resolve(null)) } as unknown as AuthSessionService,
+      authCookieService as unknown as AuthCookieService,
+      {} as TokenVerifierService,
     );
 
     try {

@@ -11,7 +11,7 @@ export class AuthCookieService {
   private readonly oauthTransactionCookieName = 'intranet_oauth_transaction';
   private readonly oauthTransactionMaxAgeMs = 5 * 60 * 1000;
 
-  constructor(private readonly configService: ConfigService<EnvironmentVariables>) {}
+  constructor(private readonly configService: ConfigService<EnvironmentVariables, true>) {}
 
   setOAuthTransactionCookie(response: Response, transactionId: string): void {
     response.cookie(this.oauthTransactionCookieName, transactionId, this.getOAuthTransactionCookieOptions());
@@ -73,10 +73,10 @@ export class AuthCookieService {
   }
 
   private getSameSite(): CookieOptions['sameSite'] {
-    return this.configService.get<'lax' | 'strict' | 'none'>('AUTH_COOKIE_SAME_SITE', 'lax');
+    return this.configService.getOrThrow('AUTH_COOKIE_SAME_SITE', { infer: true });
   }
 
   private getSecure(): boolean {
-    return this.configService.get<boolean>('AUTH_COOKIE_SECURE', false);
+    return this.configService.getOrThrow('AUTH_COOKIE_SECURE', { infer: true });
   }
 }

@@ -9,7 +9,7 @@ import { EnvironmentVariables } from './config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService<EnvironmentVariables>);
+  const configService = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
 
   app.setGlobalPrefix('api', {
     exclude: [
@@ -26,14 +26,13 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  const intranetUiUrl = configService.get('INTRANET_UI_URL', { infer: true });
 
-  if (corsOrigin) {
-    console.log(`Enabling CORS for origin: ${corsOrigin}`);
-    app.enableCors({ origin: corsOrigin, credentials: true });
+  if (intranetUiUrl) {
+    app.enableCors({ origin: new URL(intranetUiUrl).origin, credentials: true });
   }
 
   app.use(cookieParser());
-  await app.listen(configService.get<number>('PORT') || 3000, "192.168.30.34");
+  await app.listen(configService.getOrThrow('PORT', { infer: true }));
 }
 void bootstrap();

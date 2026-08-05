@@ -27,7 +27,7 @@ export class AccessTokenVerificationError extends UnauthorizedException {
 export class TokenVerifierService {
   constructor(
     private readonly jwksService: JwksService,
-    private readonly configService: ConfigService<EnvironmentVariables>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
   async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
@@ -46,8 +46,8 @@ export class TokenVerifierService {
 
       const verifiedPayload = jwt.verify(token, publicKey, {
         algorithms: ['RS256'],
-        issuer: this.configService.getOrThrow<string>('OAUTH_ISSUER'),
-        audience: this.configService.getOrThrow<string>('OAUTH_CLIENT_ID'),
+        issuer: this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true }),
+        audience: this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true }),
       });
 
       return this.validateIdentityClaims(verifiedPayload);
@@ -76,8 +76,8 @@ export class TokenVerifierService {
   }
 
   private validateIdentityClaims(payload: string | JwtPayload): AccessTokenPayload {
-    const expectedIssuer = this.configService.getOrThrow<string>('OAUTH_ISSUER');
-    const expectedAudience = this.configService.getOrThrow<string>('OAUTH_CLIENT_ID');
+    const expectedIssuer = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const expectedAudience = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
 
     if (
       typeof payload === 'string' ||

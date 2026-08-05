@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import { INestApplicationContext, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 
+import { EnvironmentVariables } from 'src/config';
 import { AccessControlBootstrapService } from 'src/modules/users/services';
 import { AppModule } from 'src/app.module';
 
@@ -9,8 +11,9 @@ async function bootstrap() {
   let app: INestApplicationContext | undefined;
 
   try {
-    const externalKey = getBootstrapAdminExternalKey();
     app = await NestFactory.createApplicationContext(AppModule);
+    const configService = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
+    const externalKey = getBootstrapAdminExternalKey(configService);
 
     const accessControlBootstrapService = app.get(AccessControlBootstrapService);
     const result = await accessControlBootstrapService.bootstrapInitialAdmin(externalKey);
@@ -38,8 +41,8 @@ async function bootstrap() {
   }
 }
 
-function getBootstrapAdminExternalKey(): string {
-  const externalKey = process.env.BOOTSTRAP_ADMIN_EXTERNAL_KEY?.trim();
+function getBootstrapAdminExternalKey(configService: ConfigService<EnvironmentVariables, true>): string {
+  const externalKey = configService.get('BOOTSTRAP_ADMIN_EXTERNAL_KEY', { infer: true });
   if (!externalKey) throw new Error('BOOTSTRAP_ADMIN_EXTERNAL_KEY is required to create the initial admin user.');
   return externalKey;
 }

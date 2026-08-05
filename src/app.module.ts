@@ -6,7 +6,7 @@ import { Module } from '@nestjs/common';
 import { join } from 'path';
 
 import { CommunicationsModule } from './modules/communications/communications.module';
-import { EnvironmentVariables, validate } from './config/env.validation';
+import { EnvironmentVariables, environmentValidationSchema } from './config';
 import { DirectoryModule } from './modules/directory/directory.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
@@ -19,23 +19,28 @@ import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ validate, isGlobal: true }),
+    ConfigModule.forRoot({
+      validationSchema: environmentValidationSchema,
+      validationOptions: {
+        abortEarly: false,
+        allowUnknown: true,
+      },
+      isGlobal: true,
+      cache: true,
+    }),
     CacheModule.register({ ttl: 0, isGlobal: true }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService<EnvironmentVariables>) => {
-        console.log(configService.get<string>('DB_SYNCHRONIZE'))
-        return {
-          type: 'postgres',
-          host: configService.get('DATABASE_HOST'),
-          port: +configService.get('DATABASE_PORT'),
-          database: configService.get('DATABASE_NAME'),
-          username: configService.get('DATABASE_USER'),
-          password: configService.get('DATABASE_PASSWORD'),
-          autoLoadEntities: true,
-          synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true',
-        };
-      },
+      useFactory: (configService: ConfigService<EnvironmentVariables, true>) => ({
+        type: 'postgres',
+        host: configService.getOrThrow('DATABASE_HOST', { infer: true }),
+        port: configService.getOrThrow('DATABASE_PORT', { infer: true }),
+        database: configService.getOrThrow('DATABASE_NAME', { infer: true }),
+        username: configService.getOrThrow('DATABASE_USER', { infer: true }),
+        password: configService.getOrThrow('DATABASE_PASSWORD', { infer: true }),
+        autoLoadEntities: true,
+        synchronize: configService.getOrThrow('DATABASE_SYNCHRONIZE', { infer: true }),
+      }),
       inject: [ConfigService],
     }),
     ServeStaticModule.forRoot({

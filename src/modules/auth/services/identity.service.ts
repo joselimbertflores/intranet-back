@@ -38,7 +38,7 @@ export class IdentityService {
 
   constructor(
     private readonly http: HttpService,
-    private readonly configService: ConfigService<EnvironmentVariables>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
   exchangeCodeForTokens(code: string, codeVerifier: string): Promise<IdentityHubTokenResponse> {
@@ -46,7 +46,7 @@ export class IdentityService {
       grant_type: 'authorization_code',
       code,
       code_verifier: codeVerifier,
-      redirect_uri: this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI'),
+      redirect_uri: this.getRedirectUri(),
     });
   }
 
@@ -95,8 +95,8 @@ export class IdentityService {
   }
 
   private getClientAuthorizationHeader(): string {
-    const clientId = this.configService.getOrThrow<string>('OAUTH_CLIENT_ID');
-    const clientSecret = this.configService.getOrThrow<string>('OAUTH_CLIENT_SECRET');
+    const clientId = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
+    const clientSecret = this.configService.getOrThrow('OAUTH_CLIENT_SECRET', { infer: true });
     const credentials = `${this.formEncode(clientId)}:${this.formEncode(clientSecret)}`;
 
     return `Basic ${Buffer.from(credentials, 'utf8').toString('base64')}`;
@@ -126,8 +126,13 @@ export class IdentityService {
   }
 
   private getTokenUrl(): string {
-    const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
+    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
     return new URL('oauth/token', this.ensureTrailingSlash(identityHubUrl)).toString();
+  }
+
+  private getRedirectUri(): string {
+    const intranetPublicUrl = this.configService.getOrThrow('INTRANET_PUBLIC_URL', { infer: true });
+    return new URL('/auth/callback', intranetPublicUrl).toString();
   }
 
   private ensureTrailingSlash(value: string): string {

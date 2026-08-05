@@ -17,7 +17,7 @@ export class OAuthService {
     private readonly identityService: IdentityService,
     private readonly identityUserProvisioningService: IdentityUserProvisioningService,
     private readonly tokenVerifierService: TokenVerifierService,
-    private readonly configService: ConfigService<EnvironmentVariables>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
     private readonly pkceService: PkceService,
     private readonly oauthTransactionService: OAuthTransactionService,
     private readonly authSessionService: AuthSessionService,
@@ -35,9 +35,9 @@ export class OAuthService {
   }
 
   async createAuthorizationRequest(): Promise<{ url: string; transactionId: string }> {
-    const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
-    const clientId = this.configService.getOrThrow<string>('OAUTH_CLIENT_ID');
-    const redirectUri = this.configService.getOrThrow<string>('OAUTH_REDIRECT_URI');
+    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const clientId = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
+    const redirectUri = this.getRedirectUri();
     const state = this.generateState();
     const codeVerifier = this.pkceService.generateCodeVerifier();
     const codeChallenge = this.pkceService.buildCodeChallenge(codeVerifier);
@@ -67,6 +67,11 @@ export class OAuthService {
 
   private ensureTrailingSlash(value: string): string {
     return value.endsWith('/') ? value : `${value}/`;
+  }
+
+  private getRedirectUri(): string {
+    const intranetPublicUrl = this.configService.getOrThrow('INTRANET_PUBLIC_URL', { infer: true });
+    return new URL('/auth/callback', intranetPublicUrl).toString();
   }
 
   private generateState(): string {

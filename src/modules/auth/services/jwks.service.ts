@@ -8,11 +8,9 @@ import { EnvironmentVariables } from 'src/config';
 export class JwksService {
   private readonly client: JwksClient;
 
-  constructor(private readonly configService: ConfigService<EnvironmentVariables>) {
-    const configuredJwksUri = this.configService.get<string>('IDENTITY_HUB_JWKS_URL');
-    const identityHubUrl = this.configService.getOrThrow<string>('IDENTITY_HUB_URL');
-    const jwksUri =
-      configuredJwksUri ?? new URL('.well-known/jwks.json', this.ensureTrailingSlash(identityHubUrl)).toString();
+  constructor(private readonly configService: ConfigService<EnvironmentVariables, true>) {
+    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const jwksUri = new URL('.well-known/jwks.json', this.ensureTrailingSlash(identityHubUrl)).toString();
 
     this.client = new JwksClient({
       jwksUri,
