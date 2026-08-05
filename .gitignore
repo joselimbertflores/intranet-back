@@ -4,6 +4,7 @@
 /build
 /postgres
 
+/public
 /storage
 
 # Logs
