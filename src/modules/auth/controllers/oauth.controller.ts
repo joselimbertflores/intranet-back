@@ -1,24 +1,37 @@
 import { Controller, Get, Logger, Query, Req, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 
-import { AuthCallbackParamsDto } from '../dtos';
-import { AuthCookieService } from '../services/auth-cookie.service';
-import { AuthRedirectService } from '../services/auth-redirect.service';
+import { EnvironmentVariables } from 'src/config';
+import {
+  getAuthCookieOptions,
+  OAUTH_TRANSACTION_COOKIE_NAME,
+  OAUTH_TRANSACTION_COOKIE_PATH,
+  SESSION_COOKIE_NAME,
+} from '../auth-cookies';
+import { AuthCallbackParamsDto } from '../dtos/auth-callback-params.dto';
 import { OAuthService } from '../services/oauth.service';
-import { AuthSessionService, IdentityHubTokenRequestError, IdentityHubUnavailableError } from '../services';
+import { AuthSessionService } from '../services/auth-session.service';
+import { IdentityHubTokenRequestError, IdentityHubUnavailableError } from '../services/auth-identity.service';
+import { OAUTH_TRANSACTION_TTL_MS, OAuthTransactionService } from '../services/oauth-transaction.service';
 import { AccessTokenFailureReason, AccessTokenVerificationError } from '../services/token-verifier.service';
 import { Public } from '../decorators';
 
 @Controller('auth')
 export class OAuthController {
   private readonly logger = new Logger(OAuthController.name);
+  private readonly secureCookies: boolean;
+  private readonly cookieSameSite: EnvironmentVariables['AUTH_COOKIE_SAME_SITE'];
 
   constructor(
     private readonly oauthService: OAuthService,
-    private readonly authCookieService: AuthCookieService,
-    private readonly authRedirectService: AuthRedirectService,
     private readonly authSessionService: AuthSessionService,
-  ) {}
+    private readonly oauthTransactionService: OAuthTransactionService,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
+  ) {
+    this.secureCookies = configService.getOrThrow('AUTH_COOKIE_SECURE', { infer: true });
+    this.cookieSameSite = configService.getOrThrow('AUTH_COOKIE_SAME_SITE', { infer: true });
+  }
 
   @Get('login')
   @Public()
@@ -33,14 +46,13 @@ export class OAuthController {
     @Query() queryParams: AuthCallbackParamsDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const transactionId = this.authCookieService.getOAuthTransactionId(request);
+    const transactionId = request.cookies?.[OAUTH_TRANSACTION_COOKIE_NAME] as string | undefined;
     if (!transactionId || !queryParams.state) {
-      if (transactionId) await this.oauthService.discardAuthorizationRequest(transactionId);
+      if (transactionId) await this.oauthTransactionService.discard(transactionId);
       return this.redirectToError(response, 'invalid_state');
     }
 
-    const codeVerifier = await this.oauthService.consumeAuthorizationRequest(transactionId, queryParams.state);
-    this.authCookieService.clearOAuthTransactionCookie(response);
+    const codeVerifier = await this.oauthTransactionService.consume(transactionId, queryParams.state);
 
     if (!codeVerifier) return this.redirectToError(response, 'invalid_state');
 
@@ -55,15 +67,19 @@ export class OAuthController {
 
     try {
       const session = await this.oauthService.completeAuthorizationCodeFlow(queryParams.code, codeVerifier);
-      const previousSessionId = this.authCookieService.getSessionId(request);
+      const previousSessionId = request.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
 
       if (previousSessionId && previousSessionId !== session.id) {
         await this.authSessionService.deleteSession(previousSessionId);
       }
 
-      this.authCookieService.setSessionCookie(response, session.id, session.refreshTokenExpiresAt);
+      response.cookie(SESSION_COOKIE_NAME, session.id, {
+        ...getAuthCookieOptions(this.secureCookies, this.cookieSameSite),
+        expires: session.refreshTokenExpiresAt,
+      });
+      this.clearOAuthTransactionCookie(response);
 
-      return response.redirect(this.authRedirectService.buildSuccessRedirectUrl());
+      return response.redirect(this.buildFrontendUrl('admin'));
     } catch (error: unknown) {
       this.logger.error(
         'OAuth callback failed during token exchange or user synchronization',
@@ -71,9 +87,9 @@ export class OAuthController {
       );
 
       if (error instanceof IdentityHubTokenRequestError && error.oauthError === 'invalid_grant') {
-        const previousSessionId = this.authCookieService.getSessionId(request);
+        const previousSessionId = request.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
         if (previousSessionId) await this.authSessionService.deleteSession(previousSessionId);
-        this.authCookieService.clearSessionCookie(response);
+        response.clearCookie(SESSION_COOKIE_NAME, getAuthCookieOptions(this.secureCookies, this.cookieSameSite));
         return this.startAuthorization(response);
       }
 
@@ -89,13 +105,50 @@ export class OAuthController {
   }
 
   private redirectToError(response: Response, error: string) {
-    this.authCookieService.clearOAuthTransactionCookie(response);
-    return response.redirect(this.authRedirectService.buildErrorRedirectUrl(error));
+    this.clearOAuthTransactionCookie(response);
+    return response.redirect(this.buildFrontendUrl('auth/error', { error }));
   }
 
   private async startAuthorization(response: Response) {
     const { url, transactionId } = await this.oauthService.createAuthorizationRequest();
-    this.authCookieService.setOAuthTransactionCookie(response, transactionId);
+    response.cookie(OAUTH_TRANSACTION_COOKIE_NAME, transactionId, {
+      ...getAuthCookieOptions(this.secureCookies, this.cookieSameSite, OAUTH_TRANSACTION_COOKIE_PATH),
+      maxAge: OAUTH_TRANSACTION_TTL_MS,
+    });
     return response.redirect(url);
+  }
+
+  private clearOAuthTransactionCookie(response: Response): void {
+    response.clearCookie(
+      OAUTH_TRANSACTION_COOKIE_NAME,
+      getAuthCookieOptions(this.secureCookies, this.cookieSameSite, OAUTH_TRANSACTION_COOKIE_PATH),
+    );
+  }
+
+  private buildFrontendUrl(path: string, params?: Record<string, string | undefined>): string {
+    const uiBaseUrl = this.configService.get('INTRANET_UI_URL', { infer: true });
+
+    if (!uiBaseUrl) {
+      const searchParams = new URLSearchParams();
+
+      for (const [key, value] of Object.entries(params ?? {})) {
+        if (value) searchParams.set(key, value);
+      }
+
+      const queryString = searchParams.toString();
+      return queryString ? `/${path}?${queryString}` : `/${path}`;
+    }
+
+    const url = new URL(path, this.ensureTrailingSlash(uiBaseUrl));
+
+    for (const [key, value] of Object.entries(params ?? {})) {
+      if (value) url.searchParams.set(key, value);
+    }
+
+    return url.toString();
+  }
+
+  private ensureTrailingSlash(value: string): string {
+    return value.endsWith('/') ? value : `${value}/`;
   }
 }

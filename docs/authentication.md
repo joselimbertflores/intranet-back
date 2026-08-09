@@ -1,57 +1,42 @@
-# Autenticación con Identity Hub
+# Autenticación de Intranet
 
-## Responsabilidades
+Intranet Backend es un cliente OAuth 2.0 confidencial de Identity Hub. Identity Hub autentica al usuario y controla su acceso global a la aplicación; Intranet mantiene el usuario proyectado, la autorización y la sesión local. El navegador recibe únicamente cookies `HttpOnly` con identificadores opacos, nunca los tokens ni el secreto del cliente.
 
-Identity Hub autentica al usuario y valida que el usuario, la aplicación y su asignación estén activos. La Intranet es un cliente OAuth confidencial y conserva:
+## Login y callback
 
-- un usuario local vinculado por `externalKey`;
-- roles y permisos propios;
-- la sesión local y los tokens OAuth.
+1. `GET /auth/login` genera `state`, un `code_verifier` y su challenge PKCE S256.
+2. Intranet guarda durante cinco minutos una transacción en `oauth_transactions` con el hash de `state` y el verifier. La cookie `intranet_oauth_transaction`, limitada a `/auth`, contiene solo el ID aleatorio de esa transacción.
+3. El navegador se redirige a Identity Hub `/oauth/authorize` con el client ID, el callback derivado de `INTRANET_PUBLIC_URL` y los parámetros de PKCE.
+4. Identity Hub vuelve a `GET /auth/callback` con `code` y `state`. Intranet valida y consume la transacción de forma atómica y de un solo uso.
+5. El backend canjea el code en `/oauth/token` mediante HTTP Basic, enviando el `code_verifier` original.
+6. Tras validar el access token, sincroniza el shadow user, crea la sesión persistida y redirige al frontend. Los callbacks rechazados vuelven a la ruta local de error; un `invalid_grant` durante el canje reinicia la autorización.
 
-Angular nunca recibe access tokens, refresh tokens, el secreto del cliente, `state` ni el `codeVerifier`. El navegador conserva únicamente cookies `HttpOnly` con identificadores opacos.
+## Sesión, refresh y logout
 
-## Authorization Code con PKCE
+`auth_sessions` guarda un ID aleatorio, el usuario local, los tokens emitidos por Identity Hub y la expiración del refresh token. La cookie `intranet_session` contiene únicamente el ID de la sesión y vence junto con el refresh.
 
-`GET /auth/login` genera un `state` aleatorio y un `codeVerifier` PKCE, calcula el challenge S256 y crea un `OAuthTransaction` con cinco minutos de vigencia. La entidad guarda el hash de `state` y el verifier; la cookie `intranet_oauth_transaction` contiene solo el ID aleatorio de la transacción y usa `path=/auth`.
+El guard global carga la sesión y el usuario con sus roles y permisos. Si el access token expiró, renueva y persiste los tokens server-side; el refresh se serializa por sesión para manejar requests concurrentes. Un refresh vencido o rechazado con `invalid_grant` elimina la sesión y exige una nueva autorización. Los errores transitorios de Identity Hub o JWKS no eliminan una sesión válida.
 
-El navegador se redirige a `/oauth/authorize` en `IDENTITY_HUB_PUBLIC_URL` con `response_type=code`, `client_id`, el callback derivado de `INTRANET_PUBLIC_URL`, `state`, `code_challenge` y `code_challenge_method=S256`.
+`POST /api/auth/logout` elimina la sesión y limpia las cookies locales, incluida cualquier transacción OAuth pendiente. No cierra la sesión global de Identity Hub.
 
-En el callback, la Intranet exige la cookie de transacción y `state`. La fila se bloquea, se comprueba su vigencia y se elimina tanto si el estado coincide como si no; por eso el intento es de un solo uso. Un estado ausente, vencido, distinto o reutilizado termina en el error local `invalid_state`. `access_denied` también se procesa solo después de consumir una transacción válida y no provoca un bucle de login.
+## JWT y JWKS
 
-Con un code válido, el backend llama a `/oauth/token` con formulario URL-encoded, HTTP Basic y el `codeVerifier` original. El secreto y el code canjeado no pasan por Angular.
+Intranet valida los access tokens con el JWKS publicado por Identity Hub. Comprueba `RS256`, `kid`, firma, issuer, audience, vigencia temporal y los claims `sub`, `externalKey` y `name`. El `externalKey` también debe coincidir con el usuario asociado a la sesión.
 
-## Validación y sesión local
+## Shadow users y autorización local
 
-Cada access token se valida con el JWKS publicado en `IDENTITY_HUB_PUBLIC_URL/.well-known/jwks.json`. La Intranet exige:
+`externalKey` es el vínculo estable con Identity Hub. En el primer login se crea el shadow user con los roles configurados como autoasignables; en logins posteriores solo se sincroniza el nombre y se conservan los roles y permisos locales. La importación administrativa permite registrar anticipadamente usuarios asignables y elegir sus roles.
 
-- header con `alg=RS256` y `kid` no vacío;
-- clave JWKS correspondiente, firma válida y `exp` vigente;
-- `iss` exactamente igual a `IDENTITY_HUB_PUBLIC_URL`;
-- `aud` exactamente igual a `OAUTH_CLIENT_ID`;
-- claims de identidad `sub`, `externalKey`, `name` e `iat` con el tipo esperado.
+Identity Hub decide si el usuario puede acceder a Intranet. Dentro de la aplicación, Intranet autoriza localmente mediante roles y permisos por recurso y acción; esos permisos no provienen del token.
 
-No existe compatibilidad con un issuer histórico. `externalKey`, no `sub`, es el vínculo estable con el usuario local. En un primer login se crea el usuario con los roles marcados `isAutoAssigned`; en logins posteriores solo se actualiza `fullName`. Los roles y permisos existentes nunca se reemplazan desde el token.
+## Configuración relevante
 
-`AuthSession` guarda el ID opaco, usuario local, access token, refresh token y vencimiento del refresh token. La cookie `intranet_session` contiene solo el ID y vence junto con el refresh. El guard carga el usuario con sus roles y permisos locales; ningún token OAuth se serializa hacia el navegador.
+- `INTRANET_PUBLIC_URL`: URL pública del backend, usada para derivar `/auth/callback`.
+- `INTRANET_UI_URL`: URL opcional del frontend para redirects y CORS.
+- `IDENTITY_HUB_PUBLIC_URL`: base pública de authorize, token, issuer y JWKS.
+- `IDENTITY_HUB_INTERNAL_URL`: base opcional para consultas administrativas server-to-server.
+- `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`: credenciales del cliente confidencial.
+- `AUTH_COOKIE_SECURE` y `AUTH_COOKIE_SAME_SITE`: política de las cookies locales.
+- `BOOTSTRAP_ADMIN_EXTERNAL_KEY`: identificador usado únicamente para crear el primer administrador.
 
-## Refresh, revocación y errores
-
-Cuando `exp` vence, la fila de sesión se bloquea con `pessimistic_write` antes del refresh. El primer request rota ambos tokens y actualiza su expiración en la misma transacción. Los requests concurrentes que esperaban el bloqueo detectan el access token nuevo y no reutilizan el refresh token consumido.
-
-Un `invalid_grant` durante refresh elimina la sesión y exige una autorización nueva. Los fallos de red, del Hub o del JWKS se tratan como transitorios y no borran credenciales válidas sin evidencia. Un token almacenado con firma, header, issuer, audience o claims inválidos sí invalida la sesión local.
-
-Si un usuario se desactiva, pierde la asignación o la aplicación se desactiva, Identity Hub rechaza nuevos authorize, canjes y refresh. Un access token ya emitido puede seguir siendo válido hasta su `exp`; al intentar refrescar, la Intranet elimina la sesión por `invalid_grant`.
-
-## Logout
-
-`POST /api/auth/logout` elimina `AuthSession` y limpia las cookies locales, incluida cualquier transacción OAuth pendiente. No llama al logout central. Cerrar la sesión de la Intranet no cierra la sesión SSO de Identity Hub, y cerrar la sesión central no elimina automáticamente una sesión local ya creada.
-
-## Importación administrativa
-
-La administración puede buscar usuarios asignables y confirmar una importación por `externalKey`. Solo el backend consulta `/internal/users/assignable` con Basic Auth del cliente; si `IDENTITY_HUB_INTERNAL_URL` no está configurada, usa la URL pública del Hub.
-
-Al confirmar, la Intranet vuelve a consultar el candidato exacto, comprueba que siga activo y asignado, valida el `externalKey` devuelto y crea el usuario con los roles locales elegidos. No confía en nombre, correo, login o roles enviados por Angular. La restricción única de `users.externalKey` resuelve carreras con otro import o con la creación durante un callback.
-
-## Limpieza
-
-Al crear una transacción se eliminan transacciones vencidas; al crear una sesión se eliminan sesiones cuyo refresh ya venció. Además, el acceso y el logout eliminan su propio registro cuando corresponde. Esta limpieza oportunista mantiene el diseño simple y evita agregar Redis o un scheduler para este flujo.
+`.env.template` es la referencia completa de configuración. Identity Hub debe registrar el callback `/auth/callback` resuelto sobre `INTRANET_PUBLIC_URL`.

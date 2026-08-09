@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Unauthor
 import { Reflector } from '@nestjs/core';
 
 import { User } from 'src/modules/users/entities';
-import { PermissionsMetadata } from '../interfaces';
+import { PermissionsMetadata } from '../interfaces/permissions-metadata.interface';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 
 @Injectable()

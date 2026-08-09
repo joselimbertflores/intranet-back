@@ -8,11 +8,6 @@ export interface IdentityHubTokenResponse {
   refresh_token_expires_in: number;
 }
 
-export interface IdentityHubOAuthErrorResponse {
-  error: string;
-  error_description?: string;
-}
-
 export interface AccessTokenPayload extends JwtPayload {
   sub: string;
   externalKey: string;
