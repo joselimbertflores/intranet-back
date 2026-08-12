@@ -1,18 +1,19 @@
+import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 
 import { isAxiosError } from 'axios';
 import { lastValueFrom } from 'rxjs';
 
-import { IdentityHubOAuthErrorResponse, IdentityHubTokenResponse } from '../interfaces';
 import { EnvironmentVariables } from 'src/config';
+import type { IdentityHubTokenResponse } from '../interfaces/identity-hub-token.interface';
+
+interface IdentityHubOAuthErrorResponse {
+  error: string;
+}
 
 export class IdentityHubTokenRequestError extends Error {
-  constructor(
-    public readonly oauthError: string,
-    public readonly statusCode: number,
-  ) {
+  constructor(public readonly oauthError: string) {
     super(`Identity Hub rejected the token request with ${oauthError}`);
     this.name = IdentityHubTokenRequestError.name;
   }
@@ -33,7 +34,7 @@ export class IdentityHubTokenProtocolError extends Error {
 }
 
 @Injectable()
-export class IdentityService {
+export class AuthIdentityService {
   private readonly requestTimeoutMs = 10_000;
 
   constructor(
@@ -41,7 +42,7 @@ export class IdentityService {
     private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
-  exchangeCodeForTokens(code: string, codeVerifier: string): Promise<IdentityHubTokenResponse> {
+  exchangeAuthorizationCode(code: string, codeVerifier: string): Promise<IdentityHubTokenResponse> {
     return this.requestTokens({
       grant_type: 'authorization_code',
       code,
@@ -59,6 +60,7 @@ export class IdentityService {
 
   private async requestTokens(payload: Record<string, string>): Promise<IdentityHubTokenResponse> {
     const body = new URLSearchParams(payload).toString();
+    let responseData: IdentityHubTokenResponse;
 
     try {
       const response = await lastValueFrom(
@@ -71,27 +73,21 @@ export class IdentityService {
         }),
       );
 
-      return this.validateTokenResponse(response.data);
+      responseData = response.data;
     } catch (error: unknown) {
-      if (
-        error instanceof IdentityHubTokenRequestError ||
-        error instanceof IdentityHubUnavailableError ||
-        error instanceof IdentityHubTokenProtocolError
-      ) {
-        throw error;
-      }
-
       if (!isAxiosError(error) || error.response?.status === undefined || error.response.status >= 500) {
         throw new IdentityHubUnavailableError();
       }
 
       const responseData = error.response.data as Partial<IdentityHubOAuthErrorResponse> | undefined;
       if (typeof responseData?.error === 'string') {
-        throw new IdentityHubTokenRequestError(responseData.error, error.response.status);
+        throw new IdentityHubTokenRequestError(responseData.error);
       }
 
       throw new IdentityHubTokenProtocolError();
     }
+
+    return this.validateTokenResponse(responseData);
   }
 
   private getClientAuthorizationHeader(): string {

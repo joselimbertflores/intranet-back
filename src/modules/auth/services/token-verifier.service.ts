@@ -1,9 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
+import { JwksClient } from 'jwks-rsa';
 
-import { JwksService } from './jwks.service';
-import { AccessTokenPayload } from '../interfaces';
+import { AccessTokenPayload } from '../interfaces/identity-hub-token.interface';
 import { EnvironmentVariables } from 'src/config';
 
 export enum AccessTokenFailureReason {
@@ -25,10 +25,22 @@ export class AccessTokenVerificationError extends UnauthorizedException {
 
 @Injectable()
 export class TokenVerifierService {
-  constructor(
-    private readonly jwksService: JwksService,
-    private readonly configService: ConfigService<EnvironmentVariables, true>,
-  ) {}
+  private readonly jwksClient: JwksClient;
+
+  constructor(private readonly configService: ConfigService<EnvironmentVariables, true>) {
+    const identityHubUrl = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+    const jwksUri = new URL('.well-known/jwks.json', this.ensureTrailingSlash(identityHubUrl)).toString();
+
+    this.jwksClient = new JwksClient({
+      jwksUri,
+      cache: true,
+      cacheMaxEntries: 5,
+      cacheMaxAge: 10 * 60 * 1000,
+      rateLimit: true,
+      jwksRequestsPerMinute: 5,
+      timeout: 10_000,
+    });
+  }
 
   async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
     try {
@@ -42,12 +54,14 @@ export class TokenVerifierService {
         throw new AccessTokenVerificationError(AccessTokenFailureReason.INVALID_HEADER, 'Invalid access token header');
       }
 
-      const publicKey = await this.jwksService.getPublicKey(decoded.header.kid);
+      const key = await this.jwksClient.getSigningKey(decoded.header.kid);
+      const issuer = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
+      const audience = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
 
-      const verifiedPayload = jwt.verify(token, publicKey, {
+      const verifiedPayload = jwt.verify(token, key.getPublicKey(), {
         algorithms: ['RS256'],
-        issuer: this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true }),
-        audience: this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true }),
+        issuer,
+        audience,
       });
 
       return this.validateIdentityClaims(verifiedPayload);
@@ -76,9 +90,6 @@ export class TokenVerifierService {
   }
 
   private validateIdentityClaims(payload: string | JwtPayload): AccessTokenPayload {
-    const expectedIssuer = this.configService.getOrThrow('IDENTITY_HUB_PUBLIC_URL', { infer: true });
-    const expectedAudience = this.configService.getOrThrow('OAUTH_CLIENT_ID', { infer: true });
-
     if (
       typeof payload === 'string' ||
       typeof payload.sub !== 'string' ||
@@ -87,8 +98,6 @@ export class TokenVerifierService {
       payload.externalKey.trim().length === 0 ||
       typeof payload.name !== 'string' ||
       payload.name.trim().length === 0 ||
-      payload.iss !== expectedIssuer ||
-      payload.aud !== expectedAudience ||
       typeof payload.iat !== 'number' ||
       typeof payload.exp !== 'number' ||
       !Number.isFinite(payload.exp)
@@ -105,5 +114,9 @@ export class TokenVerifierService {
       externalKey: payload.externalKey.trim(),
       name: payload.name.trim(),
     } as AccessTokenPayload;
+  }
+
+  private ensureTrailingSlash(value: string): string {
+    return value.endsWith('/') ? value : `${value}/`;
   }
 }

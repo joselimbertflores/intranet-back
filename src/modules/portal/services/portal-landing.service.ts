@@ -25,8 +25,7 @@ export class PortalLandingService {
 
     return {
       heroSlides,
-      quickAccesses: quickAccesses.slice(0, 10),
-      hasMoreQuickAccesses: quickAccesses.length >= 10,
+      quickAccesses,
       featuredBanners,
       landingNotices,
       latestCommunications,

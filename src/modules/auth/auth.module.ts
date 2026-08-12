@@ -5,38 +5,28 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { UsersModule } from '../users/users.module';
 import { OAuthGuard } from './guards/auth.guard';
-
-import {
-  AuthCookieService,
-  AuthRedirectService,
-  AuthSessionService,
-  IdentityService,
-  JwksService,
-  OAuthTransactionService,
-  OAuthService,
-  PkceService,
-  TokenVerifierService,
-} from './services';
-import { OAuthController } from './controllers';
+import { OAuthService } from './services/oauth.service';
+import { AuthIdentityService } from './services/auth-identity.service';
+import { TokenVerifierService } from './services/token-verifier.service';
+import { AuthSessionService } from './services/auth-session.service';
+import { OAuthTransactionService } from './services/oauth-transaction.service';
 import { AuthController } from './controllers/auth.controller';
-import { AuthSession, OAuthTransaction } from './entities';
+import { OAuthController } from './controllers/oauth.controller';
+import { AuthSession } from './entities/auth-session.entity';
+import { OAuthTransaction } from './entities/oauth-transaction.entity';
 
 @Module({
   controllers: [OAuthController, AuthController],
   providers: [
     OAuthService,
-    IdentityService,
-    AuthCookieService,
-    AuthRedirectService,
+    AuthIdentityService,
+    TokenVerifierService,
     AuthSessionService,
     OAuthTransactionService,
-    PkceService,
     {
       provide: APP_GUARD,
       useClass: OAuthGuard,
     },
-    JwksService,
-    TokenVerifierService,
   ],
   imports: [HttpModule, TypeOrmModule.forFeature([AuthSession, OAuthTransaction]), UsersModule],
 })

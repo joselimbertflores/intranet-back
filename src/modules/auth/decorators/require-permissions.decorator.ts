@@ -1,6 +1,6 @@
 import { applyDecorators, SetMetadata, UseGuards } from '@nestjs/common';
 
-import { PermissionsMetadata } from '../interfaces';
+import { PermissionsMetadata } from '../interfaces/permissions-metadata.interface';
 import { PermissionsGuard } from '../guards/permissions.guard';
 
 export const PERMISSIONS_KEY = 'permissions';

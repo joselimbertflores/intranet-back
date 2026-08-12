@@ -4,7 +4,6 @@ import { Repository } from 'typeorm';
 
 import { FilesService } from '../../files/files.service';
 import { FeaturedBanner, HeroSlide, LandingNotice, QuickAccess } from '../entities';
-import type { QuickAccessIconKey } from '../entities';
 
 export interface PublicHeroSlideResponse {
   id: number;
@@ -13,15 +12,6 @@ export interface PublicHeroSlideResponse {
   linkLabel: string | null;
   linkUrl: string | null;
   imageUrl: string;
-}
-
-export interface PublicQuickAccessResponse {
-  id: number;
-  title: string;
-  description: string | null;
-  iconKey: QuickAccessIconKey;
-  backgroundColor: string;
-  url: string;
 }
 
 export interface PublicFeaturedBannerResponse {
@@ -71,7 +61,7 @@ export class PublicLandingContentService {
     });
   }
 
-  async findQuickAccesses(limit?: number): Promise<PublicQuickAccessResponse[]> {
+  async findQuickAccesses(limit?: number) {
     const quickAccesses = await this.quickAccessesRepository.find({
       where: { isActive: true },
       order: { sortOrder: 'ASC', id: 'ASC' },
