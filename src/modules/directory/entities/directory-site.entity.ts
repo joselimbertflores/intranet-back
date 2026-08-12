@@ -13,6 +13,18 @@ export class DirectorySite {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({
+    type: 'double precision',
+    nullable: true,
+  })
+  latitude: number | null;
+
+  @Column({
+    type: 'double precision',
+    nullable: true,
+  })
+  longitude: number | null;
+
   @OneToMany(() => DirectoryEntry, (entry) => entry.site)
   entries: DirectoryEntry[];
 }

@@ -1,3 +1,4 @@
+import { User } from 'src/modules/users/entities/user.entity';
 import {
   Column,
   CreateDateColumn,
@@ -9,7 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { User } from 'src/modules/users/entities';
+
 
 @Entity('auth_sessions')
 @Index('idx_auth_sessions_user_id', ['userId'])
