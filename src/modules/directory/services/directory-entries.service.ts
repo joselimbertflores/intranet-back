@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { CreateDirectoryEntryDto, DirectorySearchDto, UpdateDirectoryEntryDto } from './dtos';
-import { DirectoryEntry } from './entities';
+import { CreateDirectoryEntryDto, DirectorySearchDto, UpdateDirectoryEntryDto } from '../dtos';
 import { DirectorySitesService } from './directory-sites.service';
+import { DirectoryEntry } from '../entities';
 
 @Injectable()
 export class DirectoryEntriesService {

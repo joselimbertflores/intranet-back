@@ -1,6 +1,4 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
-import { DirectoryEntriesService } from './directory-entries.service';
-import { DirectorySitesService } from './directory-sites.service';
 import {
   CreateDirectoryEntryDto,
   CreateDirectorySiteDto,
@@ -10,6 +8,7 @@ import {
 } from './dtos';
 import { ProtectedResource } from '../auth/decorators';
 import { Resource } from '../users/entities';
+import { DirectoryEntriesService, DirectorySitesService } from './services';
 
 @ProtectedResource(Resource.DIRECTORY)
 @Controller('directory')

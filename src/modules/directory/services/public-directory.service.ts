@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { DirectoryEntry, DirectorySite } from './entities';
+import { DirectoryEntry, DirectorySite } from '../entities';
 
 @Injectable()
 export class PublicDirectoryService {

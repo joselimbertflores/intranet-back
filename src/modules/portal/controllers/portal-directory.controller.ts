@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from 'src/modules/auth/decorators';
-import { PublicDirectoryService } from 'src/modules/directory/public-directory.service';
+import { PublicDirectoryService } from 'src/modules/directory/services/public-directory.service';
 
 @Public()
 @Controller('portal-directory')
