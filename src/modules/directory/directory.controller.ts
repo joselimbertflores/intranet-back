@@ -1,26 +1,36 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   CreateDirectoryEntryDto,
   CreateDirectorySiteDto,
-  DirectorySearchDto,
   UpdateDirectoryEntryDto,
   UpdateDirectorySiteDto,
 } from './dtos';
+import { DirectoryEntriesService, DirectorySitesService } from './services';
 import { ProtectedResource } from '../auth/decorators';
 import { Resource } from '../users/entities';
-import { DirectoryEntriesService, DirectorySitesService } from './services';
 
 @ProtectedResource(Resource.DIRECTORY)
 @Controller('directory')
 export class DirectoryController {
   constructor(
-    private readonly directoryEntriesService: DirectoryEntriesService,
-    private readonly directorySitesService: DirectorySitesService,
+    private directoryEntriesService: DirectoryEntriesService,
+    private directorySitesService: DirectorySitesService,
   ) {}
 
   @Get()
-  findAll(@Query() query: DirectorySearchDto) {
-    return this.directoryEntriesService.findAll(query);
+  findAll() {
+    return this.directoryEntriesService.findAll();
   }
 
   @Get('area-names')
@@ -59,7 +69,8 @@ export class DirectoryController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.directoryEntriesService.remove(id);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.directoryEntriesService.remove(id);
   }
 }
