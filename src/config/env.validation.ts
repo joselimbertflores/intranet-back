@@ -16,6 +16,8 @@ export interface EnvironmentVariables {
   DATABASE_SYNCHRONIZE: boolean;
   IDENTITY_HUB_PUBLIC_URL: string;
   IDENTITY_HUB_INTERNAL_URL?: string;
+  RRHH_INTEGRATION_URL: string;
+  RRHH_ACCESS_CODE: string;
   OAUTH_CLIENT_ID: string;
   OAUTH_CLIENT_SECRET: string;
   AUTH_COOKIE_SECURE: boolean;
@@ -42,6 +44,8 @@ export const environmentValidationSchema: Joi.ObjectSchema<EnvironmentVariables>
     .required(),
   IDENTITY_HUB_PUBLIC_URL: httpUrlSchema.required(),
   IDENTITY_HUB_INTERNAL_URL: httpUrlSchema.optional(),
+  RRHH_INTEGRATION_URL: httpUrlSchema.required(),
+  RRHH_ACCESS_CODE: Joi.string().trim().min(1).required(),
   OAUTH_CLIENT_ID: Joi.string().trim().min(1).required(),
   OAUTH_CLIENT_SECRET: Joi.string().min(1).required(),
   AUTH_COOKIE_SECURE: Joi.boolean().required(),

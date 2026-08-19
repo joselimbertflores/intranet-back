@@ -12,6 +12,8 @@ const validEnvironment = {
   DATABASE_PASSWORD: 'postgres',
   DATABASE_SYNCHRONIZE: 'true',
   IDENTITY_HUB_PUBLIC_URL: 'http://localhost:8000',
+  RRHH_INTEGRATION_URL: 'http://localhost:9000',
+  RRHH_ACCESS_CODE: 'test-access-code',
   OAUTH_CLIENT_ID: 'intranet',
   OAUTH_CLIENT_SECRET: 'test-secret',
   AUTH_COOKIE_SECURE: 'false',

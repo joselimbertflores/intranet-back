@@ -198,7 +198,9 @@ export class PublicDocumentsService {
       organizationalUnit: document.organizationalUnit?.name ?? null,
       type: document.type.name,
       subtype: document.subtype?.name,
-      downloadCount: document.downloadCount ?? 0,
+      downloadCount: document.downloadCount,
+      validityStatus: document.validityStatus,
+      createdAt: document.createdAt,
       file: {
         name: document.file.originalName,
         mimeType: document.file.mimeType,
