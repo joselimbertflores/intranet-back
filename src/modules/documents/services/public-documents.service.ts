@@ -58,7 +58,7 @@ export class PublicDocumentsService {
   }
 
   async searchDocuments(searchParamsDto: SearchPublicDocumentsDto) {
-    const { limit, offset, term, ...props } = searchParamsDto;
+    const { limit, offset, term, validityStatus, ...props } = searchParamsDto;
     const filters = await this.resolveFilters(props);
 
     if (!filters) {
@@ -79,6 +79,7 @@ export class PublicDocumentsService {
     if (typeId) query.andWhere('type.id = :typeId', { typeId });
     if (subtypeId) query.andWhere('subtype.id = :subtypeId', { subtypeId });
     if (year) query.andWhere('document.year = :year', { year });
+    if (validityStatus) query.andWhere('document.validityStatus = :validityStatus', { validityStatus });
 
     const [documents, total] = await query
       .orderBy('document.createdAt', 'DESC')

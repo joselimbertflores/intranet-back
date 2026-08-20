@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { PaginationParamsDto } from 'src/common/dtos';
+import { DocumentValidityStatus } from '../entities';
 
 export class SearchPublicDocumentsDto extends PaginationParamsDto {
   @IsString()
@@ -22,4 +23,8 @@ export class SearchPublicDocumentsDto extends PaginationParamsDto {
   @IsInt()
   @IsOptional()
   year?: number;
+
+  @IsEnum(DocumentValidityStatus)
+  @IsOptional()
+  validityStatus?: DocumentValidityStatus;
 }
