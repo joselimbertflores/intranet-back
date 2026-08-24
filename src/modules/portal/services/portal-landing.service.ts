@@ -20,7 +20,7 @@ export class PortalLandingService {
         this.publicLandingContentService.findFeaturedBanners(),
         this.publicLandingContentService.findLandingNotices(),
         this.publicCommunicationsService.findLatest(6),
-        this.publicDocumentsService.findMostDownloaded(8),
+        this.publicDocumentsService.findMostDownloaded(12),
       ]);
 
     return {

@@ -126,7 +126,7 @@ export class FilesController {
     )
     file: Express.Multer.File,
   ) {
-    return this.filesService.uploadFile(file, FileContext.TUTORIALS);
+    return this.filesService.uploadTutorialFile(file);
   }
 
   @Post('communications')

@@ -59,6 +59,14 @@ export class FilesService {
     };
   }
 
+  async uploadTutorialFile(file: Express.Multer.File): Promise<UploadResult> {
+    if (file.mimetype.startsWith('image/')) {
+      return this.uploadImage(file, FileContext.TUTORIALS);
+    }
+
+    return this.uploadFile(file, FileContext.TUTORIALS);
+  }
+
   async uploadPdf(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
     const savedPdf = await this.saveFile({
       buffer: file.buffer,
