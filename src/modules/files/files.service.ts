@@ -25,6 +25,11 @@ interface SaveFileParams {
   sourceFile?: StoredFile;
 }
 
+export interface FileStreamRange {
+  start: number;
+  end: number;
+}
+
 @Injectable()
 export class FilesService {
   private readonly logger = new Logger(FilesService.name);
@@ -222,10 +227,26 @@ export class FilesService {
     });
   }
 
-  async getActiveFileStream(id: string) {
-    const file = await this.fileRepository.findOne({ where: { id, status: FileStatus.ACTIVE } });
+  async getActiveFileStream(id: string, range?: FileStreamRange) {
+    const file = await this.findActiveFileOrFail(id);
+    const stream = this.openActiveFileStream(file, range);
 
-    if (!file) throw new NotFoundException('File not found');
+    return { file, stream };
+  }
+
+  openActiveFileStream(file: StoredFile, range?: FileStreamRange) {
+    if (file.status !== FileStatus.ACTIVE) throw new NotFoundException('File not found');
+
+    if (
+      range &&
+      (!Number.isSafeInteger(range.start) ||
+        !Number.isSafeInteger(range.end) ||
+        range.start < 0 ||
+        range.end < range.start ||
+        range.end >= file.sizeBytes)
+    ) {
+      throw new BadRequestException('Invalid file stream range');
+    }
 
     const finalPath = join(this.BASE_UPLOAD_PATH, file.storageKey);
 
@@ -233,7 +254,7 @@ export class FilesService {
       throw new NotFoundException('File not found');
     }
 
-    return { file, stream: createReadStream(finalPath) };
+    return createReadStream(finalPath, range ? { start: range.start, end: range.end } : undefined);
   }
 
   private async saveFile(params: SaveFileParams): Promise<StoredFile> {
