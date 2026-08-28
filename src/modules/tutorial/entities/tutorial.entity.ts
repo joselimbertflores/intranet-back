@@ -4,9 +4,13 @@ import {
   ManyToOne,
   OneToMany,
   CreateDateColumn,
+  JoinColumn,
   UpdateDateColumn,
   PrimaryGeneratedColumn,
+  OneToOne,
 } from 'typeorm';
+
+import { StoredFile } from 'src/modules/files/entities/stored-file.entity';
 
 import { TutorialCategory } from './tutorial-category.entity';
 import { TutorialBlock } from './tutorial-block.entity';
@@ -24,6 +28,13 @@ export class Tutorial {
 
   @Column({ type: 'text', nullable: true })
   summary: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  coverImageFileId: string | null;
+
+  @OneToOne(() => StoredFile, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'coverImageFileId' })
+  coverImage: StoredFile | null;
 
   @ManyToOne(() => TutorialCategory, (category) => category.tutorials, { nullable: true, onDelete: 'SET NULL' })
   category?: TutorialCategory | null;

@@ -21,7 +21,7 @@ import type { Response } from 'express';
 
 import { CustomFileTypeValidator } from './validators/custom-file-type.validator';
 import { FileContext } from './enums/file-context.enum';
-import { FILE_UPLOAD_CONFIG } from './constants';
+import { FILE_UPLOAD_CONFIG, TUTORIAL_COVER_UPLOAD_CONFIG } from './constants';
 import { FilesService } from './files.service';
 import { parseHttpByteRange } from './helpers/http-byte-range.helper';
 import { ProtectedResource, Public } from '../auth/decorators';
@@ -148,6 +148,26 @@ export class FilesController {
     file: Express.Multer.File,
   ) {
     return this.filesService.uploadTutorialFile(file);
+  }
+
+  @Post('tutorial-covers')
+  @ProtectedResource(Resource.TUTORIALS)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: TUTORIAL_COVER_UPLOAD_CONFIG.maxSizeBytes } }))
+  uploadTutorialCover(
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addValidator(
+          new CustomFileTypeValidator({
+            validTypes: TUTORIAL_COVER_UPLOAD_CONFIG.validTypes,
+            requireDetectedType: true,
+          }),
+        )
+        .addMaxSizeValidator({ maxSize: TUTORIAL_COVER_UPLOAD_CONFIG.maxSizeBytes })
+        .build(),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.filesService.uploadTutorialCover(file);
   }
 
   @Post('communications')

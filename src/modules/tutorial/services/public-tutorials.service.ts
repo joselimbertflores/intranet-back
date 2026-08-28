@@ -36,6 +36,10 @@ export class PublicTutorialsService {
         slug: tutorial.slug,
         title: tutorial.title,
         summary: tutorial.summary ?? null,
+        coverImageFileId: tutorial.coverImageFileId,
+        coverImageUrl: tutorial.coverImageFileId
+          ? this.filesService.buildPublicFileUrl(tutorial.coverImageFileId)
+          : null,
         category: this.mapCategory(tutorial.category),
         createdAt: tutorial.createdAt,
       })),
@@ -74,6 +78,8 @@ export class PublicTutorialsService {
       slug: tutorial.slug,
       title: tutorial.title,
       summary: tutorial.summary ?? null,
+      coverImageFileId: tutorial.coverImageFileId,
+      coverImageUrl: tutorial.coverImageFileId ? this.filesService.buildPublicFileUrl(tutorial.coverImageFileId) : null,
       createdAt: tutorial.createdAt,
       category: this.mapCategory(tutorial.category),
       blocks: [...tutorial.blocks]

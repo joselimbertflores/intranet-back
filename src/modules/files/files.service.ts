@@ -96,22 +96,25 @@ export class FilesService {
     };
   }
   async uploadImage(file: Express.Multer.File, context: FileContext): Promise<UploadResult> {
-    return this.saveOptimizedImage(file, context, 1600);
+    return this.saveOptimizedImage(file, context, { width: 1600, height: 1600 });
   }
 
   async uploadQuickAccessImage(file: Express.Multer.File): Promise<UploadResult> {
-    return this.saveOptimizedImage(file, FileContext.QUICK_ACCESSES, 512);
+    return this.saveOptimizedImage(file, FileContext.QUICK_ACCESSES, { width: 512, height: 512 });
+  }
+
+  async uploadTutorialCover(file: Express.Multer.File): Promise<UploadResult> {
+    return this.saveOptimizedImage(file, FileContext.TUTORIALS, { width: 1200, height: 1200 });
   }
 
   private async saveOptimizedImage(
     file: Express.Multer.File,
     context: FileContext,
-    maxDimension: number,
+    dimensions: { width: number; height?: number },
   ): Promise<UploadResult> {
     const optimizedBuffer = await sharp(file.buffer)
       .resize({
-        width: maxDimension,
-        height: maxDimension,
+        ...dimensions,
         fit: 'inside',
         withoutEnlargement: true,
       })

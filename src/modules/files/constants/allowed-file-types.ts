@@ -5,6 +5,11 @@ interface FileUploadConfig {
   maxSizeBytes: number;
 }
 
+export const TUTORIAL_COVER_UPLOAD_CONFIG: FileUploadConfig = {
+  validTypes: ['image/png', 'image/jpeg', 'image/webp'],
+  maxSizeBytes: 5 * 1024 * 1024,
+};
+
 export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
   [FileContext.HERO_SLIDES]: {
     validTypes: ['jpg', 'jpeg', 'png', 'webp'],

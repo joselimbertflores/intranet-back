@@ -65,6 +65,10 @@ export class CreateTutorialDto {
   categoryId?: number | null;
 
   @IsOptional()
+  @IsUUID()
+  coverImageFileId?: string | null;
+
+  @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
 }
