@@ -16,7 +16,7 @@ export class PortalLandingService {
     const [heroSlides, quickAccesses, featuredBanners, landingNotices, latestCommunications, mostDownloadedDocuments] =
       await Promise.all([
         this.publicLandingContentService.findHeroSlides(),
-        this.publicLandingContentService.findQuickAccesses(9),
+        this.publicLandingContentService.findQuickAccesses(8),
         this.publicLandingContentService.findFeaturedBanners(),
         this.publicLandingContentService.findLandingNotices(),
         this.publicCommunicationsService.findLatest(6),

@@ -4,18 +4,16 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Matches,
   MaxLength,
   Min,
 } from 'class-validator';
-import { QUICK_ACCESS_ICON_KEYS } from '../entities';
-import type { QuickAccessIconKey } from '../entities';
 
 const trimString = ({ value }: { value: unknown }): unknown => (typeof value === 'string' ? value.trim() : value);
 const trimOrNull = ({ value }: { value: unknown }): unknown => {
@@ -36,9 +34,8 @@ export class CreateQuickAccessDto {
   @Transform(trimOrNull)
   description?: string | null;
 
-  @IsString()
-  @IsIn(QUICK_ACCESS_ICON_KEYS)
-  iconKey: QuickAccessIconKey;
+  @IsUUID()
+  imageFileId: string;
 
   @IsString()
   @Matches(/^#[0-9A-Fa-f]{6}$/, {

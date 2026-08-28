@@ -18,6 +18,10 @@ export const FILE_UPLOAD_CONFIG: Record<FileContext, FileUploadConfig> = {
     validTypes: ['jpg', 'jpeg', 'png', 'webp'],
     maxSizeBytes: 5 * 1024 * 1024,
   },
+  [FileContext.QUICK_ACCESSES]: {
+    validTypes: ['image/png', 'image/jpeg', 'image/webp'],
+    maxSizeBytes: 2 * 1024 * 1024,
+  },
   [FileContext.DOCUMENT_RECORDS]: {
     validTypes: [
       'pdf',

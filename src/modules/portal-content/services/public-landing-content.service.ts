@@ -68,11 +68,12 @@ export class PublicLandingContentService {
       ...(limit !== undefined && { take: limit }),
     });
 
-    return quickAccesses.map(({ id, title, description, iconKey, backgroundColor, url }) => ({
+    return quickAccesses.map(({ id, title, description, imageFileId, backgroundColor, url }) => ({
       id,
       title,
       description: description?.trim() || null,
-      iconKey,
+      imageFileId,
+      imageUrl: imageFileId ? this.filesService.buildPublicFileUrl(imageFileId) : null,
       backgroundColor,
       url: url.trim(),
     }));

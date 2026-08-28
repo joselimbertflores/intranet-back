@@ -29,10 +29,31 @@ import { Resource } from '../users/entities';
 
 const documentUploadConfig = FILE_UPLOAD_CONFIG[FileContext.DOCUMENT_RECORDS];
 const tutorialUploadConfig = FILE_UPLOAD_CONFIG[FileContext.TUTORIALS];
+const quickAccessUploadConfig = FILE_UPLOAD_CONFIG[FileContext.QUICK_ACCESSES];
 
 @Controller('files')
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
+
+  @Post('quick-accesses')
+  @ProtectedResource(Resource.CONTENT)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: quickAccessUploadConfig.maxSizeBytes } }))
+  uploadQuickAccessImage(
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addValidator(
+          new CustomFileTypeValidator({
+            validTypes: quickAccessUploadConfig.validTypes,
+            requireDetectedType: true,
+          }),
+        )
+        .addMaxSizeValidator({ maxSize: quickAccessUploadConfig.maxSizeBytes })
+        .build(),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.filesService.uploadQuickAccessImage(file);
+  }
 
   @Post('hero-slides')
   @UseInterceptors(FileInterceptor('file'))
