@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type { Request, Response } from 'express';
@@ -13,7 +13,9 @@ import {
 } from '../auth-cookies';
 import { GetAuthUser, Public } from '../decorators';
 import { CurrentUserResponseDto } from '../dtos/current-user-response.dto';
+import { BackchannelLogoutDto } from '../dtos/backchannel-logout.dto';
 import { AuthSessionService } from '../services/auth-session.service';
+import { TokenVerifierService } from '../services/token-verifier.service';
 
 @Controller('auth')
 export class AuthController {
@@ -22,6 +24,7 @@ export class AuthController {
 
   constructor(
     private readonly authSessionService: AuthSessionService,
+    private readonly tokenVerifierService: TokenVerifierService,
     configService: ConfigService<EnvironmentVariables, true>,
   ) {
     this.secureCookies = configService.getOrThrow('AUTH_COOKIE_SECURE', { infer: true });
@@ -60,12 +63,22 @@ export class AuthController {
     );
 
     if (sessionId) {
-      await this.authSessionService.deleteSession(sessionId);
+      await this.authSessionService.logoutSession(sessionId);
     }
 
     return {
       ok: true,
-      message: 'Logged out from this system',
+      message: 'Logged out',
     };
+  }
+
+  @Public()
+  @Post('backchannel-logout')
+  @HttpCode(HttpStatus.OK)
+  async backchannelLogout(@Body() body: BackchannelLogoutDto) {
+    const logoutToken = await this.tokenVerifierService.verifyLogoutToken(body.logout_token);
+    await this.authSessionService.deleteSessionsByIdentitySid(logoutToken.sid);
+
+    return { ok: true };
   }
 }

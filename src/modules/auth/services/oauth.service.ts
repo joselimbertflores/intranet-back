@@ -29,7 +29,7 @@ export class OAuthService {
       fullName: decodedAccessToken.name,
     });
 
-    return this.authSessionService.createSession(user, tokens);
+    return this.authSessionService.createSession(user, tokens, decodedAccessToken.sid);
   }
 
   async createAuthorizationRequest(): Promise<{ url: string; transactionId: string }> {
