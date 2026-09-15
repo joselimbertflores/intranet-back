@@ -126,18 +126,9 @@ export class OAuthController {
   }
 
   private buildFrontendUrl(path: string, params?: Record<string, string | undefined>): string {
-    const uiBaseUrl = this.configService.get('INTRANET_UI_URL', { infer: true });
-
-    if (!uiBaseUrl) {
-      const searchParams = new URLSearchParams();
-
-      for (const [key, value] of Object.entries(params ?? {})) {
-        if (value) searchParams.set(key, value);
-      }
-
-      const queryString = searchParams.toString();
-      return queryString ? `/${path}?${queryString}` : `/${path}`;
-    }
+    const uiBaseUrl =
+      this.configService.get('INTRANET_UI_URL', { infer: true }) ??
+      this.configService.getOrThrow('INTRANET_PUBLIC_URL', { infer: true });
 
     const url = new URL(path, this.ensureTrailingSlash(uiBaseUrl));
 

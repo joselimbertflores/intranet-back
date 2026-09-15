@@ -1,42 +1,33 @@
 # Autenticación de Intranet
 
-Intranet Backend es un cliente OAuth 2.0 confidencial de Identity Hub. Identity Hub autentica al usuario y controla su acceso global a la aplicación; Intranet mantiene el usuario proyectado, la autorización y la sesión local. El navegador recibe únicamente cookies `HttpOnly` con identificadores opacos, nunca los tokens ni el secreto del cliente.
+Intranet es un cliente OAuth 2.0 confidencial de Identity Hub. Usa Authorization Code con PKCE S256 y mantiene una sesión local server-side. El navegador recibe solamente una cookie `HttpOnly` con un identificador opaco; el access token, el refresh token y el secreto del cliente permanecen en el backend.
 
-## Login y callback
+## URLs y redirects
 
-1. `GET /auth/login` genera `state`, un `code_verifier` y su challenge PKCE S256.
-2. Intranet guarda durante cinco minutos una transacción en `oauth_transactions` con el hash de `state` y el verifier. La cookie `intranet_oauth_transaction`, limitada a `/auth`, contiene solo el ID aleatorio de esa transacción.
-3. El navegador se redirige a Identity Hub `/oauth/authorize` con el client ID, el callback derivado de `INTRANET_PUBLIC_URL` y los parámetros de PKCE.
-4. Identity Hub vuelve a `GET /auth/callback` con `code` y `state`. Intranet valida y consume la transacción de forma atómica y de un solo uso.
-5. El backend canjea el code en `/oauth/token` mediante HTTP Basic, enviando el `code_verifier` original.
-6. Tras validar el access token, sincroniza el shadow user, crea la sesión persistida y redirige al frontend. Los callbacks rechazados vuelven a la ruta local de error; un `invalid_grant` durante el canje reinicia la autorización.
+En la convención común, `CLIENT_PUBLIC_URL` corresponde a `INTRANET_PUBLIC_URL` y `CLIENT_UI_URL` a `INTRANET_UI_URL`.
 
-## Sesión, refresh y logout
+- `CLIENT_PUBLIC_URL` es la URL canónica del backend. Expone `GET /auth/login` y `GET /auth/callback`.
+- `launchUrl` normalmente es `<CLIENT_PUBLIC_URL>/auth/login`.
+- `redirectUri` es `<CLIENT_PUBLIC_URL>/auth/callback` y debe estar registrado en Identity Hub.
+- `CLIENT_UI_URL` es opcional para un frontend separado: define los redirects visuales y habilita CORS para ese origen con credenciales. Si se omite, se usa `CLIENT_PUBLIC_URL`.
+- El destino visual final lo decide Intranet después del callback. Actualmente el éxito va a `/admin` y los errores a `/auth/error`, sobre `CLIENT_UI_URL ?? CLIENT_PUBLIC_URL`.
+- `IDENTITY_HUB_PUBLIC_URL` se usa para `/oauth/authorize` y siempre como issuer (`iss`) esperado.
+- `IDENTITY_HUB_INTERNAL_URL` es opcional para `/oauth/token`, JWKS y el directorio interno; si se omite, esos accesos usan `IDENTITY_HUB_PUBLIC_URL`.
 
-`auth_sessions` guarda un ID aleatorio, el usuario local, los tokens emitidos por Identity Hub y la expiración del refresh token. La cookie `intranet_session` contiene únicamente el ID de la sesión y vence junto con el refresh.
+## Login y sesión
 
-El guard global carga la sesión y el usuario con sus roles y permisos. Si el access token expiró, renueva y persiste los tokens server-side; el refresh se serializa por sesión para manejar requests concurrentes. Un refresh vencido o rechazado con `invalid_grant` elimina la sesión y exige una nueva autorización. Los errores transitorios de Identity Hub o JWKS no eliminan una sesión válida.
+`GET /auth/login` genera `state`, `code_verifier` y `code_challenge`. La transacción OAuth temporal guarda server-side el hash de `state` y el verifier; su cookie contiene sólo un ID aleatorio. En el callback, la transacción se valida y consume una sola vez, y el backend canjea el code usando PKCE y autenticación del cliente.
 
-`POST /api/auth/logout` elimina la sesión y limpia las cookies locales, incluida cualquier transacción OAuth pendiente. No cierra la sesión global de Identity Hub.
+Tras validar el access token y sincronizar el usuario local, Intranet crea una fila en `auth_sessions`. La cookie `intranet_session` contiene sólo el ID de esa sesión; los tokens se almacenan exclusivamente en el backend.
 
-## JWT y JWKS
+La vigencia del access token se obtiene del claim `exp` del JWT; la sesión no guarda `accessTokenExpiresAt`. Cuando expira, el backend usa el refresh token, exige su rotación y persiste el nuevo par. El refresh se serializa por sesión mediante bloqueo de la fila para que requests concurrentes no consuman el mismo token.
 
-Intranet valida los access tokens con el JWKS publicado por Identity Hub. Comprueba `RS256`, `kid`, firma, issuer, audience, vigencia temporal y los claims `sub`, `externalKey` y `name`. El `externalKey` también debe coincidir con el usuario asociado a la sesión.
+Un refresh vencido o rechazado con `invalid_grant`, una sesión inexistente o una identidad que ya no coincide eliminan la sesión y producen `401`. Sólo un `401` debe iniciar una nueva autenticación. Los errores transitorios de Identity Hub, del endpoint de token o de JWKS se devuelven como errores temporales y conservan la sesión local.
 
-## Shadow users y autorización local
+`POST /api/auth/logout` elimina la sesión y las cookies locales. No cierra necesariamente la sesión SSO global que el navegador mantiene en Identity Hub.
 
-`externalKey` es el vínculo estable con Identity Hub. En el primer login se crea el shadow user con los roles configurados como autoasignables; en logins posteriores solo se sincroniza el nombre y se conservan los roles y permisos locales. La importación administrativa permite registrar anticipadamente usuarios asignables y elegir sus roles.
+## JWT, usuarios y autorización
 
-Identity Hub decide si el usuario puede acceder a Intranet. Dentro de la aplicación, Intranet autoriza localmente mediante roles y permisos por recurso y acción; esos permisos no provienen del token.
+Intranet valida firma `RS256`, `kid`, audience, vigencia y los claims `sub`, `externalKey` y `name`. `iss` se valida siempre contra `IDENTITY_HUB_PUBLIC_URL`, aunque JWKS se consulte mediante la URL interna.
 
-## Configuración relevante
-
-- `INTRANET_PUBLIC_URL`: URL pública del backend, usada para derivar `/auth/callback`.
-- `INTRANET_UI_URL`: URL opcional del frontend para redirects y CORS.
-- `IDENTITY_HUB_PUBLIC_URL`: base pública de authorize, token, issuer y JWKS.
-- `IDENTITY_HUB_INTERNAL_URL`: base opcional para consultas administrativas server-to-server.
-- `OAUTH_CLIENT_ID` y `OAUTH_CLIENT_SECRET`: credenciales del cliente confidencial.
-- `AUTH_COOKIE_SECURE` y `AUTH_COOKIE_SAME_SITE`: política de las cookies locales.
-- `BOOTSTRAP_ADMIN_EXTERNAL_KEY`: identificador usado únicamente para crear el primer administrador.
-
-`.env.template` es la referencia completa de configuración. Identity Hub debe registrar el callback `/auth/callback` resuelto sobre `INTRANET_PUBLIC_URL`.
+`externalKey` es el vínculo estable con Identity Hub. En el primer login se crea el usuario JIT con los roles cuyo `isAutoAssigned` está activo. En accesos posteriores se sincroniza el nombre sin reemplazar roles ni permisos locales. La importación administrativa permite registrar previamente usuarios asignables y elegir sus roles; la autorización dentro de Intranet continúa siendo local.
